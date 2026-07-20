@@ -1,0 +1,33 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# PortPilot local state
+*.store
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+Logs/
+Diagnostics/
+*.log
+.env
+.env.*
+!*.env.example
+Fixtures/Secrets/
+
+# macOS and editors
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+
