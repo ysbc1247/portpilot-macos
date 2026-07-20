@@ -4,11 +4,29 @@ import SwiftUI
 struct ActivePortsView: View {
     @EnvironmentObject private var model: AppModel
     @State private var selection = Set<String>()
+    @State private var protocolFilter: ListenerProtocol?
+    @State private var sort = SortChoice.port
+
+    private enum SortChoice: String, CaseIterable { case port = "Port", process = "Process", project = "Project", runtime = "Runtime", uptime = "Uptime" }
+
+    private var displayedListeners: [NetworkListener] {
+        model.filteredListeners
+            .filter { protocolFilter == nil || $0.protocolKind == protocolFilter }
+            .sorted { lhs, rhs in
+                switch sort {
+                case .port: lhs.port < rhs.port
+                case .process: lhs.process.name.localizedCaseInsensitiveCompare(rhs.process.name) == .orderedAscending
+                case .project: (lhs.process.project?.name ?? "~").localizedCaseInsensitiveCompare(rhs.process.project?.name ?? "~") == .orderedAscending
+                case .runtime: lhs.process.runtime.rawValue < rhs.process.runtime.rawValue
+                case .uptime: (lhs.process.identity.startTime ?? .distantFuture) < (rhs.process.identity.startTime ?? .distantFuture)
+                }
+            }
+    }
 
     var body: some View {
         HSplitView {
             Group {
-                if model.filteredListeners.isEmpty && !model.isRefreshing {
+                if displayedListeners.isEmpty && !model.isRefreshing {
                     EmptyStateView(
                         symbol: model.searchText.isEmpty ? "network.slash" : "magnifyingglass",
                         title: model.searchText.isEmpty ? "No active listeners" : "No matching listeners",
@@ -19,7 +37,7 @@ struct ActivePortsView: View {
                         action: model.refreshNow
                     )
                 } else {
-                    Table(model.filteredListeners, selection: $selection) {
+                    Table(displayedListeners, selection: $selection) {
                         TableColumn("Status") { listener in
                             HStack(spacing: 6) {
                                 StatusDot(status: listener.process.isSystemProcess ? .warning : .healthy)
@@ -85,6 +103,15 @@ struct ActivePortsView: View {
             }
         }
         .navigationTitle("Active Ports")
+        .toolbar {
+            Picker("Protocol", selection: $protocolFilter) {
+                Text("TCP & UDP").tag(nil as ListenerProtocol?)
+                ForEach(ListenerProtocol.allCases, id: \.self) { Text($0.rawValue).tag($0 as ListenerProtocol?) }
+            }
+            Picker("Sort", selection: $sort) {
+                ForEach(SortChoice.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+        }
         .onChange(of: selection) { _, newValue in model.selectedListenerID = newValue.first }
     }
 
@@ -241,6 +268,7 @@ private struct DiscoveredProfileReviewView: View {
     private func save() {
         let profile = LaunchProfileRecord(name: name, command: command, workingDirectory: workingDirectory)
         profile.kindRawValue = LaunchProfileKind.executable.rawValue
+        profile.isReviewed = reviewed
         let arguments = argumentsText.split(whereSeparator: \.isNewline).map(String.init)
         profile.argumentsData = (try? JSONEncoder().encode(arguments)) ?? Data("[]".utf8)
         context.insert(profile)

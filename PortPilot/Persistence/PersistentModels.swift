@@ -41,6 +41,7 @@ final class LaunchProfileRecord {
     var icon: String?
     var launchesAutomatically: Bool
     var isFavorite: Bool
+    var isReviewed: Bool
     var createdAt: Date
     var updatedAt: Date
 
@@ -64,6 +65,7 @@ final class LaunchProfileRecord {
         self.icon = nil
         self.launchesAutomatically = false
         self.isFavorite = false
+        self.isReviewed = true
         self.createdAt = Date()
         self.updatedAt = Date()
     }
@@ -222,4 +224,3 @@ enum PortPilotMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] { [PortPilotSchemaV1.self] }
     static var stages: [MigrationStage] { [] }
 }
-

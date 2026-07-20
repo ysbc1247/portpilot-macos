@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
@@ -27,6 +28,10 @@ struct RootView: View {
     @EnvironmentObject private var model: AppModel
     @State private var selection: AppSection? = .activePorts
     @State private var showsCommandPalette = false
+    @State private var didLaunchAutomaticProfiles = false
+    @Query private var profiles: [LaunchProfileRecord]
+    @Query private var dependencies: [ProfileDependencyRecord]
+    @Query private var expectedPorts: [ExpectedPortRecord]
 
     var body: some View {
         NavigationSplitView {
@@ -68,6 +73,11 @@ struct RootView: View {
             }
         }
         .sheet(isPresented: $showsCommandPalette) { CommandPaletteView(isPresented: $showsCommandPalette) }
+        .onChange(of: model.requestedSection) { _, requested in
+            guard let requested else { return }
+            selection = requested
+            model.requestedSection = nil
+        }
         .alert(item: $model.presentedError) { error in
             Alert(
                 title: Text("PortPilot couldn’t complete the action"),
@@ -75,6 +85,17 @@ struct RootView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .task {
+            guard !didLaunchAutomaticProfiles else { return }
+            didLaunchAutomaticProfiles = true
+            for profile in profiles where profile.launchesAutomatically {
+                if let configuration = profile.configuration(dependencies: dependencies, expectedPorts: expectedPorts) {
+                    await model.launchProfile(configuration)
+                }
+            }
+            model.setNotificationPorts(expectedPorts.map(\.port))
+        }
+        .onChange(of: expectedPorts.map(\.port)) { _, ports in model.setNotificationPorts(ports) }
     }
 
     @ViewBuilder
@@ -90,4 +111,3 @@ struct RootView: View {
         }
     }
 }
-

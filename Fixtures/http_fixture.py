@@ -8,11 +8,14 @@ import socketserver
 import sys
 import time
 
+STARTED_AT = time.monotonic()
+HEALTH_DELAY = 0.0
+
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
-            self.send_response(200)
+            self.send_response(200 if time.monotonic() - STARTED_AT >= HEALTH_DELAY else 503)
             self.end_headers()
             self.wfile.write(b"ok")
         else:
@@ -28,7 +31,10 @@ def main():
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--delay", type=float, default=0)
     parser.add_argument("--ignore-term", action="store_true")
+    parser.add_argument("--health-delay", type=float, default=0)
     args = parser.parse_args()
+    global HEALTH_DELAY
+    HEALTH_DELAY = args.health_delay
     if args.ignore_term:
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
     if args.delay:
@@ -40,4 +46,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

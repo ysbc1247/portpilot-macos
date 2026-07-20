@@ -77,6 +77,7 @@ struct LaunchProfileConfiguration: Hashable, Codable, Sendable, Identifiable {
     var icon: String?
     var launchesAutomatically: Bool
     var isFavorite: Bool
+    var isReviewed: Bool
 
     init(
         id: UUID = UUID(),
@@ -99,7 +100,8 @@ struct LaunchProfileConfiguration: Hashable, Codable, Sendable, Identifiable {
         tags: [String] = [],
         icon: String? = nil,
         launchesAutomatically: Bool = false,
-        isFavorite: Bool = false
+        isFavorite: Bool = false,
+        isReviewed: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -122,6 +124,7 @@ struct LaunchProfileConfiguration: Hashable, Codable, Sendable, Identifiable {
         self.icon = icon
         self.launchesAutomatically = launchesAutomatically
         self.isFavorite = isFavorite
+        self.isReviewed = isReviewed
     }
 }
 
@@ -212,4 +215,3 @@ enum DependencyPlanner {
         return layers
     }
 }
-

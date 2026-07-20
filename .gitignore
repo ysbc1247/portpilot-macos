@@ -23,6 +23,7 @@ Diagnostics/
 .env.*
 !*.env.example
 Fixtures/Secrets/
+.portpilot-fixtures/
 
 # macOS and editors
 .DS_Store
@@ -30,4 +31,3 @@ Fixtures/Secrets/
 *.swo
 .idea/
 .vscode/
-

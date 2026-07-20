@@ -63,3 +63,8 @@ protocol LaunchProfileServing: Sendable {
     func launch(_ profile: LaunchProfileConfiguration) async throws
     func stop(profileID: UUID, timeoutSeconds: Double) async throws
 }
+
+protocol ManagedProcessLaunching: Sendable {
+    func launch(_ profile: LaunchProfileConfiguration) async throws
+    func stop(profileID: UUID, timeoutSeconds: Double) async throws
+}
