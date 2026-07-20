@@ -73,6 +73,10 @@ struct RootView: View {
             }
         }
         .sheet(isPresented: $showsCommandPalette) { CommandPaletteView(isPresented: $showsCommandPalette) }
+        .sheet(item: $model.pendingLaunchConflict) { pending in
+            PortConflictResolutionView(pending: pending)
+                .environmentObject(model)
+        }
         .onChange(of: model.requestedSection) { _, requested in
             guard let requested else { return }
             selection = requested
@@ -109,5 +113,46 @@ struct RootView: View {
         case .docker: DockerView()
         case .settings: SettingsView()
         }
+    }
+}
+
+private struct PortConflictResolutionView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    let pending: PendingLaunchConflict
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: PortPilotSpacing.large) {
+            Label("Port \(pending.conflict.expectedPort.port) is already occupied", systemImage: "exclamationmark.triangle.fill")
+                .font(.title2.bold()).foregroundStyle(.orange)
+            Text("\(pending.profile.name) has not been started. PortPilot will never stop the occupying process without your approval.")
+                .foregroundStyle(.secondary)
+            GroupBox("Occupying process") {
+                VStack(spacing: 10) {
+                    InspectorRow(title: "Process", value: pending.conflict.listener.process.name)
+                    InspectorRow(title: "PID", value: String(pending.conflict.listener.process.identity.pid))
+                    InspectorRow(title: "Executable", value: pending.conflict.listener.process.executablePath ?? "Unavailable")
+                    InspectorRow(title: "Project", value: pending.conflict.listener.process.project?.name ?? "Not associated")
+                    InspectorRow(title: "PortPilot managed", value: pending.conflict.listener.process.launchedByPortPilot ? "Yes" : "No")
+                }
+            }
+            if pending.conflict.listener.process.isSystemProcess {
+                Label("This is a protected system process and cannot be stopped by PortPilot.", systemImage: "lock.shield")
+                    .foregroundStyle(.red)
+            }
+            HStack {
+                Button("Cancel", role: .cancel) { model.pendingLaunchConflict = nil; dismiss() }
+                Button("Inspect Process") { model.inspectPendingConflict(); dismiss() }
+                Button("Edit Expected Port") { model.editProfileForPendingConflict(); dismiss() }
+                Spacer()
+                Button("Stop Process") { Task { await model.resolvePendingConflict(startAfterStopping: false); dismiss() } }
+                    .disabled(pending.conflict.listener.process.isSystemProcess)
+                Button("Stop and Start Profile") { Task { await model.resolvePendingConflict(startAfterStopping: true); dismiss() } }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(pending.conflict.listener.process.isSystemProcess)
+            }
+        }
+        .padding(PortPilotSpacing.xLarge)
+        .frame(width: 680)
     }
 }

@@ -21,18 +21,55 @@ final class HarmlessListenerIntegrationTests: XCTestCase {
         XCTAssertTrue(found?.process.identity.isStrong == true)
     }
 
-    private func startFixture() throws -> Process {
-        let port = Int.random(in: 49_152...60_000)
+    func testGracefulStopTerminatesOwnedFixture() async throws {
+        let server = try startFixture()
+        defer { stopFixture(server) }
+        let readiness = server.standardOutput as? Pipe
+        _ = readiness?.fileHandleForReading.availableData
+        let runner = FoundationCommandRunner()
+        let listener = try await waitForListener(pid: server.processIdentifier, runner: runner)
+        let controller = SafeProcessController(runner: runner, verifier: ProcessIdentityVerifier(runner: runner))
+        let outcome = try await controller.terminate(listener.process, mode: .graceful(timeoutSeconds: 2))
+        XCTAssertTrue(outcome.didExit)
+    }
+
+    func testIgnoringFixtureRequiresConfirmedForceStop() async throws {
+        let server = try startFixture(ignoreTerm: true)
+        defer { stopFixture(server) }
+        let readiness = server.standardOutput as? Pipe
+        _ = readiness?.fileHandleForReading.availableData
+        let runner = FoundationCommandRunner()
+        let listener = try await waitForListener(pid: server.processIdentifier, runner: runner)
+        let controller = SafeProcessController(runner: runner, verifier: ProcessIdentityVerifier(runner: runner))
+        let graceful = try await controller.terminate(listener.process, mode: .graceful(timeoutSeconds: 0.3))
+        XCTAssertFalse(graceful.didExit)
+        let forced = try await controller.terminate(listener.process, mode: .force(confirmed: true))
+        XCTAssertTrue(forced.didExit)
+    }
+
+    private func startFixture(ignoreTerm: Bool = false) throws -> Process {
         let script = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Fixtures/http_fixture.py")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-        process.arguments = [script.path, "--port", String(port)]
+        process.arguments = [script.path, "--port", "0"] + (ignoreTerm ? ["--ignore-term"] : [])
         process.standardOutput = Pipe()
         process.standardError = Pipe()
         try process.run()
         return process
+    }
+
+    private func waitForListener(pid: Int32, runner: any CommandRunning) async throws -> NetworkListener {
+        let discovery = LocalPortDiscovery(runner: runner)
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            if let listener = try await discovery.discover().first(where: { $0.process.identity.pid == pid }) {
+                return listener
+            }
+            try await Task.sleep(for: .milliseconds(150))
+        }
+        throw XCTSkip("The fixture listener did not become discoverable before timeout.")
     }
 
     private func stopFixture(_ process: Process) {
@@ -44,4 +81,3 @@ final class HarmlessListenerIntegrationTests: XCTestCase {
         process.waitUntilExit()
     }
 }
-

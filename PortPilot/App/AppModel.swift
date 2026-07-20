@@ -15,6 +15,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var runningProfileIDs = Set<UUID>()
     @Published private(set) var profileFailures: [UUID: String] = [:]
     @Published var requestedSection: AppSection?
+    @Published var pendingLaunchConflict: PendingLaunchConflict?
 
     private let monitor: PortMonitor
     private let processController: any ProcessControlling
@@ -22,6 +23,7 @@ final class AppModel: ObservableObject {
     private let launchService: any LaunchProfileServing
     private let projectOrchestrator: ProjectOrchestrator
     private let notifier: any PortNotifying
+    private let dockerAssociations: DockerAssociationProvider
     private var notificationPorts = Set<UInt16>()
     let logBuffer: ServiceLogBuffer
     private var monitoringTask: Task<Void, Never>?
@@ -51,6 +53,9 @@ final class AppModel: ObservableObject {
         self.projectOrchestrator = ProjectOrchestrator(launcher: coordinator)
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
+        self.dockerAssociations = DockerAssociationProvider(
+            client: DockerCLIClient(runner: runner)
+        )
     }
 
     var filteredListeners: [NetworkListener] {
@@ -78,7 +83,7 @@ final class AppModel: ObservableObject {
             let stream = await monitor.updates(every: refreshInterval)
             for await update in stream {
                 guard !Task.isCancelled else { break }
-                listeners = update.snapshot.listeners
+                listeners = await dockerAssociations.correlate(update.snapshot.listeners)
                 recentChanges = Array((update.diff.added + update.diff.removed).prefix(12))
                 lastRefresh = update.snapshot.capturedAt
                 isRefreshing = false
@@ -148,9 +153,20 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func launchProfile(_ profile: LaunchProfileConfiguration) async {
+    func launchProfile(_ profile: LaunchProfileConfiguration, bypassCachedConflict: Bool = false) async {
         let startedAt = Date()
         profileFailures[profile.id] = nil
+        if !bypassCachedConflict,
+           let conflict = PortConflictDetector.conflicts(for: profile, listeners: listeners).first {
+            pendingLaunchConflict = PendingLaunchConflict(profile: profile, conflict: conflict)
+            await record(HistoryEvent(
+                id: UUID(), timestamp: startedAt, port: conflict.expectedPort.port,
+                processIdentity: conflict.listener.process.identity, processName: conflict.listener.process.name,
+                projectID: profile.projectID, profileID: profile.id, type: .portConflictDetected,
+                result: .cancelled, errorDetails: "Launch paused for explicit conflict resolution.", durationSeconds: 0
+            ))
+            return
+        }
         do {
             try await launchService.launch(profile)
             runningProfileIDs.insert(profile.id)
@@ -172,6 +188,50 @@ final class AppModel: ObservableObject {
             ))
         } catch {
             profileFailures[profile.id] = error.localizedDescription
+            presentedError = .unexpected(error.localizedDescription)
+        }
+    }
+
+    func inspectPendingConflict() {
+        guard let pendingLaunchConflict else { return }
+        selectedListenerID = pendingLaunchConflict.conflict.listener.id
+        requestedSection = .activePorts
+        self.pendingLaunchConflict = nil
+    }
+
+    func editProfileForPendingConflict() {
+        requestedSection = .launchProfiles
+        pendingLaunchConflict = nil
+    }
+
+    func resolvePendingConflict(startAfterStopping: Bool) async {
+        guard let pending = pendingLaunchConflict else { return }
+        let listener = pending.conflict.listener
+        do {
+            let outcome = try await processController.terminate(
+                listener.process,
+                mode: .graceful(timeoutSeconds: pending.profile.shutdownTimeoutSeconds)
+            )
+            guard outcome.didExit else {
+                presentedError = .unexpected("The conflicting process did not stop before the timeout. Inspect it before considering a force stop.")
+                return
+            }
+            pendingLaunchConflict = nil
+            await record(HistoryEvent(
+                id: UUID(), timestamp: Date(), port: listener.port,
+                processIdentity: listener.process.identity, processName: listener.process.name,
+                projectID: pending.profile.projectID, profileID: pending.profile.id,
+                type: .gracefulStopRequested, result: .succeeded,
+                errorDetails: "Stopped after explicit port-conflict approval.", durationSeconds: outcome.durationSeconds
+            ))
+            if startAfterStopping {
+                await launchProfile(pending.profile, bypassCachedConflict: true)
+            } else {
+                refreshNow()
+            }
+        } catch let error as PortPilotError {
+            presentedError = error
+        } catch {
             presentedError = .unexpected(error.localizedDescription)
         }
     }

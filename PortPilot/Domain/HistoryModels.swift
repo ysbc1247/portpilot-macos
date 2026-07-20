@@ -48,6 +48,12 @@ struct PortConflict: Hashable, Sendable, Identifiable {
     let owningProjectID: UUID?
 }
 
+struct PendingLaunchConflict: Identifiable, Sendable {
+    let id = UUID()
+    let profile: LaunchProfileConfiguration
+    let conflict: PortConflict
+}
+
 enum PortConflictDetector {
     static func conflicts(
         for profile: LaunchProfileConfiguration,
@@ -61,4 +67,3 @@ enum PortConflictDetector {
         }
     }
 }
-

@@ -44,6 +44,7 @@
 		A368C8A29601E11AC4D76074 /* DockerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7B76F793C3DCF713BECAC7C /* DockerView.swift */; };
 		A4575D6DC4601145B79BE189 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B0D2D8572CEBE479B31BE0 /* RootView.swift */; };
 		A4943600C03DD21915F3CE58 /* ProfileLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE88DF65C5DB28908D15F35 /* ProfileLogsView.swift */; };
+		A611F123A71484D4C4BE4B3E /* DockerAssociationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0717C9265EE8B8AE3AA5783C /* DockerAssociationProvider.swift */; };
 		AA9D31C256AC11EE0519F5E0 /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDFA23C0116076D62704D281 /* ProjectsView.swift */; };
 		AB18341B4BC430A6100CF5C1 /* HistoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC4021D9637DEB6B94AE8C3 /* HistoryModels.swift */; };
 		AC60A2BF246E85BDE5CFCA52 /* ManagedProcessLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F0C8B60081DE621B6DC4111 /* ManagedProcessLauncher.swift */; };
@@ -86,6 +87,7 @@
 
 /* Begin PBXFileReference section */
 		05D1AFAAE4BC8C65863BE402 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		0717C9265EE8B8AE3AA5783C /* DockerAssociationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerAssociationProvider.swift; sourceTree = "<group>"; };
 		0EF40E267CF44956DA5B1920 /* SecurityAndLoggingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityAndLoggingTests.swift; sourceTree = "<group>"; };
 		0F1E20BEAFDF32D2717B6B76 /* ProcessMetadataProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMetadataProvider.swift; sourceTree = "<group>"; };
 		11CEEC2EC61035E13E1AAFC6 /* lsof_tcp.fields */ = {isa = PBXFileReference; path = lsof_tcp.fields; sourceTree = "<group>"; };
@@ -164,6 +166,7 @@
 		103CEE171322EDE770491A46 /* Docker */ = {
 			isa = PBXGroup;
 			children = (
+				0717C9265EE8B8AE3AA5783C /* DockerAssociationProvider.swift */,
 				936209D6690833342737FEF1 /* DockerCLIClient.swift */,
 				72D53A60228D27F664308DB0 /* DockerModels.swift */,
 			);
@@ -617,6 +620,7 @@
 				FCB463D1A809251EDEC01EF4 /* CommandPaletteView.swift in Sources */,
 				C65BE0F5B944B2C0931F042B /* DesignSystem.swift in Sources */,
 				ED6BE44CEA05BAE5F6B9C6FA /* DiagnosticsReportBuilder.swift in Sources */,
+				A611F123A71484D4C4BE4B3E /* DockerAssociationProvider.swift in Sources */,
 				3F7EE441E1FDCE1A5287CEE1 /* DockerCLIClient.swift in Sources */,
 				307830FEF0F5EF89F2624FA1 /* DockerModels.swift in Sources */,
 				A368C8A29601E11AC4D76074 /* DockerView.swift in Sources */,
@@ -732,6 +736,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -753,6 +758,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -892,6 +898,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
@@ -907,6 +914,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

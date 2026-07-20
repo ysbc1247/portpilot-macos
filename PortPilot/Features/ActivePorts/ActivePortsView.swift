@@ -6,6 +6,7 @@ struct ActivePortsView: View {
     @State private var selection = Set<String>()
     @State private var protocolFilter: ListenerProtocol?
     @State private var sort = SortChoice.port
+    @SceneStorage("activePorts.columnCustomization") private var columnCustomization: TableColumnCustomization<NetworkListener>
 
     private enum SortChoice: String, CaseIterable { case port = "Port", process = "Process", project = "Project", runtime = "Runtime", uptime = "Uptime" }
 
@@ -37,45 +38,8 @@ struct ActivePortsView: View {
                         action: model.refreshNow
                     )
                 } else {
-                    Table(displayedListeners, selection: $selection) {
-                        TableColumn("Status") { listener in
-                            HStack(spacing: 6) {
-                                StatusDot(status: listener.process.isSystemProcess ? .warning : .healthy)
-                                Text(listener.protocolKind.rawValue)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .width(min: 70, ideal: 82, max: 95)
-                        TableColumn("Port") { PortBadge(port: $0.port) }
-                            .width(min: 72, ideal: 82, max: 100)
-                        TableColumn("Process") { listener in
-                            Label(listener.process.name, systemImage: listener.process.runtime.symbolName)
-                                .lineLimit(1)
-                        }
-                        .width(min: 130, ideal: 180)
-                        TableColumn("Project") { listener in
-                            Text(listener.process.project?.name ?? "—")
-                                .foregroundStyle(listener.process.project == nil ? .secondary : .primary)
-                        }
-                        .width(min: 100, ideal: 150)
-                        TableColumn("PID") { listener in
-                            Text(listener.process.identity.pid, format: .number.grouping(.never)).monospacedDigit()
-                        }
-                        .width(min: 55, ideal: 65, max: 90)
-                        TableColumn("Address") { listener in
-                            Text(listener.address)
-                                .font(.system(.body, design: .monospaced))
-                                .lineLimit(1)
-                        }
-                        .width(min: 95, ideal: 130)
-                        TableColumn("Runtime") { listener in Text(listener.process.runtime.rawValue) }
-                            .width(min: 90, ideal: 120)
-                        TableColumn("Uptime") { listener in
-                            Text(listener.process.identity.startTime.map { $0.formatted(.relative(presentation: .numeric)) } ?? "Unknown")
-                                .foregroundStyle(.secondary)
-                        }
-                        .width(min: 90, ideal: 105)
+                    Table(displayedListeners, selection: $selection, columnCustomization: $columnCustomization) {
+                        activePortColumns
                     }
                     .contextMenu(forSelectionType: String.self) { ids in
                         if let listener = model.listeners.first(where: { ids.contains($0.id) }) {
@@ -118,6 +82,51 @@ struct ActivePortsView: View {
     private func copy(_ value: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(value, forType: .string)
+    }
+
+    @TableColumnBuilder<NetworkListener, Never>
+    private var activePortColumns: some TableColumnContent<NetworkListener, Never> {
+        TableColumn("Status") { (listener: NetworkListener) in
+            HStack(spacing: 6) {
+                StatusDot(status: listener.process.isSystemProcess ? .warning : .healthy)
+                Text(listener.protocolKind.rawValue).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .width(min: 70, ideal: 82, max: 95)
+        .customizationID("status")
+        TableColumn("Port") { (listener: NetworkListener) in PortBadge(port: listener.port) }
+            .width(min: 72, ideal: 82, max: 100)
+            .customizationID("port")
+        TableColumn("Process") { (listener: NetworkListener) in
+            Label(listener.process.name, systemImage: listener.process.runtime.symbolName).lineLimit(1)
+        }
+        .width(min: 130, ideal: 180)
+        .customizationID("process")
+        TableColumn("Project") { (listener: NetworkListener) in
+            Text(listener.process.project?.name ?? "—")
+                .foregroundStyle(listener.process.project == nil ? .secondary : .primary)
+        }
+        .width(min: 100, ideal: 150)
+        .customizationID("project")
+        TableColumn("PID") { (listener: NetworkListener) in
+            Text(listener.process.identity.pid, format: .number.grouping(.never)).monospacedDigit()
+        }
+        .width(min: 55, ideal: 65, max: 90)
+        .customizationID("pid")
+        TableColumn("Address") { (listener: NetworkListener) in
+            Text(listener.address).font(.system(.body, design: .monospaced)).lineLimit(1)
+        }
+        .width(min: 95, ideal: 130)
+        .customizationID("address")
+        TableColumn("Runtime") { (listener: NetworkListener) in Text(listener.process.runtime.rawValue) }
+            .width(min: 90, ideal: 120)
+            .customizationID("runtime")
+        TableColumn("Uptime") { (listener: NetworkListener) in
+            Text(listener.process.identity.startTime.map { $0.formatted(.relative(presentation: .numeric)) } ?? "Unknown")
+                .foregroundStyle(.secondary)
+        }
+        .width(min: 90, ideal: 105)
+        .customizationID("uptime")
     }
 }
 
@@ -169,6 +178,17 @@ private struct ProcessInspectorView: View {
                             InspectorRow(title: "Name", value: project.name)
                             InspectorRow(title: "Root", value: project.rootPath)
                             InspectorRow(title: "Evidence", value: project.evidence)
+                        }
+                    }
+                }
+                if let docker = listener.process.docker {
+                    GroupBox("Docker association") {
+                        VStack(spacing: 10) {
+                            InspectorRow(title: "Container", value: docker.containerName)
+                            InspectorRow(title: "Container ID", value: docker.containerID)
+                            InspectorRow(title: "Image", value: docker.image)
+                            InspectorRow(title: "Container port", value: docker.containerPort.map(String.init) ?? "Unavailable")
+                            if let service = docker.composeService { InspectorRow(title: "Compose service", value: service) }
                         }
                     }
                 }
