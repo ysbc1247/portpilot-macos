@@ -120,7 +120,10 @@ struct RootView: View {
         case .sessions: SessionsView()
         case .launchProfiles: LaunchProfilesView()
         case .history: HistoryView()
-        case .docker: DockerView()
+        case .docker: DockerView(
+            client: model.dockerService,
+            lifecycleRecorder: model.lifecycleEventRecorder
+        )
         case .settings: SettingsView()
         }
     }

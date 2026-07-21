@@ -9,6 +9,7 @@ Durable engineering and product decisions live in this directory. Temporary bran
 - `LIFECYCLE_INTELLIGENCE.md` — runtime, readiness, health, event, and incident contracts.
 - `PROJECT_DISCOVERY.md` — bounded review-only discovery and native manifest interchange.
 - `SESSION_MODEL.md` — workspace capture, comparison, preflight, restore, rollback, and persistence.
+- `DOCKER_CONTEXT.md` — batched container inspection and exact Compose mutation authority.
 - `PHASE_2_AUDIT.md` — evidence-based starting audit and risks.
 - `PHASE_2_IMPLEMENTATION_PLAN.md` — staged Phase 2 delivery and verification contract.
 - `IMPLEMENTATION_PLAN.md` — original implementation plan retained for project history.

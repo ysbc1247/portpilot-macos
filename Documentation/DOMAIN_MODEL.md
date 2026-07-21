@@ -26,6 +26,7 @@ DevBerth models operating-system evidence, user-authored intent, actual executio
 | `LifecycleEventContextRecord` | Severity, source, trigger, fingerprint, listener, duration, and relationship context for a frozen V2 lifecycle event | Same retention as base event | V5 sidecar |
 | `RuntimeIncidentSummary` | Deterministic explanation built from ordered lifecycle evidence | Newest 250 incidents | V5 `RuntimeIncidentSummaryRecord` |
 | `ServiceCheckConfiguration` | Reviewed readiness/health criterion with timing, retries, and safe failure guidance | Managed-service configuration lifetime | V6 `ManagedServiceCheckRecord` sidecar |
+| `DockerComposeContext` | Transient proof that canonical Compose labels, filesystem identities, current configuration hash, and exact container membership agree | At most one short monitoring-cache interval; revalidated before action | No |
 
 The existing “Launch Profiles” feature and `LaunchProfileRecord` class retain their V1 names only as compatibility surfaces. New domain and service code uses managed-service terminology. A future data migration may rename storage entities only if SwiftData compatibility is proven against shipped fixtures.
 
@@ -47,6 +48,7 @@ The existing “Launch Profiles” feature and `LaunchProfileRecord` class retai
 - A dedicated managed process group is an application-created ownership boundary. An external PGID is observation only and never grants group-signal authority.
 - A descendant that leaves the controlled group remains ownership evidence but is excluded from group termination unless a separate reviewed controller claims it.
 - An inferred owner category is explanatory evidence, not action authority. Lifecycle requests must route through a controller whose exact context is available; otherwise the action is refused without falling back to a PID signal.
+- Compose labels alone establish ownership evidence but not service-mutation authority. `DockerComposeContext` exists only after exact path, hash, and container-membership proof; it is never persisted as durable trust and must be rebuilt before every mutation.
 
 ## V2 persistence migration
 
@@ -82,7 +84,7 @@ Profiles without additional checks retain their pre-V6 exact validation digest. 
 
 - UI badges must say whether a value is observed, inferred, reviewed, or verified.
 - Lifecycle actions must route through an owner/controller and cannot be enabled merely because an observation has a PID.
-- Managed registration and exact Docker metadata may authorize their matching controller. Compose labels, Homebrew paths, launchd ancestry, supervisor ancestry, and other inference do not authorize service-manager actions without exact controller context.
+- Managed registration and exact standalone-container metadata may authorize their matching controller. Compose labels authorize service scope only after canonical filesystem/hash/membership proof; Homebrew paths, launchd ancestry, supervisor ancestry, and other inference do not authorize service-manager actions without exact controller context.
 - Restart availability must come from `RestartTrustAssessment`, not from the presence of a command line.
 - Normal launch paths must also compare V4 validation evidence with the current configuration digest; a stale cached trust row cannot authorize launch.
 - Runtime, ownership, lifecycle, and discovery tables require explicit retention policies before they receive continuous production writes. Lifecycle events and incidents now have production bounds; session/discovery retention is completed with their workflows.

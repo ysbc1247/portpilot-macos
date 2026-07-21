@@ -37,6 +37,8 @@ final class AppModel: ObservableObject {
     private let workspaceSessions: WorkspaceSessionCoordinator
     private let notifier: any PortNotifying
     private let dockerAssociations: DockerAssociationProvider
+    let dockerService: any DockerServing
+    let lifecycleEventRecorder: (any RuntimeLifecycleRecording)?
     private let projectDiscovery: any ProjectDiscoveryServing
     private let projectManifest: any ProjectManifestServing
     private var notificationPorts = Set<UInt16>()
@@ -100,12 +102,15 @@ final class AppModel: ObservableObject {
             verifier: ProcessFingerprintVerifier(runner: runner)
         )
         let dockerClient = DockerCLIClient(runner: runner)
+        self.dockerService = dockerClient
+        self.lifecycleEventRecorder = lifecycleRecorder
         self.monitor = PortMonitor(discoverer: service)
         self.lifecycleRouter = lifecycleRouter ?? OwnerAwareLifecycleRouter(
             processController: resolvedProcessController,
             managedServiceController: coordinator,
             dockerController: dockerClient,
-            runtimeRegistry: runtimeRegistry
+            runtimeRegistry: runtimeRegistry,
+            lifecycleRecorder: lifecycleRecorder
         )
         self.historyRecorder = historyRecorder
         self.ownershipRecorder = ownershipRecorder
@@ -133,7 +138,10 @@ final class AppModel: ObservableObject {
         )
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
-        self.dockerAssociations = DockerAssociationProvider(client: dockerClient)
+        self.dockerAssociations = DockerAssociationProvider(
+            client: dockerClient,
+            lifecycleRecorder: lifecycleRecorder
+        )
         self.projectDiscovery = projectDiscovery ?? LocalProjectDiscoveryService()
         self.projectManifest = projectManifest ?? LocalProjectManifestService()
         lifecycleTask = Task { [weak self, resolvedRuntimeLifecycle] in

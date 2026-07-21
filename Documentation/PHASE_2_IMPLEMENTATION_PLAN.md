@@ -4,7 +4,7 @@ This plan follows the evidence in `PHASE_2_AUDIT.md`. Each slice must preserve t
 
 ## Delivery slices
 
-Current status on 2026-07-21: slices 1–8 are implemented and locally validated. Docker/Compose context, product redesign, and final hardening in slices 9–10 remain active work; the optional alias router remains deferred.
+Current status on 2026-07-21: slices 1–8 and the Docker/Compose control half of slice 9 are implemented and locally validated. The broader product redesign and final hardening in slices 9–10 remain active work; the optional alias router remains deferred.
 
 1. **Audit and plan**
    - Freeze the baseline, gaps, measurements, removals, and acceptance evidence.
@@ -51,7 +51,7 @@ Current status on 2026-07-21: slices 1–8 are implemented and locally validated
    - Implement session capture, comparison, dry-run preview, conflicts, dependency-order restore, independent parallelism, readiness waits, rollback, and restore history.
 
 9. **Docker/Compose context and native product redesign**
-   - Retain health/restart policy, full Compose project/service/files/directory/environment context, and route exact scoped actions.
+   - **Implemented:** retain health/restart policy, full Compose project/service/files/directory/environment context, and route exact revalidated stop/restart/remove actions without unrelated-service or host-PID fallback.
    - Redesign navigation to Runtime, Projects, Sessions, Managed Services, History, Docker, and Settings.
    - Add grouped/saved runtime views, ownership/trust/health columns, complete inspector sections, onboarding, compact menu metrics, and the expanded command palette.
    - Keep every status understandable without color and every user-facing string localization-ready.

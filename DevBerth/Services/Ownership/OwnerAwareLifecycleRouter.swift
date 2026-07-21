@@ -5,17 +5,20 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
     private let managedServiceController: any LaunchProfileServing
     private let dockerController: any DockerServing
     private let runtimeRegistry: ManagedRuntimeRegistry
+    private let lifecycleRecorder: (any RuntimeLifecycleRecording)?
 
     init(
         processController: any ProcessControlling,
         managedServiceController: any LaunchProfileServing,
         dockerController: any DockerServing,
-        runtimeRegistry: ManagedRuntimeRegistry
+        runtimeRegistry: ManagedRuntimeRegistry,
+        lifecycleRecorder: (any RuntimeLifecycleRecording)? = nil
     ) {
         self.processController = processController
         self.managedServiceController = managedServiceController
         self.dockerController = dockerController
         self.runtimeRegistry = runtimeRegistry
+        self.lifecycleRecorder = lifecycleRecorder
     }
 
     func perform(
@@ -72,6 +75,13 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
             switch action {
             case .gracefulStop:
                 try await dockerController.stop(containerID: docker.containerID)
+                await recordDockerEvent(
+                    category: .dockerContainerStopped,
+                    summary: "Docker stopped container \(docker.containerName).",
+                    docker: docker,
+                    graph: graph,
+                    startedAt: startedAt
+                )
                 return result(
                     controller: .dockerContainer,
                     action: action,
@@ -81,11 +91,34 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
                 )
             case .restart:
                 try await dockerController.restart(containerID: docker.containerID)
+                await recordDockerEvent(
+                    category: .dockerContainerStarted,
+                    summary: "Docker restarted container \(docker.containerName).",
+                    docker: docker,
+                    graph: graph,
+                    startedAt: startedAt
+                )
                 return result(
                     controller: .dockerContainer,
                     action: action,
                     didStop: false,
                     summary: "Docker restarted container \(docker.containerName).",
+                    startedAt: startedAt
+                )
+            case .remove:
+                try await dockerController.remove(containerID: docker.containerID)
+                await recordDockerEvent(
+                    category: .dockerContainerStopped,
+                    summary: "Docker removed container \(docker.containerName).",
+                    docker: docker,
+                    graph: graph,
+                    startedAt: startedAt
+                )
+                return result(
+                    controller: .dockerContainer,
+                    action: action,
+                    didStop: true,
+                    summary: "Docker removed exact container \(docker.containerName).",
                     startedAt: startedAt
                 )
             case .inspect, .forceStop:
@@ -102,7 +135,7 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
                 mode = .graceful(timeoutSeconds: 5)
             case .forceStop:
                 mode = .force(confirmed: forceConfirmed)
-            case .inspect, .restart:
+            case .inspect, .restart, .remove:
                 throw DevBerthError.ownerActionUnavailable(
                     owner: graph.primaryConclusion.value,
                     reason: "External observations do not provide a verified restart definition."
@@ -123,9 +156,39 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
             )
 
         case .dockerComposeService:
-            throw DevBerthError.ownerActionUnavailable(
-                owner: graph.primaryConclusion.value,
-                reason: "Compose project files, working directory, and environment context must be verified before a scoped Compose action. No host PID signal was sent."
+            guard let docker = graph.listener.process.docker,
+                  let context = docker.composeContext else {
+                throw DevBerthError.ownerActionUnavailable(
+                    owner: graph.primaryConclusion.value,
+                    reason: "Compose project files, working directory, configuration hash, environment context, and exact container membership must be verified before a scoped action. No host PID signal was sent."
+                )
+            }
+            switch action {
+            case .gracefulStop:
+                try await dockerController.stopComposeService(context: context)
+            case .restart:
+                try await dockerController.restartComposeService(context: context)
+            case .remove:
+                try await dockerController.removeComposeService(context: context)
+            case .inspect, .forceStop:
+                throw DevBerthError.ownerActionUnavailable(
+                    owner: graph.primaryConclusion.value,
+                    reason: "Use the verified Compose service actions rather than a host PID signal."
+                )
+            }
+            await recordDockerEvent(
+                category: .dockerComposeChanged,
+                summary: "Compose \(context.projectName)/\(context.serviceName) completed \(action.rawValue).",
+                docker: docker,
+                graph: graph,
+                startedAt: startedAt
+            )
+            return result(
+                controller: .dockerComposeService,
+                action: action,
+                didStop: action != .restart,
+                summary: "Docker Compose completed \(action.rawValue) for exact service \(context.projectName)/\(context.serviceName).",
+                startedAt: startedAt
             )
         case .homebrewService:
             throw DevBerthError.ownerActionUnavailable(
@@ -159,5 +222,33 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
             summary: summary,
             durationSeconds: Date().timeIntervalSince(startedAt)
         )
+    }
+
+    private func recordDockerEvent(
+        category: LifecycleEventCategory,
+        summary: String,
+        docker: DockerAssociation,
+        graph: RuntimeOwnershipGraph,
+        startedAt: Date
+    ) async {
+        guard let lifecycleRecorder else { return }
+        try? await lifecycleRecorder.record(LifecycleEvent(
+            timestamp: Date(),
+            managedServiceID: graph.managedServiceID,
+            projectID: graph.projectID,
+            category: category,
+            outcome: .succeeded,
+            source: .docker,
+            trigger: .userAction,
+            summary: summary,
+            details: [
+                "containerID": docker.containerID,
+                "containerName": docker.containerName,
+                "composeProject": docker.composeProject ?? "",
+                "composeService": docker.composeService ?? ""
+            ],
+            listenerID: graph.listenerID,
+            durationSeconds: Date().timeIntervalSince(startedAt)
+        ))
     }
 }

@@ -163,6 +163,7 @@ enum LifecycleActionKind: String, Codable, Hashable, Sendable {
     case gracefulStop
     case forceStop
     case restart
+    case remove
 }
 
 struct ProcessLineageNode: Hashable, Codable, Sendable, Identifiable {

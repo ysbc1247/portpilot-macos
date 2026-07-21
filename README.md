@@ -22,7 +22,7 @@ DevBerth is a native macOS developer utility for discovering, understanding, sto
 - Uses transactional Keychain-backed secret references, bounded redacted logs, expected-port readiness, optional HTTP health checks, and preflight conflict resolution.
 - Separates process, listener, readiness, and health state; supports reviewed HTTP text, command, file, Docker, and dependency checks with bounded retry behavior.
 - Records a searchable lifecycle timeline, runtime instances, health transitions, unexpected exits, automatic-restart evidence, and deterministic incident summaries.
-- Maps published Docker host ports to container ports, image, container, and Compose metadata; Docker absence never breaks listener monitoring.
+- Maps published Docker listeners to exact container ports, state, health, restart policy, and Compose metadata. Compose stop/restart/remove remains disabled until project files, environment context, configuration hash, and exact container membership are reverified; Docker absence never breaks listener monitoring.
 - Persists projects, profiles, expected ports, dependencies, observations, favorites, settings, log metadata, and event history with SwiftData.
 - Includes Overview, Active Ports, Projects, Sessions, Launch Profiles, History, Docker, Settings, a `⌘K` command palette, and a menu-bar utility.
 - Keeps all data on the Mac. DevBerth has no analytics, telemetry, cloud sync, or network upload path.

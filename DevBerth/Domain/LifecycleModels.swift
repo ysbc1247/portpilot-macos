@@ -17,6 +17,9 @@ enum LifecycleEventCategory: String, Codable, CaseIterable, Sendable {
     case sessionRollback
     case configurationDrift
     case safetyRefusal
+    case dockerContainerStarted
+    case dockerContainerStopped
+    case dockerComposeChanged
 }
 
 enum LifecycleEventOutcome: String, Codable, CaseIterable, Sendable {

@@ -116,6 +116,37 @@ struct DockerAssociation: Hashable, Codable, Sendable {
     let composeProject: String?
     let composeService: String?
     let containerPort: UInt16?
+    let state: String?
+    let healthStatus: String?
+    let restartPolicy: String?
+    let composeContext: DockerComposeContext?
+    let composeContextIssue: String?
+
+    init(
+        containerID: String,
+        containerName: String,
+        image: String,
+        composeProject: String?,
+        composeService: String?,
+        containerPort: UInt16?,
+        state: String? = nil,
+        healthStatus: String? = nil,
+        restartPolicy: String? = nil,
+        composeContext: DockerComposeContext? = nil,
+        composeContextIssue: String? = nil
+    ) {
+        self.containerID = containerID
+        self.containerName = containerName
+        self.image = image
+        self.composeProject = composeProject
+        self.composeService = composeService
+        self.containerPort = containerPort
+        self.state = state
+        self.healthStatus = healthStatus
+        self.restartPolicy = restartPolicy
+        self.composeContext = composeContext
+        self.composeContextIssue = composeContextIssue
+    }
 }
 
 struct ObservedProcess: Hashable, Codable, Sendable, Identifiable {

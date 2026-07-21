@@ -156,6 +156,62 @@ struct RuntimeOwnershipResolver: RuntimeOwnershipResolving, Sendable {
                 isVerified: true
             ))
         }
+        if let state = docker.state {
+            evidence.append(.init(
+                field: "container state",
+                value: state,
+                source: "Docker Engine inspection",
+                isVerified: true
+            ))
+        }
+        if let health = docker.healthStatus {
+            evidence.append(.init(
+                field: "container health",
+                value: health,
+                source: "Docker Engine inspection",
+                isVerified: true
+            ))
+        }
+        if let restartPolicy = docker.restartPolicy {
+            evidence.append(.init(
+                field: "restart policy",
+                value: restartPolicy,
+                source: "Docker Engine inspection",
+                isVerified: true
+            ))
+        }
+        if let context = docker.composeContext {
+            evidence += [
+                .init(
+                    field: "Compose working directory",
+                    value: context.workingDirectory.path,
+                    source: "canonical Compose labels + config hash verification",
+                    isVerified: true
+                ),
+                .init(
+                    field: "Compose configuration",
+                    value: context.configurationFilePaths.joined(separator: ", "),
+                    source: "canonical Compose labels + exact container membership",
+                    isVerified: true
+                ),
+                .init(
+                    field: "Compose environment files",
+                    value: context.environmentFilePaths.joined(separator: ", ").nilIfEmpty ?? "None",
+                    source: "canonical Compose labels",
+                    isVerified: true
+                )
+            ]
+        } else if let issue = docker.composeContextIssue {
+            evidence.append(.init(
+                field: "Compose action scope",
+                value: issue,
+                source: "Compose context verifier",
+                isVerified: false
+            ))
+        }
+        let composeActions: Set<LifecycleActionKind> = docker.composeContext == nil
+            ? [.inspect]
+            : [.inspect, .gracefulStop, .restart, .remove]
         return OwnershipClassification(
             category: isCompose ? .dockerComposeService : .dockerContainer,
             value: value,
@@ -165,8 +221,10 @@ struct RuntimeOwnershipResolver: RuntimeOwnershipResolving, Sendable {
             recommendation: .init(
                 controllerKind: isCompose ? .dockerComposeService : .dockerContainer,
                 title: isCompose ? "Use the Compose service controller" : "Use the Docker container controller",
-                reason: "The listener is published by Docker. Killing the observed host-side process would target the wrong ownership layer.",
-                supportedActions: isCompose ? [.inspect] : [.inspect, .gracefulStop, .restart]
+                reason: isCompose && docker.composeContext == nil
+                    ? "\(docker.composeContextIssue ?? "The exact Compose action scope is not verified.") The listener belongs to Docker infrastructure, so DevBerth will not target the observed host-side process."
+                    : "The listener is published by Docker. Killing the observed host-side process would target the wrong ownership layer.",
+                supportedActions: isCompose ? composeActions : [.inspect, .gracefulStop, .restart, .remove]
             )
         )
     }
@@ -391,7 +449,7 @@ enum OwnershipRuleEngine {
         case .guardedExternalProcess, .kubernetesPortForward, .sshTunnel:
             [.inspect, .gracefulStop, .forceStop]
         case .dockerContainer:
-            [.inspect, .gracefulStop, .restart]
+            [.inspect, .gracefulStop, .restart, .remove]
         case .managedProcess:
             [.inspect, .gracefulStop]
         case .dockerComposeService, .homebrewService, .launchdService, .unavailable:
@@ -408,6 +466,10 @@ enum OwnershipRuleEngine {
             return signatures.contains { value.contains($0) }
         }?.name
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 private extension OwnershipActionRecommendation {

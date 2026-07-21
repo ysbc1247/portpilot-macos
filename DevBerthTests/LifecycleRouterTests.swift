@@ -89,6 +89,41 @@ final class LifecycleRouterTests: XCTestCase {
         XCTAssertTrue(dockerActions.isEmpty)
     }
 
+    func testVerifiedComposeRestartRoutesToExactContextWithoutHostPIDSignal() async throws {
+        let processController = RecordingProcessController()
+        let dockerController = RecordingDockerController()
+        let context = lifecycleComposeContext()
+        let router = OwnerAwareLifecycleRouter(
+            processController: processController,
+            managedServiceController: RecordingLaunchController(),
+            dockerController: dockerController,
+            runtimeRegistry: ManagedRuntimeRegistry()
+        )
+        let graph = lifecycleGraph(
+            controller: .dockerComposeService,
+            supportedActions: [.inspect, .gracefulStop, .restart, .remove],
+            category: .dockerComposeService,
+            docker: .init(
+                containerID: context.containerID,
+                containerName: "demo-api-1",
+                image: "demo/api:latest",
+                composeProject: context.projectName,
+                composeService: context.serviceName,
+                containerPort: 3000,
+                composeContext: context
+            )
+        )
+
+        let result = try await router.perform(.restart, on: graph, forceConfirmed: false)
+        let dockerActions = await dockerController.actions()
+        let processActions = await processController.actions()
+
+        XCTAssertEqual(dockerActions, ["compose-restart:demo/api:\(context.containerID)"])
+        XCTAssertTrue(processActions.isEmpty)
+        XCTAssertEqual(result.controllerKind, .dockerComposeService)
+        XCTAssertFalse(result.didStop)
+    }
+
     func testManagedStopUsesRegisteredServicePolicy() async throws {
         let registry = ManagedRuntimeRegistry()
         let managedController = RecordingLaunchController()
@@ -254,8 +289,32 @@ private actor RecordingDockerController: DockerServing {
     func runningContainers() async throws -> [DockerContainer] { [] }
     func stop(containerID: String) async throws { recordedActions.append("stop:\(containerID)") }
     func restart(containerID: String) async throws { recordedActions.append("restart:\(containerID)") }
+    func remove(containerID: String) async throws { recordedActions.append("remove:\(containerID)") }
+    func stopComposeService(context: DockerComposeContext) async throws {
+        recordedActions.append("compose-stop:\(context.projectName)/\(context.serviceName):\(context.containerID)")
+    }
+    func restartComposeService(context: DockerComposeContext) async throws {
+        recordedActions.append("compose-restart:\(context.projectName)/\(context.serviceName):\(context.containerID)")
+    }
+    func removeComposeService(context: DockerComposeContext) async throws {
+        recordedActions.append("compose-remove:\(context.projectName)/\(context.serviceName):\(context.containerID)")
+    }
     func recentLogs(containerID: String, lines: Int) async throws -> String { "" }
     func actions() -> [String] { recordedActions }
+}
+
+private func lifecycleComposeContext() -> DockerComposeContext {
+    let identity = ExecutableFileIdentity(deviceID: 1, inode: 2)
+    return DockerComposeContext(
+        containerID: String(repeating: "a", count: 64),
+        projectName: "demo",
+        serviceName: "api",
+        workingDirectory: .init(path: "/Users/developer/demo", fileIdentity: identity, size: 0, modificationDate: nil),
+        configurationFiles: [.init(path: "/Users/developer/demo/compose.yaml", fileIdentity: identity, size: 100, modificationDate: nil)],
+        environmentFiles: [],
+        configurationHash: "compose-hash",
+        verifiedAt: Date(timeIntervalSince1970: 1_750_000_000)
+    )
 }
 
 private func lifecycleGraph(
