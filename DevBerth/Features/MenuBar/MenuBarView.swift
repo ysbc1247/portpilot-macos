@@ -9,6 +9,7 @@ struct MenuBarView: View {
     @Query(sort: \LaunchProfileRecord.name) private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @Query(sort: \ProjectRecord.name) private var projects: [ProjectRecord]
 
     private var visible: [ObservedListener] {
@@ -48,7 +49,11 @@ struct MenuBarView: View {
                 Divider()
                 Text("Favorite profiles").font(.caption.bold()).foregroundStyle(.secondary)
                 ForEach(Array(favorites)) { record in
-                    if let profile = record.configuration(dependencies: dependencies, expectedPorts: expectedPorts) {
+                    if let profile = record.configuration(
+                        dependencies: dependencies,
+                        expectedPorts: expectedPorts,
+                        processPolicies: processPolicies
+                    ) {
                         HStack {
                             Image(systemName: "star.fill").foregroundStyle(.yellow)
                             Text(profile.name).lineLimit(1)
@@ -71,7 +76,11 @@ struct MenuBarView: View {
                 Text("Running projects").font(.caption.bold()).foregroundStyle(.secondary)
                 ForEach(runningProjects.prefix(3)) { project in
                     let values = profiles.filter { $0.projectID == project.id }.compactMap {
-                        $0.configuration(dependencies: dependencies, expectedPorts: expectedPorts)
+                        $0.configuration(
+                            dependencies: dependencies,
+                            expectedPorts: expectedPorts,
+                            processPolicies: processPolicies
+                        )
                     }
                     HStack {
                         Label(project.name, systemImage: "folder.fill")

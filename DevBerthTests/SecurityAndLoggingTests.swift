@@ -23,7 +23,7 @@ final class SecurityAndLoggingTests: XCTestCase {
 
     func testLogBufferRedactsSecretsAndBoundsGrowth() async {
         let profileID = UUID()
-        let buffer = ServiceLogBuffer(maximumEntries: 100)
+        let buffer = ServiceLogBuffer(maximumEntries: 100, persistsToDisk: false)
         await buffer.setSecrets(["top-secret"], for: profileID)
         for index in 0..<140 {
             await buffer.append(profileID: profileID, stream: .standardOutput, data: Data("line \(index) top-secret\n".utf8))
@@ -34,4 +34,3 @@ final class SecurityAndLoggingTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { $0.message.contains("••••") })
     }
 }
-

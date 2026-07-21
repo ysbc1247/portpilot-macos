@@ -11,6 +11,7 @@ struct HistoryView: View {
     @Query private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @State private var eventType: HistoryEventType?
     @State private var range = HistoryRange.week
     @State private var grouping = HistoryGrouping.none
@@ -118,7 +119,11 @@ struct HistoryView: View {
             let profileID = event.profileID,
             let profile = profiles.first(where: { $0.id == profileID })
         else { return nil }
-        return profile.configuration(dependencies: dependencies, expectedPorts: expectedPorts)
+        return profile.configuration(
+            dependencies: dependencies,
+            expectedPorts: expectedPorts,
+            processPolicies: processPolicies
+        )
     }
 
     private func restartSelected() {
@@ -136,4 +141,3 @@ struct HistoryView: View {
         value.replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression).capitalized
     }
 }
-

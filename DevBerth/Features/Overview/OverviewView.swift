@@ -7,6 +7,7 @@ struct OverviewView: View {
     @Query(sort: \LaunchProfileRecord.name) private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @Query(sort: \ProcessHistoryEventRecord.timestamp, order: .reverse) private var history: [ProcessHistoryEventRecord]
 
     private var conflicts: [(LaunchProfileRecord, ExpectedPortRecord, ObservedListener)] {
@@ -44,7 +45,11 @@ struct OverviewView: View {
                         } else {
                             VStack(spacing: 0) {
                                 ForEach(favorites.prefix(6)) { record in
-                                    if let profile = record.configuration(dependencies: dependencies, expectedPorts: expectedPorts) {
+                                    if let profile = record.configuration(
+                                        dependencies: dependencies,
+                                        expectedPorts: expectedPorts,
+                                        processPolicies: processPolicies
+                                    ) {
                                         HStack {
                                             Image(systemName: "star.fill").foregroundStyle(.yellow)
                                             Text(profile.name)
@@ -152,4 +157,3 @@ struct OverviewView: View {
         }
     }
 }
-

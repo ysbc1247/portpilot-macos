@@ -32,6 +32,7 @@ struct RootView: View {
     @Query private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
 
     var body: some View {
         NavigationSplitView {
@@ -93,7 +94,11 @@ struct RootView: View {
             guard !didLaunchAutomaticProfiles else { return }
             didLaunchAutomaticProfiles = true
             for profile in profiles where profile.launchesAutomatically {
-                if let configuration = profile.configuration(dependencies: dependencies, expectedPorts: expectedPorts) {
+                if let configuration = profile.configuration(
+                    dependencies: dependencies,
+                    expectedPorts: expectedPorts,
+                    processPolicies: processPolicies
+                ) {
                     await model.launchProfile(configuration)
                 }
             }

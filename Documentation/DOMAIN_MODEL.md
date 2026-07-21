@@ -14,6 +14,9 @@ DevBerth models operating-system evidence, user-authored intent, actual executio
 | `ObservedProcess` | Available external-process metadata, which may be incomplete | Current monitoring snapshot | No |
 | `ManagedServiceConfiguration` | Reviewed user intent for launching, checking, stopping, restarting, logging, and ordering one service | Until edited or deleted | V1 `LaunchProfileRecord` compatibility storage plus related dependency/expected-port records |
 | `RuntimeInstance` | One actual execution of one managed service | Start through exit and retention expiry | V2 `RuntimeInstanceRecord` |
+| `ProcessFingerprint` | Safety evidence for one observed PID incarnation, including UID, executable identity, start, command digest, parent, and detection time | One observation/runtime incarnation | V3 `ProcessFingerprintRecord` when durable evidence is required |
+| `ManagedServiceProcessPolicy` | Reviewed intent for a dedicated group and root-only versus group shutdown | Until edited or deleted | V3 `ManagedServiceProcessPolicyRecord` |
+| `ProcessGroupSnapshot` | Leader, group ID, live/zombie members, listener owners, descendants, and escaped descendants at an evidence time | Runtime evidence retention window | V3 `ProcessGroupSnapshotRecord` |
 | `OwnershipConclusion` | A confidence-labeled explanation of what controls a listener, process, or runtime, with evidence and detection method | Evidence retention window | V2 `OwnershipEvidenceRecord` |
 | `RestartTrustAssessment` | Whether a managed service is verified, conditional, inferred-only, or not restartable, with reasons and validation time | Until configuration/evidence changes | V2 `ManagedServiceTrustRecord` |
 | `WorkspaceSession` | A reviewed snapshot of expected project/service state, listeners, dependencies, health, and configuration digests | Until deleted | V2 session and session-service records |
@@ -30,6 +33,8 @@ The existing “Launch Profiles” feature and `LaunchProfileRecord` class retai
 - A workspace session contains only managed-service expectations. An unmanaged observed process must be converted and reviewed before it can be restored.
 - Session service snapshots retain a configuration digest so restore preview can report drift rather than assuming the current definition matches the captured definition.
 - Project discovery evidence is inert. Detection never edits project files or creates a launchable service without review.
+- A dedicated managed process group is an application-created ownership boundary. An external PGID is observation only and never grants group-signal authority.
+- A descendant that leaves the controlled group remains ownership evidence but is excluded from group termination unless a separate reviewed controller claims it.
 
 ## V2 persistence migration
 
@@ -38,6 +43,12 @@ The existing “Launch Profiles” feature and `LaunchProfileRecord` class retai
 Automated migration validation creates a genuine V1 store, snapshots it through the product-identity migrator, opens it with the V2 schema, and verifies the original project, managed-service compatibility record, expected port, history event, and preference. V2 persistence tests store each new concept in its own table.
 
 The local development store was also opened under V2. All 1,278 event UUIDs from the retained PortPilot recovery store remained present. New V2 tables were empty immediately after migration, which is expected because runtime reconciliation, ownership controllers, session capture, and adapter import are separate implementation slices.
+
+## V3 process-safety migration
+
+`DevBerthSchemaV3` adds full fingerprint, managed process-policy, and process-group snapshot records without changing frozen V1/V2 entities. Automated validation materializes a genuine V2 store with a runtime record, opens it through the V2→V3 stage, proves that runtime unchanged, and proves the new tables begin empty. V3 persistence tests round-trip device/inode identity, UID, digest, parent, leader/group/member evidence, escaped descendants, and process policy.
+
+The local development store opened under V3 with 2,668 current history rows and the three V3 tables present. The genuine V2 fixture provides the before/after preservation proof; the local row count is only an additional smoke check. Continuous runtime persistence and retention remain part of the lifecycle-controller slice.
 
 ## Consequences
 

@@ -9,6 +9,7 @@ struct ProjectsView: View {
     @Query(sort: \LaunchProfileRecord.name) private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @State private var showsNewProject = false
 
     var body: some View {
@@ -44,7 +45,11 @@ struct ProjectsView: View {
     private func projectSection(_ project: ProjectRecord) -> some View {
         let projectProfiles = profiles.filter { $0.projectID == project.id }
         let configurations = projectProfiles.compactMap {
-            $0.configuration(dependencies: dependencies, expectedPorts: expectedPorts)
+            $0.configuration(
+                dependencies: dependencies,
+                expectedPorts: expectedPorts,
+                processPolicies: processPolicies
+            )
         }
         return Section {
             if projectProfiles.isEmpty {
@@ -155,4 +160,3 @@ private struct NewProjectView: View {
         .frame(width: 520, height: 300)
     }
 }
-

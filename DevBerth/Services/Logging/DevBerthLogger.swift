@@ -26,15 +26,23 @@ actor ServiceLogBuffer {
     private let maximumEntries: Int
     private let maximumPersistedBytes: Int
     private let logDirectory: URL
+    private let persistsToDisk: Bool
 
-    init(maximumEntries: Int = 2_000, maximumPersistedBytes: Int = 2_000_000) {
+    init(
+        maximumEntries: Int = 2_000,
+        maximumPersistedBytes: Int = 2_000_000,
+        persistsToDisk: Bool = true
+    ) {
         self.maximumEntries = max(100, maximumEntries)
         self.maximumPersistedBytes = max(64_000, maximumPersistedBytes)
+        self.persistsToDisk = persistsToDisk
         let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         self.logDirectory = applicationSupport
             .appendingPathComponent(ProductIdentity.currentSupportDirectoryName, isDirectory: true)
             .appendingPathComponent("ServiceLogs", isDirectory: true)
-        try? FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
+        if persistsToDisk {
+            try? FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
+        }
     }
 
     func setSecrets(_ secrets: [String], for profileID: UUID) {
@@ -61,6 +69,7 @@ actor ServiceLogBuffer {
 
     func entries(for profileID: UUID) -> [ServiceLogEntry] {
         if let entries = entriesByProfile[profileID] { return entries }
+        guard persistsToDisk else { return [] }
         let url = fileURL(profileID)
         guard let data = try? Data(contentsOf: url) else { return [] }
         let loaded = String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).suffix(maximumEntries).map {
@@ -72,7 +81,7 @@ actor ServiceLogBuffer {
 
     func clear(profileID: UUID) {
         entriesByProfile[profileID] = []
-        try? Data().write(to: fileURL(profileID), options: .atomic)
+        if persistsToDisk { try? Data().write(to: fileURL(profileID), options: .atomic) }
     }
 
     func persistedFileURL(for profileID: UUID) -> URL { fileURL(profileID) }
@@ -82,6 +91,7 @@ actor ServiceLogBuffer {
     }
 
     private func persist(profileID: UUID, text: String) {
+        guard persistsToDisk else { return }
         let url = fileURL(profileID)
         var existing = (try? Data(contentsOf: url)) ?? Data()
         existing.append(Data(text.utf8))

@@ -66,7 +66,7 @@ Fixtures include a simple HTTP service, a process with two ports, an early-exit 
 
 ## Architecture
 
-DevBerth uses injected service protocols between SwiftUI state and every OS-facing boundary. Tagged `lsof` output discovers network files; `ps` and tagged `lsof` records build a revalidated process fingerprint. Destructive actions require both that fingerprint and the exact listener ownership edge to still match. An actor-based monitor creates diff updates off the main actor. SwiftData stores durable configuration and audit events, while live process objects remain actor-isolated and transient. Keychain contains secret values; profiles contain only UUID references.
+DevBerth uses injected service protocols between SwiftUI state and every OS-facing boundary. Tagged `lsof` output discovers network files; `ps` and tagged `lsof` records build a revalidated process fingerprint. Destructive actions require both that fingerprint and the exact listener ownership edge to still match. Reviewed services launch in dedicated POSIX process groups, track descendants, and exclude detached children from group signals. An actor-based monitor creates diff updates off the main actor. SwiftData stores durable configuration and audit events, while live process objects remain actor-isolated and transient. Keychain contains secret values; profiles contain only UUID references.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md) for the detailed runtime, persistence, concurrency, safety, and testing design.
 

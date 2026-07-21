@@ -24,6 +24,43 @@ final class ManagedServiceTests: XCTestCase {
         XCTAssertEqual(layers.map { Set($0.map(\.name)) }, [Set(["Database"]), Set(["API", "Worker"]), Set(["Web"])])
     }
 
+    func testValidationRequiresDedicatedGroupForApplicationManagedService() {
+        let unsafePolicy = ManagedServiceProcessPolicy(
+            createsDedicatedProcessGroup: false,
+            terminationScope: .controlledProcessGroup
+        )
+        let service = ManagedServiceConfiguration(
+            name: "Fixture",
+            command: "/usr/bin/true",
+            workingDirectory: "/tmp",
+            processPolicy: unsafePolicy
+        )
+
+        XCTAssertTrue(ManagedServiceValidator.validate(service).contains { $0.field == "processPolicy" })
+    }
+
+    func testV3ProcessPolicyIsAppliedAtV1ProfileCompatibilityBoundary() throws {
+        let profile = LaunchProfileRecord(
+            name: "Supervisor",
+            command: "/usr/bin/true",
+            workingDirectory: "/tmp"
+        )
+        let storedPolicy = ManagedServiceProcessPolicyRecord(
+            managedServiceID: profile.id,
+            policy: .rootProcessOnly
+        )
+
+        let defaultConfiguration = try XCTUnwrap(profile.configuration(dependencies: [], expectedPorts: []))
+        let storedConfiguration = try XCTUnwrap(profile.configuration(
+            dependencies: [],
+            expectedPorts: [],
+            processPolicies: [storedPolicy]
+        ))
+
+        XCTAssertEqual(defaultConfiguration.processPolicy, .controlledProcessGroup)
+        XCTAssertEqual(storedConfiguration.processPolicy, .rootProcessOnly)
+    }
+
     func testDependencyPlannerRejectsCycle() {
         let firstID = UUID()
         let secondID = UUID()

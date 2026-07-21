@@ -11,7 +11,7 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 | Process discovery | Tagged listener parsing and process enrichment | `LocalPortDiscovery`, `ObservedProcessProvider` |
 | Monitoring | Polling, snapshots, diffs, pause/resume | `PortMonitor` actor |
 | Process control | Protection, fingerprint and listener-edge verification, signals, wait state | `SafeProcessController` |
-| Launching | Reviewed profile execution and managed process lifetime | `ManagedProcessLauncher`, `LaunchCoordinator` |
+| Launching | Reviewed profile execution, dedicated POSIX groups, descendants, and managed lifetime | `POSIXControlledProcessSpawner`, `ManagedProcessLauncher`, `LaunchCoordinator` |
 | Projects | Dependency-layer orchestration | `ProjectOrchestrator` |
 | Docker | Availability, container JSON, ports, actions, logs | `DockerCLIClient`, `DockerAssociationProvider` |
 | Secrets | Opaque references and values | SwiftData references plus `KeychainSecretStore` values |
@@ -61,6 +61,14 @@ Termination is intentionally conservative:
 
 A changed fingerprint is never treated as the original process. This prevents PID-reuse and stale-listener termination bugs.
 
+## Managed process groups
+
+Application-managed commands use `posix_spawn`, discrete argument/environment arrays, an explicit working-directory file action, and `POSIX_SPAWN_SETPGROUP`. The child becomes leader of a new group; inherited signal masks are cleared and common termination signals are restored to default before `exec`, so XCTest, terminal, or app-host dispositions cannot silently make a managed service ignore shutdown.
+
+The runtime handle retains the group ID, stable leader fingerprint, service policy, and launch time. `SystemProcessGroupInspector` takes a bounded process-table snapshot, follows the leader's descendant graph, enriches relevant PIDs with full fingerprints, labels the expected-port owner, and distinguishes descendants that called `setsid` or otherwise escaped the controlled group. Zombie rows remain evidence but are not treated as live termination targets.
+
+Before a managed stop, DevBerth captures a fresh snapshot and revalidates a live leader or previously captured descendant fingerprint plus its current group membership. The default reviewed policy sends `SIGTERM` to the verified group and waits for live members to disappear; a reviewed root-only policy signals only the leader. Escaped descendants are displayed in evidence and never included in the negative-PGID signal. A group with no revalidated ownership anchor is refused rather than signaled.
+
 ## Managed service configuration
 
 A discovered process is evidence, not an executable recipe. Saving one opens a review sheet and prefills only best-effort values. `ManagedProcessLauncher` refuses unreviewed profiles.
@@ -91,7 +99,7 @@ Diagnostics include app/macOS versions, non-secret settings, command availabilit
 
 SwiftData schema V1 contains `ProjectRecord`, `LaunchProfileRecord`, `ProfileDependencyRecord`, `ExpectedPortRecord`, `ProcessHistoryEventRecord`, `PortObservationRecord`, `UserPreferenceRecord`, `FavoriteItemRecord`, and `StoredLogMetadataRecord`. Domain values are converted explicitly; live listeners and `Process` instances are never modeled.
 
-`DevBerthMigrationPlan` contains frozen V1 and additive V2 schemas. V2 adds separate runtime-instance, ownership-evidence, restart-trust, workspace-session, restore-result, project-discovery, and lifecycle-event records through a lightweight migration. Future changes must add a new `VersionedSchema` and explicit migration stage rather than editing either shipped schema identifier.
+`DevBerthMigrationPlan` contains frozen V1, V2, and V3 schemas. V2 adds separate runtime-instance, ownership-evidence, restart-trust, workspace-session, restore-result, project-discovery, and lifecycle-event records. V3 adds field-addressable full process fingerprints, managed-service process policies, and process-group snapshots. Both transitions are lightweight and additive; a genuine V2 store fixture proves V2→V3 while the product migration fixture proves V1→current. Future changes must add a new `VersionedSchema` and explicit migration stage rather than editing any shipped schema identifier.
 
 `ProductIdentity` is the single compatibility map for the former product name, bundle identifier, store, support directory, defaults domain, and Keychain service. Before constructing the production container, `ProductDataMigrator` uses SQLite's online-backup API to materialize a consistent snapshot of an absent current store, including committed legacy WAL data; it atomically promotes the completed snapshot, copies an absent service-log directory, and copies only whitelisted unset defaults. It never overwrites current data and retains the legacy store/WAL/SHM files as a recovery source. `KeychainSecretStore` reads the current service first, copies a successful legacy read forward, and deletes an intentionally removed reference from both services.
 
@@ -113,7 +121,7 @@ See `SECURITY.md` and `PRIVACY.md` for operator-facing policy.
 
 Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, validation, graph ordering/cycles, conflict detection, state transitions, Docker parsing/fallback, shell escaping, secret references, log redaction/bounds, health checks, SwiftData history, and migrations.
 
-Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong fingerprints, listener ownership, graceful exit, graceful timeout, and confirmed force-stop. Every test owns and cleans up its fixture process.
+Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong fingerprints, listener ownership, graceful exit, graceful timeout, confirmed force-stop, dedicated POSIX groups, child/multi-listener shutdown, `exec` replacement, supervisor restart, ignored `SIGTERM`, and detached-descendant exclusion. Every test owns and cleans up its fixture process.
 
 ## Monitoring overhead
 

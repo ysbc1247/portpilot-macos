@@ -70,6 +70,7 @@ struct ManagedServiceConfiguration: Hashable, Codable, Sendable, Identifiable {
     var startupTimeoutSeconds: Double
     var shutdownTimeoutSeconds: Double
     var restartPolicy: RestartPolicy
+    var processPolicy: ManagedServiceProcessPolicy
     var healthCheck: HealthCheckConfiguration?
     var dependencyServiceIDs: [UUID]
     var logFile: String?
@@ -94,6 +95,7 @@ struct ManagedServiceConfiguration: Hashable, Codable, Sendable, Identifiable {
         startupTimeoutSeconds: Double = 30,
         shutdownTimeoutSeconds: Double = 5,
         restartPolicy: RestartPolicy = .never,
+        processPolicy: ManagedServiceProcessPolicy = .controlledProcessGroup,
         healthCheck: HealthCheckConfiguration? = nil,
         dependencyServiceIDs: [UUID] = [],
         logFile: String? = nil,
@@ -117,6 +119,7 @@ struct ManagedServiceConfiguration: Hashable, Codable, Sendable, Identifiable {
         self.startupTimeoutSeconds = startupTimeoutSeconds
         self.shutdownTimeoutSeconds = shutdownTimeoutSeconds
         self.restartPolicy = restartPolicy
+        self.processPolicy = processPolicy
         self.healthCheck = healthCheck
         self.dependencyServiceIDs = dependencyServiceIDs
         self.logFile = logFile
@@ -162,6 +165,13 @@ enum ManagedServiceValidator {
         }
         if !(1...60).contains(profile.shutdownTimeoutSeconds) {
             issues.append(.init(field: "shutdownTimeout", message: "Shutdown timeout must be between 1 and 60 seconds.", severity: .error))
+        }
+        if !profile.processPolicy.createsDedicatedProcessGroup {
+            issues.append(.init(
+                field: "processPolicy",
+                message: "Application-managed services must launch in a dedicated process group.",
+                severity: .error
+            ))
         }
         let duplicatedPorts = Dictionary(grouping: profile.expectedPorts, by: { "\($0.protocolKind.rawValue):\($0.port)" })
             .filter { $0.value.count > 1 }

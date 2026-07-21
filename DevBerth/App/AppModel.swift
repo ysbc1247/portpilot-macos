@@ -37,7 +37,12 @@ final class AppModel: ObservableObject {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
         let logs = ServiceLogBuffer()
-        let managedLauncher = ManagedProcessLauncher(secrets: KeychainSecretStore(), logs: logs)
+        let managedLauncher = ManagedProcessLauncher(
+            secrets: KeychainSecretStore(),
+            logs: logs,
+            runner: runner,
+            listenerDiscoverer: service
+        )
         let coordinator = LaunchCoordinator(
             discoverer: service,
             processLauncher: managedLauncher,

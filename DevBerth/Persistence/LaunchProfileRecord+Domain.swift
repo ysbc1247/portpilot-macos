@@ -3,7 +3,8 @@ import Foundation
 extension LaunchProfileRecord {
     func configuration(
         dependencies: [ProfileDependencyRecord],
-        expectedPorts: [ExpectedPortRecord]
+        expectedPorts: [ExpectedPortRecord],
+        processPolicies: [ManagedServiceProcessPolicyRecord] = []
     ) -> ManagedServiceConfiguration? {
         guard let kind = LaunchMechanism(rawValue: kindRawValue) else { return nil }
         let decoder = JSONDecoder()
@@ -34,6 +35,7 @@ extension LaunchProfileRecord {
             startupTimeoutSeconds: startupTimeoutSeconds,
             shutdownTimeoutSeconds: shutdownTimeoutSeconds,
             restartPolicy: RestartPolicy(rawValue: restartPolicyRawValue) ?? .never,
+            processPolicy: processPolicies.first { $0.managedServiceID == id }?.policy ?? .controlledProcessGroup,
             healthCheck: healthCheck,
             dependencyServiceIDs: dependencies.filter { $0.profileID == id }.map(\.dependencyProfileID),
             logFile: logFile,
@@ -42,6 +44,16 @@ extension LaunchProfileRecord {
             launchesAutomatically: launchesAutomatically,
             isFavorite: isFavorite,
             isReviewed: isReviewed
+        )
+    }
+}
+
+extension ManagedServiceProcessPolicyRecord {
+    var policy: ManagedServiceProcessPolicy? {
+        guard let scope = ManagedProcessTerminationScope(rawValue: terminationScopeRawValue) else { return nil }
+        return ManagedServiceProcessPolicy(
+            createsDedicatedProcessGroup: createsDedicatedProcessGroup,
+            terminationScope: scope
         )
     }
 }

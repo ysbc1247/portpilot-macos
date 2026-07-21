@@ -7,6 +7,7 @@ struct LaunchProfilesView: View {
     @Query(sort: \LaunchProfileRecord.name) private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @State private var selection = Set<UUID>()
     @State private var showsNewProfile = false
     @State private var editingProfile: LaunchProfileRecord?
@@ -44,7 +45,11 @@ struct LaunchProfilesView: View {
                     }
                     .width(min: 85, ideal: 100)
                     TableColumn("Actions") { profile in
-                        if let configuration = profile.configuration(dependencies: dependencies, expectedPorts: expectedPorts) {
+                        if let configuration = profile.configuration(
+                            dependencies: dependencies,
+                            expectedPorts: expectedPorts,
+                            processPolicies: processPolicies
+                        ) {
                             HStack {
                                 Button("Logs") { logsProfile = profile }
                                 if model.runningProfileIDs.contains(profile.id) {
@@ -78,10 +83,22 @@ struct LaunchProfilesView: View {
             .disabled(selection.count != 1)
         }
         .sheet(isPresented: $showsNewProfile) {
-            LaunchProfileEditor(record: nil, profiles: profiles, dependencies: dependencies, expectedPorts: expectedPorts)
+            LaunchProfileEditor(
+                record: nil,
+                profiles: profiles,
+                dependencies: dependencies,
+                expectedPorts: expectedPorts,
+                processPolicies: processPolicies
+            )
         }
         .sheet(item: $editingProfile) { profile in
-            LaunchProfileEditor(record: profile, profiles: profiles, dependencies: dependencies, expectedPorts: expectedPorts)
+            LaunchProfileEditor(
+                record: profile,
+                profiles: profiles,
+                dependencies: dependencies,
+                expectedPorts: expectedPorts,
+                processPolicies: processPolicies
+            )
         }
         .sheet(item: $logsProfile) { profile in
             ProfileLogsView(profileID: profile.id, profileName: profile.name).environmentObject(model)
@@ -108,6 +125,8 @@ struct LaunchProfilesView: View {
                 context.insert(ExpectedPortRecord(profileID: copy.id, port: value, protocolKind: kind, required: port.required))
             }
         }
+        let sourcePolicy = processPolicies.first { $0.managedServiceID == source.id }?.policy ?? .controlledProcessGroup
+        context.insert(ManagedServiceProcessPolicyRecord(managedServiceID: copy.id, policy: sourcePolicy))
         try? context.save()
     }
 
@@ -115,6 +134,7 @@ struct LaunchProfilesView: View {
         profiles.filter { ids.contains($0.id) }.forEach(context.delete)
         dependencies.filter { ids.contains($0.profileID) || ids.contains($0.dependencyProfileID) }.forEach(context.delete)
         expectedPorts.filter { ids.contains($0.profileID) }.forEach(context.delete)
+        processPolicies.filter { ids.contains($0.managedServiceID) }.forEach(context.delete)
         try? context.save()
         selection.subtract(ids)
     }
@@ -127,6 +147,7 @@ private struct LaunchProfileEditor: View {
     let profiles: [LaunchProfileRecord]
     let dependencies: [ProfileDependencyRecord]
     let expectedPorts: [ExpectedPortRecord]
+    let processPolicies: [ManagedServiceProcessPolicyRecord]
     private let secretStore: any SecretStoring = KeychainSecretStore()
 
     @State private var name: String
@@ -141,6 +162,7 @@ private struct LaunchProfileEditor: View {
     @State private var startupTimeout: Double
     @State private var shutdownTimeout: Double
     @State private var restartPolicy: RestartPolicy
+    @State private var terminationScope: ManagedProcessTerminationScope
     @State private var healthURL: String
     @State private var expectedStatus: Int
     @State private var dependencyID: UUID?
@@ -155,12 +177,14 @@ private struct LaunchProfileEditor: View {
         record: LaunchProfileRecord?,
         profiles: [LaunchProfileRecord],
         dependencies: [ProfileDependencyRecord],
-        expectedPorts: [ExpectedPortRecord]
+        expectedPorts: [ExpectedPortRecord],
+        processPolicies: [ManagedServiceProcessPolicyRecord]
     ) {
         self.record = record
         self.profiles = profiles
         self.dependencies = dependencies
         self.expectedPorts = expectedPorts
+        self.processPolicies = processPolicies
         let decoder = JSONDecoder()
         let arguments = record.flatMap { try? decoder.decode([String].self, from: $0.argumentsData) } ?? []
         let shell = record.flatMap { try? decoder.decode(ShellSelection.self, from: $0.shellData) } ?? .direct
@@ -184,6 +208,9 @@ private struct LaunchProfileEditor: View {
         _startupTimeout = State(initialValue: record?.startupTimeoutSeconds ?? 30)
         _shutdownTimeout = State(initialValue: record?.shutdownTimeoutSeconds ?? 5)
         _restartPolicy = State(initialValue: record.flatMap { RestartPolicy(rawValue: $0.restartPolicyRawValue) } ?? .never)
+        _terminationScope = State(initialValue: record.flatMap { record in
+            processPolicies.first { $0.managedServiceID == record.id }?.policy?.terminationScope
+        } ?? .controlledProcessGroup)
         _healthURL = State(initialValue: health?.url.absoluteString ?? "")
         _expectedStatus = State(initialValue: health?.expectedStatus ?? 200)
         _dependencyID = State(initialValue: dependencies.first { $0.profileID == record?.id }?.dependencyProfileID)
@@ -216,6 +243,13 @@ private struct LaunchProfileEditor: View {
                     Picker("Restart policy", selection: $restartPolicy) {
                         ForEach(RestartPolicy.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                     }
+                    Picker("Graceful stop scope", selection: $terminationScope) {
+                        Text("Entire controlled process group").tag(ManagedProcessTerminationScope.controlledProcessGroup)
+                        Text("Root process only").tag(ManagedProcessTerminationScope.rootProcessOnly)
+                    }
+                    Text("Group scope prevents child servers from becoming orphans. Root-only scope is for reviewed supervisors that own descendant shutdown.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 Section("Readiness") {
                     TextField("HTTP health-check URL (optional)", text: $healthURL)
@@ -293,6 +327,17 @@ private struct LaunchProfileEditor: View {
         }
         dependencies.filter { $0.profileID == target.id }.forEach(context.delete)
         if let dependencyID { context.insert(ProfileDependencyRecord(profileID: target.id, dependencyProfileID: dependencyID)) }
+        let processPolicy = ManagedServiceProcessPolicy(
+            createsDedicatedProcessGroup: true,
+            terminationScope: terminationScope
+        )
+        if let storedPolicy = processPolicies.first(where: { $0.managedServiceID == target.id }) {
+            storedPolicy.createsDedicatedProcessGroup = processPolicy.createsDedicatedProcessGroup
+            storedPolicy.terminationScopeRawValue = processPolicy.terminationScope.rawValue
+            storedPolicy.updatedAt = Date()
+        } else {
+            context.insert(ManagedServiceProcessPolicyRecord(managedServiceID: target.id, policy: processPolicy))
+        }
         do { try context.save(); dismiss() }
         catch { errorMessage = error.localizedDescription }
     }

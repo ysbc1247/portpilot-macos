@@ -27,7 +27,7 @@ final class ProductDataMigrationTests: XCTestCase {
             )
         }
 
-        let schema = Schema(DevBerthSchemaV2.models)
+        let schema = Schema(DevBerthSchemaV3.models)
         let configuration = ModelConfiguration("DevBerthMigrationFixture", schema: schema, url: currentStore)
         let container = try ModelContainer(
             for: schema,

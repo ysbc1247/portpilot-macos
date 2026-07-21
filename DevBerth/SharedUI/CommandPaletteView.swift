@@ -8,6 +8,7 @@ struct CommandPaletteView: View {
     @Query(sort: \LaunchProfileRecord.name) private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
 
     private struct Action: Identifiable {
         let id = UUID()
@@ -30,7 +31,11 @@ struct CommandPaletteView: View {
                 model.isMonitoring ? model.pauseMonitoring() : model.startMonitoring(); isPresented = false
             }
         ] + profiles.compactMap { record in
-            guard let profile = record.configuration(dependencies: dependencies, expectedPorts: expectedPorts) else { return nil }
+            guard let profile = record.configuration(
+                dependencies: dependencies,
+                expectedPorts: expectedPorts,
+                processPolicies: processPolicies
+            ) else { return nil }
             return Action(title: "Start \(profile.name)", symbol: "play", keywords: "profile \(profile.tags.joined(separator: " "))") {
                 Task { await model.launchProfile(profile) }
                 isPresented = false
