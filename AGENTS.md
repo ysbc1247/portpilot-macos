@@ -47,6 +47,35 @@
   - [Step] → verify: [check]
 - Strong success criteria should support independent execution. If criteria remain weak or ambiguous, stop and clarify.
 
+## The `save` Handoff Command
+
+The explicit handoff keyword is `save`, case-insensitive. Treat it as invoked only when the user's message is exactly `save` or starts with `save:`. Do not trigger it merely because a user discusses the word or defines this rule.
+
+When `save` is invoked:
+
+1. Inspect the current branch, commit, Git status, staged and unstaged diffs, running services, and validation state.
+2. Update every affected `docs/implementations/*/README.md` so it matches the actual implementation.
+3. Rewrite `docs/next-steps/README.md` as the canonical current handoff.
+4. Archive the same handoff under `docs/next-steps/history/<YYYY-MM-DD-HHMM>-<slug>.md` so older handoffs are not lost.
+5. Include all of the following in the canonical and archived handoff:
+   - timestamp and timezone;
+   - branch and HEAD commit;
+   - concise project state;
+   - completed work with exact file paths;
+   - observed test and runtime results;
+   - current services, URLs, ports, databases, and credentials source;
+   - uncommitted, staged, and untracked changes;
+   - decisions and their reasoning;
+   - known bugs, risks, and incomplete areas;
+   - exact next tasks in priority order;
+   - exact commands to resume, validate, and stop services;
+   - a ready-to-paste prompt for the next Codex session.
+6. Update `docs/README.md` if new documentation was added.
+7. Run proportionate local validation and record the results truthfully. Never invent or copy stale results.
+8. Do not commit, push, merge, deploy, or delete work merely because `save` was invoked. Perform those actions only if the user separately asks.
+
+Create the required documentation directories and files if they do not yet exist.
+
 ## Git Workflow
 
 - Every repository-changing task must start on a new task branch.
