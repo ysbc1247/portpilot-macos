@@ -32,35 +32,29 @@ actor RuntimeLifecycleTracker: RuntimeLifecycleObserving, DependencyReadinessPro
         statuses[managedServiceID]?.isReady == true
     }
 
+    func transition(_ updates: [RuntimeLifecycleUpdate]) async {
+        guard !updates.isEmpty else { return }
+        var listenerEvents: [LifecycleEvent] = []
+        for update in updates {
+            if case let .listenerObserved(listener, change) = update {
+                let event = listenerEvent(listener, change: change, at: clock())
+                appendLocally(event)
+                listenerEvents.append(event)
+            } else {
+                await transition(update)
+            }
+        }
+        guard !listenerEvents.isEmpty else { return }
+        do { try await recorder?.record(listenerEvents) }
+        catch { DevBerthLogger.persistence.error("Lifecycle event batch persistence failed: \(error.localizedDescription, privacy: .public)") }
+        publish()
+    }
+
     func transition(_ update: RuntimeLifecycleUpdate) async {
         let now = clock()
         switch update {
         case let .listenerObserved(listener, change):
-            let action = switch change {
-            case .discovered: "discovered"
-            case .changed: "changed"
-            case .released: "released"
-            }
-            await append(.init(
-                timestamp: now,
-                managedServiceID: listener.process.managedServiceID,
-                projectID: nil,
-                category: .listenerChanged,
-                outcome: .observed,
-                severity: .info,
-                source: .monitor,
-                trigger: .observation,
-                summary: "Listener \(listener.protocolKind.rawValue) \(listener.address):\(listener.port) was \(action).",
-                details: [
-                    "change": change.rawValue,
-                    "port": String(listener.port),
-                    "protocol": listener.protocolKind.rawValue,
-                    "processName": listener.process.name,
-                    "inferredProject": listener.process.project?.name ?? ""
-                ],
-                processFingerprint: listener.process.fingerprint,
-                listenerID: listener.id
-            ))
+            await append(listenerEvent(listener, change: change, at: now))
 
         case let .launchRequested(profile, trigger):
             setStatus(
@@ -454,6 +448,13 @@ actor RuntimeLifecycleTracker: RuntimeLifecycleObserving, DependencyReadinessPro
 
     @discardableResult
     private func append(_ event: LifecycleEvent) async -> LifecycleEvent {
+        appendLocally(event)
+        do { try await recorder?.record(event) }
+        catch { DevBerthLogger.persistence.error("Lifecycle event persistence failed: \(error.localizedDescription, privacy: .public)") }
+        return event
+    }
+
+    private func appendLocally(_ event: LifecycleEvent) {
         if let serviceID = event.managedServiceID {
             var events = recentEvents[serviceID, default: []]
             events.append(event)
@@ -464,9 +465,38 @@ actor RuntimeLifecycleTracker: RuntimeLifecycleObserving, DependencyReadinessPro
                 runtimes[serviceID] = runtime
             }
         }
-        do { try await recorder?.record(event) }
-        catch { DevBerthLogger.persistence.error("Lifecycle event persistence failed: \(error.localizedDescription, privacy: .public)") }
-        return event
+    }
+
+    private func listenerEvent(
+        _ listener: ObservedListener,
+        change: ObservedListenerLifecycleChange,
+        at date: Date
+    ) -> LifecycleEvent {
+        let action = switch change {
+        case .discovered: "discovered"
+        case .changed: "changed"
+        case .released: "released"
+        }
+        return LifecycleEvent(
+            timestamp: date,
+            managedServiceID: listener.process.managedServiceID,
+            projectID: nil,
+            category: .listenerChanged,
+            outcome: .observed,
+            severity: .info,
+            source: .monitor,
+            trigger: .observation,
+            summary: "Listener \(listener.protocolKind.rawValue) \(listener.address):\(listener.port) was \(action).",
+            details: [
+                "change": change.rawValue,
+                "port": String(listener.port),
+                "protocol": listener.protocolKind.rawValue,
+                "processName": listener.process.name,
+                "inferredProject": listener.process.project?.name ?? ""
+            ],
+            processFingerprint: listener.process.fingerprint,
+            listenerID: listener.id
+        )
     }
 
     private func persist(_ runtime: RuntimeInstance) async {

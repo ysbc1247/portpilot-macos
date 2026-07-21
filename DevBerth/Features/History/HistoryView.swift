@@ -116,7 +116,7 @@ struct HistoryView: View {
             if timeline == .actions {
                 Picker("Group", selection: $grouping) { ForEach(HistoryGrouping.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
             }
-            Button("Restart Related Profile", systemImage: "play") { restartSelected() }
+            Button("Restart Related Managed Service", systemImage: "play") { restartSelected() }
                 .disabled(relatedConfiguration == nil)
             Button("Clear Selected", role: .destructive) { clearSelected() }
                 .disabled(selection.isEmpty)
@@ -133,7 +133,7 @@ struct HistoryView: View {
                 selection.removeAll()
             }
             Button("Cancel", role: .cancel) {}
-        } message: { Text("Projects and launch profiles will not be deleted. This history cannot be recovered.") }
+        } message: { Text("Projects and managed services will not be deleted. This history cannot be recovered.") }
     }
 
     private var lifecycleTimeline: some View {

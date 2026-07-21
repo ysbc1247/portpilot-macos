@@ -16,12 +16,20 @@ final class AppModel: ObservableObject {
     @Published private(set) var runningProfileIDs = Set<UUID>()
     @Published private(set) var profileFailures: [UUID: String] = [:]
     @Published var requestedSection: AppSection?
+    @Published var requestedProjectImport = false
+    @Published var requestedManagedServiceCreation = false
+    @Published var requestedSessionCapture = false
+    @Published var requestedSessionID: UUID?
+    @Published var requestedSessionRestoreID: UUID?
+    @Published var requestedManagedServiceLogsID: UUID?
+    @Published var requestedManagedServiceID: UUID?
     @Published var pendingLaunchConflict: PendingLaunchConflict?
     @Published private(set) var ownershipGraphs: [String: RuntimeOwnershipGraph] = [:]
     @Published private(set) var ownershipInspectionsInProgress = Set<String>()
     @Published private(set) var servicesBeingValidated = Set<UUID>()
     @Published private(set) var runtimeStatuses: [UUID: ManagedServiceRuntimeStatus] = [:]
     @Published private(set) var runtimeIncidents: [UUID: RuntimeIncidentSummary] = [:]
+    @Published private(set) var processResourceUsage: [Int32: ProcessResourceUsage] = [:]
 
     private let monitor: PortMonitor
     private let lifecycleRouter: any OwnerAwareLifecycleRouting
@@ -41,6 +49,7 @@ final class AppModel: ObservableObject {
     let lifecycleEventRecorder: (any RuntimeLifecycleRecording)?
     private let projectDiscovery: any ProjectDiscoveryServing
     private let projectManifest: any ProjectManifestServing
+    private let processResourceReader: any ProcessResourceUsageReading
     private var notificationPorts = Set<UInt16>()
     let logBuffer: ServiceLogBuffer
     private var monitoringTask: Task<Void, Never>?
@@ -61,7 +70,8 @@ final class AppModel: ObservableObject {
         runtimeLifecycle: (any RuntimeLifecycleObserving)? = nil,
         projectDiscovery: (any ProjectDiscoveryServing)? = nil,
         projectManifest: (any ProjectManifestServing)? = nil,
-        workspaceSessionRecorder: (any WorkspaceSessionRecording)? = nil
+        workspaceSessionRecorder: (any WorkspaceSessionRecording)? = nil,
+        processResourceReader: (any ProcessResourceUsageReading)? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
@@ -144,6 +154,7 @@ final class AppModel: ObservableObject {
         )
         self.projectDiscovery = projectDiscovery ?? LocalProjectDiscoveryService()
         self.projectManifest = projectManifest ?? LocalProjectManifestService()
+        self.processResourceReader = processResourceReader ?? SystemProcessResourceUsageReader(runner: runner)
         lifecycleTask = Task { [weak self, resolvedRuntimeLifecycle] in
             let stream = await resolvedRuntimeLifecycle.snapshots()
             for await snapshot in stream {
@@ -193,6 +204,9 @@ final class AppModel: ObservableObject {
             for await update in stream {
                 guard !Task.isCancelled else { break }
                 listeners = await dockerAssociations.correlate(update.snapshot.listeners)
+                processResourceUsage = (try? await processResourceReader.read(
+                    pids: Set(listeners.map { $0.process.fingerprint.pid })
+                )) ?? [:]
                 let currentListenerIDs = Set(listeners.map(\.id))
                 ownershipGraphs = ownershipGraphs.filter { currentListenerIDs.contains($0.key) }
                 recentChanges = Array((update.diff.added + update.diff.removed).prefix(12))
@@ -218,6 +232,41 @@ final class AppModel: ObservableObject {
 
     func navigate(to section: AppSection) {
         requestedSection = section
+    }
+
+    func requestProjectImport() {
+        requestedProjectImport = true
+        requestedSection = .projects
+    }
+
+    func requestManagedServiceCreation() {
+        requestedManagedServiceCreation = true
+        requestedSection = .managedServices
+    }
+
+    func requestSessionCapture() {
+        requestedSessionCapture = true
+        requestedSection = .sessions
+    }
+
+    func requestSession(_ id: UUID) {
+        requestedSessionID = id
+        requestedSection = .sessions
+    }
+
+    func requestSessionRestore(_ id: UUID) {
+        requestedSessionRestoreID = id
+        requestedSection = .sessions
+    }
+
+    func requestManagedServiceLogs(_ id: UUID) {
+        requestedManagedServiceLogsID = id
+        requestedSection = .managedServices
+    }
+
+    func requestManagedService(_ id: UUID) {
+        requestedManagedServiceID = id
+        requestedSection = .managedServices
     }
 
     func discoverProject(at rootPath: String) async throws -> ProjectDiscoveryReport {
@@ -570,12 +619,12 @@ final class AppModel: ObservableObject {
     func inspectPendingConflict() {
         guard let pendingLaunchConflict else { return }
         selectedListenerID = pendingLaunchConflict.conflict.listener.id
-        requestedSection = .activePorts
+        requestedSection = .runtime
         self.pendingLaunchConflict = nil
     }
 
     func editProfileForPendingConflict() {
-        requestedSection = .launchProfiles
+        requestedSection = .managedServices
         pendingLaunchConflict = nil
     }
 
@@ -711,30 +760,32 @@ final class AppModel: ObservableObject {
     private func recordPortChanges(_ diff: RuntimeDiff) {
         for listener in diff.added {
             notifyIfConfigured(listener, change: "became active")
-            Task {
-                await runtimeLifecycle.transition(.listenerObserved(listener, change: .discovered))
-                await record(HistoryEvent(
-                    id: UUID(), timestamp: Date(), port: listener.port,
-                    processFingerprint: listener.process.fingerprint, processName: listener.process.name,
-                    projectID: nil, profileID: listener.process.managedServiceID,
-                    type: .portDetected, result: .observed, errorDetails: nil, durationSeconds: nil
-                ))
-            }
-        }
-        for listener in diff.updated {
-            Task { await runtimeLifecycle.transition(.listenerObserved(listener, change: .changed)) }
         }
         for listener in diff.removed {
             notifyIfConfigured(listener, change: "was released")
-            Task {
-                await runtimeLifecycle.transition(.listenerObserved(listener, change: .released))
-                await record(HistoryEvent(
+        }
+        let lifecycleUpdates = diff.added.map { RuntimeLifecycleUpdate.listenerObserved($0, change: .discovered) }
+            + diff.updated.map { RuntimeLifecycleUpdate.listenerObserved($0, change: .changed) }
+            + diff.removed.map { RuntimeLifecycleUpdate.listenerObserved($0, change: .released) }
+        let historyEvents = diff.added.map { listener in
+            HistoryEvent(
+                id: UUID(), timestamp: Date(), port: listener.port,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
+                projectID: nil, profileID: listener.process.managedServiceID,
+                type: .portDetected, result: .observed, errorDetails: nil, durationSeconds: nil
+            )
+        } + diff.removed.map { listener in
+            HistoryEvent(
                     id: UUID(), timestamp: Date(), port: listener.port,
                     processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                     projectID: nil, profileID: listener.process.managedServiceID,
                     type: .portReleased, result: .observed, errorDetails: nil, durationSeconds: nil
-                ))
-            }
+            )
+        }
+        guard !lifecycleUpdates.isEmpty || !historyEvents.isEmpty else { return }
+        Task {
+            await runtimeLifecycle.transition(lifecycleUpdates)
+            await record(historyEvents)
         }
     }
 
@@ -768,6 +819,12 @@ final class AppModel: ObservableObject {
     private func record(_ event: HistoryEvent) async {
         guard let historyRecorder else { return }
         do { try await historyRecorder.record(event) }
+        catch { presentedError = .unexpected("History could not be saved: \(error.localizedDescription)") }
+    }
+
+    private func record(_ events: [HistoryEvent]) async {
+        guard let historyRecorder, !events.isEmpty else { return }
+        do { try await historyRecorder.record(events) }
         catch { presentedError = .unexpected("History could not be saved: \(error.localizedDescription)") }
     }
 

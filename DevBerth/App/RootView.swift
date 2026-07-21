@@ -2,11 +2,10 @@ import SwiftData
 import SwiftUI
 
 enum AppSection: String, CaseIterable, Identifiable {
-    case overview = "Overview"
-    case activePorts = "Active Ports"
+    case runtime = "Runtime"
     case projects = "Projects"
     case sessions = "Sessions"
-    case launchProfiles = "Launch Profiles"
+    case managedServices = "Managed Services"
     case history = "History"
     case docker = "Docker"
     case settings = "Settings"
@@ -14,11 +13,10 @@ enum AppSection: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .overview: "rectangle.3.group"
-        case .activePorts: "point.3.connected.trianglepath.dotted"
+        case .runtime: "point.3.connected.trianglepath.dotted"
         case .projects: "folder"
         case .sessions: "square.stack.3d.up"
-        case .launchProfiles: "play.square.stack"
+        case .managedServices: "play.square.stack"
         case .history: "clock.arrow.circlepath"
         case .docker: "shippingbox"
         case .settings: "gearshape"
@@ -28,9 +26,10 @@ enum AppSection: String, CaseIterable, Identifiable {
 
 struct RootView: View {
     @EnvironmentObject private var model: AppModel
-    @State private var selection: AppSection? = .activePorts
+    @State private var selection: AppSection? = .runtime
     @State private var showsCommandPalette = false
     @State private var didLaunchAutomaticProfiles = false
+    @AppStorage("devberth.onboarding.completed") private var hasCompletedOnboarding = false
     @Query private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
@@ -77,6 +76,28 @@ struct RootView: View {
             }
         }
         .sheet(isPresented: $showsCommandPalette) { CommandPaletteView(isPresented: $showsCommandPalette) }
+        .sheet(
+            isPresented: Binding(
+                get: { !hasCompletedOnboarding },
+                set: { _ in }
+            )
+        ) {
+            OnboardingView { destination in
+                hasCompletedOnboarding = true
+                switch destination {
+                case .runtime:
+                    model.refreshNow()
+                    selection = .runtime
+                case .importProject:
+                    model.requestProjectImport()
+                case .managedService:
+                    model.requestManagedServiceCreation()
+                case .session:
+                    model.requestSessionCapture()
+                }
+            }
+            .interactiveDismissDisabled()
+        }
         .sheet(item: $model.pendingLaunchConflict) { pending in
             PortConflictResolutionView(pending: pending)
                 .environmentObject(model)
@@ -113,12 +134,11 @@ struct RootView: View {
 
     @ViewBuilder
     private var detail: some View {
-        switch selection ?? .overview {
-        case .overview: OverviewView()
-        case .activePorts: ActivePortsView()
+        switch selection ?? .runtime {
+        case .runtime: ActivePortsView()
         case .projects: ProjectsView()
         case .sessions: SessionsView()
-        case .launchProfiles: LaunchProfilesView()
+        case .managedServices: LaunchProfilesView()
         case .history: HistoryView()
         case .docker: DockerView(
             client: model.dockerService,
@@ -160,7 +180,7 @@ private struct PortConflictResolutionView: View {
                 Spacer()
                 Button("Stop Process") { Task { await model.resolvePendingConflict(startAfterStopping: false); dismiss() } }
                     .disabled(pending.conflict.listener.process.isSystemProcess)
-                Button("Stop and Start Profile") { Task { await model.resolvePendingConflict(startAfterStopping: true); dismiss() } }
+                Button("Stop and Start Managed Service") { Task { await model.resolvePendingConflict(startAfterStopping: true); dismiss() } }
                     .keyboardShortcut(.defaultAction)
                     .disabled(pending.conflict.listener.process.isSystemProcess)
             }

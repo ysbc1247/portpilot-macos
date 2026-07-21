@@ -4,16 +4,29 @@ import SwiftUI
 
 struct ActivePortsView: View {
     @EnvironmentObject private var model: AppModel
+    @Query(sort: \LaunchProfileRecord.name) private var profiles: [LaunchProfileRecord]
+    @Query private var dependencies: [ProfileDependencyRecord]
+    @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
+    @Query private var serviceChecks: [ManagedServiceCheckRecord]
+    @Query private var validationRecords: [ManagedServiceValidationRecord]
     @State private var selection = Set<String>()
     @State private var protocolFilter: ListenerProtocol?
     @State private var sort = SortChoice.port
+    @AppStorage("runtime.presentation") private var presentationRaw = RuntimePresentationMode.table.rawValue
+    @AppStorage("runtime.savedView") private var savedViewRaw = RuntimeSavedView.all.rawValue
     @SceneStorage("activePorts.columnCustomization") private var columnCustomization: TableColumnCustomization<ObservedListener>
 
     private enum SortChoice: String, CaseIterable { case port = "Port", process = "Process", project = "Project", runtime = "Runtime", uptime = "Uptime" }
 
     private var displayedListeners: [ObservedListener] {
-        model.filteredListeners
+        let unhealthy = Set(model.runtimeStatuses.compactMap { id, status in
+            status.lifecycleState == .failed || status.healthState == .degraded || status.healthState == .unhealthy
+                ? id : nil
+        })
+        return model.filteredListeners
             .filter { protocolFilter == nil || $0.protocolKind == protocolFilter }
+            .filter { savedView.includes($0, unhealthyServiceIDs: unhealthy) }
             .sorted { lhs, rhs in
                 switch sort {
                 case .port: lhs.port < rhs.port
@@ -26,58 +39,173 @@ struct ActivePortsView: View {
     }
 
     var body: some View {
-        HSplitView {
-            Group {
-                if displayedListeners.isEmpty && !model.isRefreshing {
-                    EmptyStateView(
-                        symbol: model.searchText.isEmpty ? "network.slash" : "magnifyingglass",
-                        title: model.searchText.isEmpty ? "No active listeners" : "No matching listeners",
-                        message: model.searchText.isEmpty
-                            ? "DevBerth did not find any TCP or UDP listeners."
-                            : "Try a different port, process, command, or project name.",
-                        actionTitle: "Refresh",
-                        action: model.refreshNow
-                    )
-                } else {
-                    Table(displayedListeners, selection: $selection, columnCustomization: $columnCustomization) {
-                        activePortColumns
-                    }
-                    .contextMenu(forSelectionType: String.self) { ids in
-                        if let listener = model.listeners.first(where: { ids.contains($0.id) }) {
-                            Button("Copy Port") { copy(String(listener.port)) }
-                            Button("Copy PID") { copy(String(listener.process.fingerprint.pid)) }
-                            Button("Copy Command") { copy(listener.process.commandLine) }
-                            Divider()
-                            if let path = listener.process.currentDirectory {
-                                Button("Open Working Directory") { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
-                            }
+        GeometryReader { geometry in
+            HSplitView {
+                VStack(spacing: 0) {
+                    runtimeHeader
+                    Divider()
+                    Group {
+                    if displayedListeners.isEmpty && !model.isRefreshing {
+                        EmptyStateView(
+                            symbol: model.searchText.isEmpty ? savedView.symbol : "magnifyingglass",
+                            title: model.searchText.isEmpty ? "No runtime matches this view" : "No matching runtime",
+                            message: model.searchText.isEmpty
+                                ? "Try All Runtime, adjust the protocol filter, or refresh the local observation."
+                                : "Try a different port, PID, process, command, or project name.",
+                            actionTitle: "Show All Runtime",
+                            action: { savedViewRaw = RuntimeSavedView.all.rawValue }
+                        )
+                    } else if presentation == .table {
+                        Table(displayedListeners, selection: $selection, columnCustomization: $columnCustomization) {
+                            activePortColumns
                         }
-                    } primaryAction: { ids in
-                        model.selectedListenerID = ids.first
-                    }
-                    .overlay {
-                        if model.isRefreshing { ProgressView().controlSize(.small) }
+                        .contextMenu(forSelectionType: String.self) { ids in
+                            if let listener = model.listeners.first(where: { ids.contains($0.id) }) {
+                                runtimeContextMenu(listener)
+                            }
+                        } primaryAction: { ids in
+                            model.selectedListenerID = ids.first
+                        }
+                    } else {
+                        groupedRuntime
                     }
                 }
-            }
-            .frame(minWidth: 650)
+                .overlay(alignment: .topTrailing) {
+                    if model.isRefreshing { ProgressView().controlSize(.small).padding() }
+                }
+                }
+                .frame(minWidth: 720, maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .frame(height: geometry.size.height, alignment: .top)
 
-            if let listener = model.selectedListener {
-                ProcessInspectorView(listener: listener)
-                    .frame(minWidth: 280, idealWidth: 340, maxWidth: 420)
+                if selection.count > 1 {
+                    RuntimeMultiSelectionInspector(
+                        listeners: displayedListeners.filter { selection.contains($0.id) },
+                        resourceUsage: model.processResourceUsage
+                    )
+                    .frame(minWidth: 300, idealWidth: 350, maxWidth: 430)
+                    .frame(height: geometry.size.height)
+                } else if let listener = selectedListener {
+                    ProcessInspectorView(listener: listener)
+                        .frame(minWidth: 300, idealWidth: 360, maxWidth: 440)
+                        .frame(height: geometry.size.height)
+                } else {
+                    ContentUnavailableView(
+                        "Select runtime",
+                        systemImage: "sidebar.right",
+                        description: Text("Inspect ownership, restart trust, health, lifecycle evidence, logs, and safe actions.")
+                    )
+                    .frame(minWidth: 300, idealWidth: 350, maxWidth: 430)
+                    .frame(height: geometry.size.height)
+                }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
-        .navigationTitle("Active Ports")
+        .navigationTitle("Runtime")
         .toolbar {
-            Picker("Protocol", selection: $protocolFilter) {
-                Text("TCP & UDP").tag(nil as ListenerProtocol?)
-                ForEach(ListenerProtocol.allCases, id: \.self) { Text($0.rawValue).tag($0 as ListenerProtocol?) }
+            Picker("View", selection: savedViewBinding) {
+                ForEach(RuntimeSavedView.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
             }
+            .pickerStyle(.menu)
+            Picker("Layout", selection: presentationBinding) {
+                ForEach(RuntimePresentationMode.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
+            }
+            .pickerStyle(.segmented)
             Picker("Sort", selection: $sort) {
                 ForEach(SortChoice.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
         }
         .onChange(of: selection) { _, newValue in model.selectedListenerID = newValue.first }
+        .onChange(of: model.selectedListenerID) { _, listenerID in
+            guard let listenerID else { return }
+            selection = [listenerID]
+        }
+    }
+
+    private var selectedListener: ObservedListener? {
+        guard let selectedID = selection.first ?? model.selectedListenerID else { return nil }
+        return model.listeners.first { $0.id == selectedID }
+    }
+
+    private var presentation: RuntimePresentationMode {
+        RuntimePresentationMode(rawValue: presentationRaw) ?? .table
+    }
+
+    private var savedView: RuntimeSavedView {
+        RuntimeSavedView(rawValue: savedViewRaw) ?? .all
+    }
+
+    private var presentationBinding: Binding<RuntimePresentationMode> {
+        Binding(get: { presentation }, set: { presentationRaw = $0.rawValue })
+    }
+
+    private var savedViewBinding: Binding<RuntimeSavedView> {
+        Binding(get: { savedView }, set: { savedViewRaw = $0.rawValue })
+    }
+
+    private var runtimeHeader: some View {
+        HStack(spacing: DevBerthSpacing.medium) {
+            metric("Listeners", model.listeners.count, symbol: "antenna.radiowaves.left.and.right")
+            metric("Processes", Set(model.listeners.map { $0.process.fingerprint }).count, symbol: "cpu")
+            metric("Managed active", model.runtimeStatuses.values.filter(\.processRunning).count, symbol: "checkmark.shield")
+            metric("Unexpected", model.listeners.filter { $0.process.managedServiceID == nil }.count, symbol: "questionmark.diamond")
+            Spacer(minLength: 8)
+            Picker("Protocol", selection: $protocolFilter) {
+                Text("TCP & UDP").tag(nil as ListenerProtocol?)
+                ForEach(ListenerProtocol.allCases, id: \.self) { Text($0.rawValue).tag($0 as ListenerProtocol?) }
+            }
+            .labelsHidden()
+            .frame(width: 120)
+        }
+        .padding(.horizontal, DevBerthSpacing.large)
+        .padding(.vertical, DevBerthSpacing.medium)
+        .background(.bar)
+    }
+
+    private func metric(_ title: String, _ value: Int, symbol: String) -> some View {
+        HStack(spacing: DevBerthSpacing.small) {
+            Image(systemName: symbol).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(value, format: .number).font(.headline).monospacedDigit()
+                Text(title).font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var groupedRuntime: some View {
+        let groups = Dictionary(grouping: displayedListeners) { $0.process.project?.name ?? "Unassociated" }
+        return List(selection: $selection) {
+            ForEach(groups.keys.sorted(), id: \.self) { projectName in
+                Section {
+                    ForEach(groups[projectName] ?? []) { listener in
+                        RuntimeGroupedRow(
+                            listener: listener,
+                            ownership: ownershipTitle(for: listener),
+                            health: healthTitle(for: listener)
+                        )
+                        .tag(listener.id)
+                        .contextMenu { runtimeContextMenu(listener) }
+                    }
+                } header: {
+                    HStack {
+                        Label(projectName, systemImage: projectName == "Unassociated" ? "questionmark.folder" : "folder.fill")
+                        Spacer()
+                        Text("\(groups[projectName]?.count ?? 0) listener(s)")
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func runtimeContextMenu(_ listener: ObservedListener) -> some View {
+        Button("Copy Port") { copy(String(listener.port)) }
+        Button("Copy PID") { copy(String(listener.process.fingerprint.pid)) }
+        Button("Copy Command") { copy(listener.process.commandLine) }
+        Divider()
+        if let path = listener.process.currentDirectory {
+            Button("Open Working Directory") { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
+        }
     }
 
     private func copy(_ value: String) {
@@ -99,7 +227,15 @@ struct ActivePortsView: View {
             .width(min: 72, ideal: 82, max: 100)
             .customizationID("port")
         TableColumn("Process") { (listener: ObservedListener) in
-            Label(listener.process.name, systemImage: listener.process.runtime.symbolName).lineLimit(1)
+            HStack(spacing: 6) {
+                Image(systemName: listener.process.runtime.symbolName)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(listener.process.name).lineLimit(1)
+                    Text("PID \(listener.process.fingerprint.pid)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .width(min: 130, ideal: 180)
         .customizationID("process")
@@ -109,16 +245,23 @@ struct ActivePortsView: View {
         }
         .width(min: 100, ideal: 150)
         .customizationID("project")
-        TableColumn("PID") { (listener: ObservedListener) in
-            Text(listener.process.fingerprint.pid, format: .number.grouping(.never)).monospacedDigit()
+        TableColumn("Ownership") { (listener: ObservedListener) in
+            Text(ownershipTitle(for: listener)).lineLimit(1)
         }
-        .width(min: 55, ideal: 65, max: 90)
-        .customizationID("pid")
-        TableColumn("Address") { (listener: ObservedListener) in
-            Text(listener.address).font(.system(.body, design: .monospaced)).lineLimit(1)
+        .width(min: 120, ideal: 170)
+        .customizationID("ownership")
+        TableColumn("Restart trust") { (listener: ObservedListener) in
+            Label(trustSummary(for: listener).state.title, systemImage: trustSummary(for: listener).state.symbol)
+                .labelStyle(.titleAndIcon)
+                .lineLimit(1)
         }
-        .width(min: 95, ideal: 130)
-        .customizationID("address")
+        .width(min: 145, ideal: 175)
+        .customizationID("restartTrust")
+        TableColumn("Health") { (listener: ObservedListener) in
+            Text(healthTitle(for: listener)).lineLimit(1)
+        }
+        .width(min: 85, ideal: 105)
+        .customizationID("health")
         TableColumn("Runtime") { (listener: ObservedListener) in Text(listener.process.runtime.rawValue) }
             .width(min: 90, ideal: 120)
             .customizationID("runtime")
@@ -128,7 +271,108 @@ struct ActivePortsView: View {
         }
         .width(min: 90, ideal: 105)
         .customizationID("uptime")
+        TableColumn("Resources") { (listener: ObservedListener) in
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.processResourceUsage[listener.process.fingerprint.pid].map { String(format: "%.1f%% CPU", $0.cpuPercent) } ?? "CPU —")
+                Text(model.processResourceUsage[listener.process.fingerprint.pid].map { ByteCountFormatter.string(fromByteCount: Int64($0.residentMemoryBytes), countStyle: .memory) } ?? "Memory —")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption.monospacedDigit())
+        }
+        .width(min: 90, ideal: 110)
+        .customizationID("resources")
     }
+
+    private func ownershipTitle(for listener: ObservedListener) -> String {
+        RuntimePresentation.ownershipTitle(for: listener, resolved: model.ownershipGraphs[listener.id])
+    }
+
+    private func healthTitle(for listener: ObservedListener) -> String {
+        guard let id = listener.process.managedServiceID,
+              let status = model.runtimeStatuses[id] else { return "Observed" }
+        if status.lifecycleState == .failed { return "Failed" }
+        return status.healthState.rawValue
+            .replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
+            .capitalized
+    }
+
+    private func trustSummary(for listener: ObservedListener) -> RestartTrustSummary {
+        guard let managedServiceID = listener.process.managedServiceID,
+              let record = profiles.first(where: { $0.id == managedServiceID }),
+              let configuration = record.configuration(
+                dependencies: dependencies,
+                expectedPorts: expectedPorts,
+                processPolicies: processPolicies,
+                serviceChecks: serviceChecks
+              ) else {
+            return RestartTrustEvaluator.observedSummary(for: listener)
+        }
+        let validation = validationRecords.first { $0.managedServiceID == managedServiceID }?.result
+        return RestartTrustEvaluator.summary(for: configuration, validation: validation)
+    }
+}
+
+private struct RuntimeGroupedRow: View {
+    let listener: ObservedListener
+    let ownership: String
+    let health: String
+
+    var body: some View {
+        HStack(spacing: DevBerthSpacing.medium) {
+            StatusDot(status: listener.process.isSystemProcess ? .warning : .healthy)
+            PortBadge(port: listener.port)
+            Label(listener.process.name, systemImage: listener.process.runtime.symbolName)
+                .frame(minWidth: 130, alignment: .leading)
+            Text(ownership).foregroundStyle(.secondary).lineLimit(1)
+            Spacer()
+            Text(health).font(.caption).foregroundStyle(.secondary)
+            Text(listener.protocolKind.rawValue).font(.caption.monospaced()).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 3)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Port \(listener.port), \(listener.process.name), \(ownership), \(health)")
+    }
+}
+
+private struct RuntimeMultiSelectionInspector: View {
+    let listeners: [ObservedListener]
+    let resourceUsage: [Int32: ProcessResourceUsage]
+
+    var body: some View {
+        let processes = Dictionary(grouping: listeners, by: { $0.process.fingerprint })
+        let managed = listeners.filter { $0.process.managedServiceID != nil }.count
+        let docker = listeners.filter { $0.process.docker != nil }.count
+        ScrollView {
+            VStack(alignment: .leading, spacing: DevBerthSpacing.large) {
+                Text("Runtime Selection").font(.title2.bold())
+                Text("\(listeners.count) listeners across \(processes.count) processes")
+                    .foregroundStyle(.secondary)
+                GroupBox("Summary") {
+                    VStack(spacing: 10) {
+                        InspectorRow(title: "Managed listeners", value: String(managed))
+                        InspectorRow(title: "Observed listeners", value: String(listeners.count - managed))
+                        InspectorRow(title: "Docker listeners", value: String(docker))
+                        InspectorRow(title: "CPU", value: String(format: "%.1f%%", totalCPU))
+                        InspectorRow(title: "Resident memory", value: ByteCountFormatter.string(fromByteCount: Int64(totalMemory), countStyle: .memory))
+                    }
+                }
+                GroupBox("Ports") {
+                    Text(listeners.map { "\($0.protocolKind.rawValue) :\($0.port)" }.joined(separator: ", "))
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Text("Actions are intentionally available only for one selected runtime so DevBerth can show the exact owner and confirmation scope.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(DevBerthSpacing.large)
+        }
+    }
+
+    private var selectedPIDs: Set<Int32> { Set(listeners.map { $0.process.fingerprint.pid }) }
+    private var totalCPU: Double { selectedPIDs.compactMap { resourceUsage[$0]?.cpuPercent }.reduce(0, +) }
+    private var totalMemory: UInt64 { selectedPIDs.compactMap { resourceUsage[$0]?.residentMemoryBytes }.reduce(0, +) }
 }
 
 private struct ProcessInspectorView: View {
@@ -159,15 +403,35 @@ private struct ProcessInspectorView: View {
                     }
                 }
 
-                GroupBox("Listener") {
+                GroupBox("Summary") {
                     VStack(spacing: 10) {
-                        InspectorRow(title: "Port", value: String(listener.port))
-                        InspectorRow(title: "Protocol", value: listener.protocolKind.rawValue)
-                        InspectorRow(title: "Address", value: listener.address)
-                        InspectorRow(title: "Scope", value: listener.addressScope.rawValue)
+                        InspectorRow(title: "Ownership", value: RuntimePresentation.ownershipTitle(for: listener, resolved: ownershipGraph))
+                        InspectorRow(title: "Project", value: listener.process.project?.name ?? "Not associated")
+                        InspectorRow(title: "Restart trust", value: restartTrustSummary.state.title)
+                        InspectorRow(title: "Health", value: managedHealthTitle)
+                        if let usage = model.processResourceUsage[listener.process.fingerprint.pid] {
+                            InspectorRow(title: "CPU", value: String(format: "%.1f%%", usage.cpuPercent))
+                            InspectorRow(title: "Resident memory", value: ByteCountFormatter.string(fromByteCount: Int64(usage.residentMemoryBytes), countStyle: .memory))
+                        } else {
+                            InspectorRow(title: "Resource usage", value: "Unavailable")
+                        }
                     }
                 }
-                GroupBox("Process fingerprint") {
+
+                GroupBox("Network listeners") {
+                    VStack(spacing: 10) {
+                        ForEach(matchingListeners) { value in
+                            HStack {
+                                PortBadge(port: value.port)
+                                Text(value.protocolKind.rawValue).font(.caption.monospaced())
+                                Spacer()
+                                Text(value.address).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                Text(value.addressScope.rawValue).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                GroupBox("Process identity") {
                     VStack(spacing: 10) {
                         InspectorRow(title: "PID", value: String(listener.process.fingerprint.pid))
                         InspectorRow(title: "Owner", value: listener.process.owner)
@@ -205,6 +469,24 @@ private struct ProcessInspectorView: View {
                     isLoading: model.ownershipInspectionsInProgress.contains(listener.id)
                 )
                 RestartTrustExplanationView(summary: restartTrustSummary)
+                GroupBox("Managed-service relationship") {
+                    if let managedConfiguration {
+                        VStack(spacing: 10) {
+                            InspectorRow(title: "Service", value: managedConfiguration.name)
+                            InspectorRow(title: "Definition", value: "Explicit and reviewed")
+                            InspectorRow(
+                                title: "Expected ports",
+                                value: managedConfiguration.expectedPorts.isEmpty
+                                    ? "None"
+                                    : managedConfiguration.expectedPorts.map { String($0.port) }.joined(separator: ", ")
+                            )
+                        }
+                    } else {
+                        Text("This observation is not linked to a DevBerth managed service. Discovery alone does not make it restartable.")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
                 if let managedServiceID = listener.process.managedServiceID {
                     ManagedRuntimeIntelligenceView(
                         status: model.runtimeStatuses[managedServiceID],
@@ -217,7 +499,7 @@ private struct ProcessInspectorView: View {
                     )
                 }
                 if let project = listener.process.project {
-                    GroupBox("Inferred project") {
+                    GroupBox("Project") {
                         VStack(spacing: 10) {
                             InspectorRow(title: "Name", value: project.name)
                             InspectorRow(title: "Root", value: project.rootPath)
@@ -241,32 +523,46 @@ private struct ProcessInspectorView: View {
                         .foregroundStyle(.orange)
                         .font(.callout)
                 }
-                VStack(spacing: DevBerthSpacing.small) {
-                    Button {
-                        Task { await model.terminate(listener, mode: .graceful(timeoutSeconds: 5)) }
-                    } label: {
-                        Label(gracefulStopTitle, systemImage: "stop.circle")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .disabled(!canGracefullyStop || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
-
-                    HStack {
-                        if canConvertToManagedService {
-                            Button("Convert to Managed Service") { showsProfileReview = true }
+                GroupBox("Logs") {
+                    if let managedServiceID = listener.process.managedServiceID {
+                        Button("Open Managed-service Logs", systemImage: "text.alignleft") {
+                            model.requestManagedServiceLogs(managedServiceID)
                         }
-                        Spacer()
-                        if canRestart {
-                            Button("Restart") {
-                                Task {
-                                    await model.restartOwnedRuntime(
-                                        listener,
-                                        verifiedConfiguration: managedConfiguration
-                                    )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text("DevBerth does not capture output from observed processes it did not launch.")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                GroupBox("Safe actions") {
+                    VStack(spacing: DevBerthSpacing.small) {
+                        Button {
+                            Task { await model.terminate(listener, mode: .graceful(timeoutSeconds: 5)) }
+                        } label: {
+                            Label(gracefulStopTitle, systemImage: "stop.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(!canGracefullyStop || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
+
+                        HStack {
+                            if canConvertToManagedService {
+                                Button("Convert to Managed Service") { showsProfileReview = true }
+                            }
+                            Spacer()
+                            if canRestart {
+                                Button("Restart") {
+                                    Task {
+                                        await model.restartOwnedRuntime(
+                                            listener,
+                                            verifiedConfiguration: managedConfiguration
+                                        )
+                                    }
                                 }
                             }
+                            Button("Force Stop", role: .destructive) { showsForceConfirmation = true }
+                                .disabled(!canForceStop || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
                         }
-                        Button("Force Stop", role: .destructive) { showsForceConfirmation = true }
-                            .disabled(!canForceStop || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
                     }
                 }
             }
@@ -303,6 +599,20 @@ private struct ProcessInspectorView: View {
 
     private var ownershipGraph: RuntimeOwnershipGraph? {
         model.ownershipGraphs[listener.id]
+    }
+
+    private var matchingListeners: [ObservedListener] {
+        model.listeners.filter { $0.process.fingerprint == listener.process.fingerprint }
+            .sorted { $0.port < $1.port }
+    }
+
+    private var managedHealthTitle: String {
+        guard let managedServiceID = listener.process.managedServiceID,
+              let status = model.runtimeStatuses[managedServiceID] else { return "Observed" }
+        if status.lifecycleState == .failed { return "Failed" }
+        return status.healthState.rawValue
+            .replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression)
+            .capitalized
     }
 
     private var canGracefullyStop: Bool {
@@ -382,7 +692,7 @@ private struct ManagedRuntimeIntelligenceView: View {
     let recentEvents: [LifecycleEventRecord]
 
     var body: some View {
-        GroupBox("Managed runtime health") {
+        GroupBox("Health and recent lifecycle") {
             VStack(alignment: .leading, spacing: DevBerthSpacing.medium) {
                 if let status {
                     InspectorRow(title: "Process", value: status.processRunning ? "Running" : "Stopped")
@@ -431,7 +741,7 @@ private struct RestartTrustExplanationView: View {
     let summary: RestartTrustSummary
 
     var body: some View {
-        GroupBox("Can DevBerth restart this reliably?") {
+        GroupBox("Restart trust") {
             VStack(alignment: .leading, spacing: DevBerthSpacing.small) {
                 Label(summary.state.title, systemImage: summary.state.symbol)
                     .font(.headline)
@@ -738,7 +1048,7 @@ private struct DiscoveredProfileReviewView: View {
                 Text("Port \(listener.port) is currently occupied by PID \(listener.process.fingerprint.pid). DevBerth must re-resolve its controlling owner and stop it before testing the managed definition on the same port.")
                     .font(.callout)
                 Toggle("Stop the revalidated observed owner before the test", isOn: $stopConfirmed)
-                Label("No profile or secret reference is saved unless the candidate starts, becomes ready, and stops cleanly.", systemImage: "checkmark.shield")
+                Label("No managed service or secret reference is saved unless the candidate starts, becomes ready, and stops cleanly.", systemImage: "checkmark.shield")
                     .font(.caption).foregroundStyle(.secondary)
                 Text("If candidate startup fails after the approved stop, the original process remains stopped and DevBerth reports the failure; it will not guess how to recreate it.")
                     .font(.caption).foregroundStyle(.orange)
@@ -850,7 +1160,7 @@ private struct DiscoveredProfileReviewView: View {
             try await model.recordRestartTrust(for: candidate, validation: validation)
             dismiss()
         } catch {
-            errorMessage = "The profile and Keychain references were saved, but validation metadata could not be recorded: \(error.localizedDescription)"
+            errorMessage = "The managed service and Keychain references were saved, but validation metadata could not be recorded: \(error.localizedDescription)"
         }
     }
 

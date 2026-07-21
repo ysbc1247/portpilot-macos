@@ -31,7 +31,7 @@ struct ProfileLogsView: View {
             .padding()
             Divider()
             if filtered.isEmpty {
-                EmptyStateView(symbol: "text.alignleft", title: "No log output", message: "stdout, stderr, and lifecycle messages will stream here while DevBerth runs this profile.")
+                EmptyStateView(symbol: "text.alignleft", title: "No log output", message: "stdout, stderr, and lifecycle messages will stream here while DevBerth runs this managed service.")
             } else {
                 ScrollViewReader { proxy in
                     List(filtered) { entry in
@@ -85,4 +85,3 @@ struct LogTextDocument: FileDocument {
         FileWrapper(regularFileWithContents: Data(text.utf8))
     }
 }
-

@@ -105,9 +105,31 @@ struct SessionsView: View {
         } message: { record in
             Text("\(record.name) and its restore results will be removed. Lifecycle audit events remain in bounded history.")
         }
-        .onAppear { selectFirstSessionIfNeeded() }
+        .onAppear {
+            if model.requestedSessionCapture {
+                model.requestedSessionCapture = false
+                showsCapture = true
+            }
+            if let requestedID = model.requestedSessionID {
+                selectedSessionID = requestedID
+                model.requestedSessionID = nil
+            }
+            consumeRestoreRequest()
+            selectFirstSessionIfNeeded()
+        }
         .onChange(of: sessionRecords.map(\.id)) { _, _ in selectFirstSessionIfNeeded() }
         .onChange(of: selectedSessionID) { _, _ in refreshComparison() }
+        .onChange(of: model.requestedSessionCapture) { _, requested in
+            guard requested else { return }
+            model.requestedSessionCapture = false
+            showsCapture = true
+        }
+        .onChange(of: model.requestedSessionID) { _, requestedID in
+            guard let requestedID else { return }
+            selectedSessionID = requestedID
+            model.requestedSessionID = nil
+        }
+        .onChange(of: model.requestedSessionRestoreID) { _, _ in consumeRestoreRequest() }
     }
 
     private var sessionList: some View {
@@ -303,6 +325,14 @@ struct SessionsView: View {
     private func selectFirstSessionIfNeeded() {
         if let selectedSessionID, sessionRecords.contains(where: { $0.id == selectedSessionID }) { return }
         selectedSessionID = sessionRecords.first?.id
+    }
+
+    private func consumeRestoreRequest() {
+        guard let requestedID = model.requestedSessionRestoreID,
+              let record = sessionRecords.first(where: { $0.id == requestedID }) else { return }
+        model.requestedSessionRestoreID = nil
+        selectedSessionID = requestedID
+        restoreSession = record.session(serviceRecords: snapshotRecords)
     }
 
     private func refreshComparison() {

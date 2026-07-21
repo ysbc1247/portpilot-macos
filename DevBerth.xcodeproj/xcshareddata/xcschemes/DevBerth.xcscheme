@@ -91,6 +91,17 @@
                ReferencedContainer = "container:DevBerth.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7A3F437B88ED110E87C0954F"
+               BuildableName = "DevBerthUITests.xctest"
+               BlueprintName = "DevBerthUITests"
+               ReferencedContainer = "container:DevBerth.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

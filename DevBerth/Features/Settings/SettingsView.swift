@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("refreshInterval") private var refreshInterval = 2.0
     @AppStorage("historyRetentionDays") private var historyRetentionDays = 30
     @AppStorage("notifyConfiguredPorts") private var notifyConfiguredPorts = false
+    @AppStorage("devberth.onboarding.completed") private var hasCompletedOnboarding = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginItemError: String?
     @State private var diagnosticsDocument: LogTextDocument?
@@ -43,6 +44,13 @@ struct SettingsView: View {
             Section("Safety") {
                 Label("System and root-owned processes receive additional protection.", systemImage: "lock.shield")
                 Text("DevBerth never silently requests administrator privileges and never uploads process information.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section("Getting Started") {
+                Button("Show Welcome Guide Again", systemImage: "sparkles") {
+                    hasCompletedOnboarding = false
+                }
+                Text("The guide explains local visibility limits, ownership, restart trust, and DevBerth’s safety model.")
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section("Diagnostics") {

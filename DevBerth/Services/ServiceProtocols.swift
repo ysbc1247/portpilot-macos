@@ -93,6 +93,13 @@ protocol ServiceCheckRunning: Sendable {
 
 protocol HistoryRecording: Sendable {
     func record(_ event: HistoryEvent) async throws
+    func record(_ events: [HistoryEvent]) async throws
+}
+
+extension HistoryRecording {
+    func record(_ events: [HistoryEvent]) async throws {
+        for event in events { try await record(event) }
+    }
 }
 
 protocol OwnershipRecording: Sendable {
@@ -112,12 +119,26 @@ protocol ManagedServiceValidating: Sendable {
 protocol RuntimeLifecycleRecording: Sendable {
     func record(_ runtime: RuntimeInstance) async throws
     func record(_ event: LifecycleEvent) async throws
+    func record(_ events: [LifecycleEvent]) async throws
     func record(_ incident: RuntimeIncidentSummary) async throws
+}
+
+extension RuntimeLifecycleRecording {
+    func record(_ events: [LifecycleEvent]) async throws {
+        for event in events { try await record(event) }
+    }
 }
 
 protocol RuntimeLifecycleObserving: Sendable {
     func transition(_ update: RuntimeLifecycleUpdate) async
+    func transition(_ updates: [RuntimeLifecycleUpdate]) async
     func snapshots() async -> AsyncStream<RuntimeLifecycleSnapshot>
+}
+
+extension RuntimeLifecycleObserving {
+    func transition(_ updates: [RuntimeLifecycleUpdate]) async {
+        for update in updates { await transition(update) }
+    }
 }
 
 protocol ManagedProcessExitObserving: Sendable {

@@ -5,6 +5,7 @@ build/
 xcuserdata/
 *.xccheckout
 *.xcscmblueprint
+*.profraw
 
 # Swift Package Manager
 .build/

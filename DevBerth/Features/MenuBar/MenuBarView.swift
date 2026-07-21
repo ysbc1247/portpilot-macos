@@ -12,6 +12,7 @@ struct MenuBarView: View {
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @Query private var serviceChecks: [ManagedServiceCheckRecord]
     @Query(sort: \ProjectRecord.name) private var projects: [ProjectRecord]
+    @Query(sort: \LifecycleEventRecord.timestamp, order: .reverse) private var lifecycleEvents: [LifecycleEventRecord]
 
     private var visible: [ObservedListener] {
         let trimmed = portSearch.trimmingCharacters(in: .whitespaces)
@@ -49,7 +50,7 @@ struct MenuBarView: View {
             let favorites = profiles.filter(\.isFavorite).prefix(4)
             if !favorites.isEmpty {
                 Divider()
-                Text("Favorite profiles").font(.caption.bold()).foregroundStyle(.secondary)
+                Text("Favorite managed services").font(.caption.bold()).foregroundStyle(.secondary)
                 ForEach(Array(favorites)) { record in
                     if let profile = record.configuration(
                         dependencies: dependencies,
@@ -71,13 +72,11 @@ struct MenuBarView: View {
                     }
                 }
             }
-            let runningProjects = projects.filter { project in
-                profiles.contains { $0.projectID == project.id && model.runningProfileIDs.contains($0.id) }
-            }
-            if !runningProjects.isEmpty {
+            if !recentProjects.isEmpty {
                 Divider()
-                Text("Running projects").font(.caption.bold()).foregroundStyle(.secondary)
-                ForEach(runningProjects.prefix(3)) { project in
+                Text(hasRecentProjectEvidence ? "Recent projects" : "Projects")
+                    .font(.caption.bold()).foregroundStyle(.secondary)
+                ForEach(recentProjects) { project in
                     let values = profiles.filter { $0.projectID == project.id }.compactMap {
                         $0.configuration(
                             dependencies: dependencies,
@@ -89,18 +88,28 @@ struct MenuBarView: View {
                     HStack {
                         Label(project.name, systemImage: "folder.fill")
                         Spacer()
-                        Button("Stop All") { Task { await model.stopProject(values) } }
+                        let isRunning = values.contains { model.runningProfileIDs.contains($0.id) }
+                        Button(isRunning ? "Stop" : "Start") {
+                            Task {
+                                if isRunning { await model.stopProject(values) }
+                                else { await model.startProject(values) }
+                            }
+                        }
+                        .disabled(values.isEmpty)
                     }
                 }
             }
             Divider()
+            Button("Capture Workspace Session", systemImage: "camera") {
+                model.requestSessionCapture()
+                openMainWindow()
+            }
             HStack {
                 Button(model.isMonitoring ? "Pause" : "Resume") {
                     model.isMonitoring ? model.pauseMonitoring() : model.startMonitoring()
                 }
                 Button("Open DevBerth") {
-                    NSApp.activate(ignoringOtherApps: true)
-                    openWindow(id: "main")
+                    openMainWindow()
                 }
                 Spacer()
                 Button("Quit") { NSApplication.shared.terminate(nil) }
@@ -122,5 +131,32 @@ struct MenuBarView: View {
         model.runtimeStatuses.values.filter {
             $0.lifecycleState == .failed || $0.healthState == .degraded || $0.healthState == .unhealthy
         }.count
+    }
+
+    private var recentProjects: [ProjectRecord] {
+        var seen = Set<UUID>()
+        var values: [ProjectRecord] = []
+        for event in lifecycleEvents {
+            guard let projectID = event.projectID,
+                  seen.insert(projectID).inserted,
+                  let project = projects.first(where: { $0.id == projectID }) else { continue }
+            values.append(project)
+            if values.count == 3 { break }
+        }
+        for project in projects where values.count < 3 && seen.insert(project.id).inserted {
+            values.append(project)
+        }
+        return values
+    }
+
+    private var hasRecentProjectEvidence: Bool {
+        lifecycleEvents.contains { event in
+            event.projectID.map { projectID in projects.contains { $0.id == projectID } } ?? false
+        }
+    }
+
+    private func openMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "main")
     }
 }

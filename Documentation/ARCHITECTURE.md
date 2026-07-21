@@ -8,7 +8,7 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 | --- | --- | --- |
 | Domain | OS observations, durable managed-service intent, process fingerprints, dependency planning, conflicts, history | Value types in `DevBerth/Domain` |
 | Command execution | Direct executable URL plus discrete argument arrays | `FoundationCommandRunner` |
-| Process discovery | Tagged listener parsing and process enrichment | `LocalPortDiscovery`, `ObservedProcessProvider` |
+| Process discovery | Tagged listener parsing, process enrichment, and transient batched resource evidence | `LocalPortDiscovery`, `ObservedProcessProvider`, `SystemProcessResourceUsageReader` |
 | Monitoring | Polling, snapshots, diffs, pause/resume | `PortMonitor` actor |
 | Ownership | Bounded lineage, managed-runtime reconciliation, confidence-labeled conclusions, safe controller choice | `SystemProcessLineageProvider`, `RuntimeOwnershipResolver`, `ManagedRuntimeRegistry` |
 | Process control | Protection, fingerprint and listener-edge verification, signals, wait state | `SafeProcessController` |
@@ -34,9 +34,10 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 4. Process metadata is cached for 30 seconds. At most three stale entries are refreshed per poll, preventing synchronized command bursts; disappeared PIDs are evicted immediately.
 5. `RuntimeDiffer` derives added, updated, and removed listeners by stable listener ID.
 6. Docker associations are refreshed on a five-second cache and joined by host port and protocol. One `docker inspect` batch supplies current state, health, restart policy, exact port bindings, and canonical labels; expensive Compose scope proof is cached for fifteen seconds only while its path evidence is unchanged.
-7. `AppModel` publishes the correlated snapshot on the main actor, records added/changed/released listeners as structured lifecycle evidence plus compatibility history, and optionally schedules configured-port notifications.
-8. The selected listener is reconciled against the managed-runtime registry, Docker metadata, bounded process lineage, and deterministic external-owner rules. The result is a transient `RuntimeOwnershipGraph`; its primary conclusion is persisted with bounded retention.
-9. SwiftUI renders the existing value graph instead of causing OS queries from view bodies.
+7. One bounded `ps` call per batch of at most 128 unique listener PIDs reads CPU percentage and resident memory. Malformed, disappeared, or inaccessible PIDs remain unavailable; this transient evidence never authorizes control.
+8. `AppModel` publishes the correlated snapshot and resource map on the main actor, records added/changed/released listeners as structured lifecycle evidence plus compatibility history, and optionally schedules configured-port notifications.
+9. The selected listener is reconciled against the managed-runtime registry, Docker metadata, bounded process lineage, and deterministic external-owner rules. The result is a transient `RuntimeOwnershipGraph`; its primary conclusion is persisted with bounded retention.
+10. SwiftUI renders the existing value graph instead of causing OS queries from view bodies.
 
 The listener identity is `PID + protocol + address + port`. A process fingerprint contains PID, UID, executable path, executable device/inode when available, start time, command-line SHA-256 digest, parent PID, and detection time. First/last listener timestamps and fingerprint detection time are evidence timestamps, not authority to control a PID and not persisted live `Process` objects.
 
@@ -66,7 +67,7 @@ Incident summaries are deterministic projections of the latest eight ordered eve
 2. exact Docker published-port/container metadata, including Compose labels;
 3. command and lineage rules for Kubernetes port forwards, SSH tunnels, coding agents, supervisors, Homebrew plus launchd, LaunchAgents/Daemons, IDEs, terminals, shells, standalone processes, and unknown owners.
 
-Every `OwnershipConclusion` includes value, confidence, evidence, detection method, and observation time. Managed registration and exact Docker metadata can be verified. Lineage and service-manager resemblance remain explicitly inferred even when several observations agree. The Active Ports inspector exposes the conclusion, evidence provenance, process group, lineage, and safe-action rationale under “Why is this running?”.
+Every `OwnershipConclusion` includes value, confidence, evidence, detection method, and observation time. Managed registration and exact Docker metadata can be verified. Lineage and service-manager resemblance remain explicitly inferred even when several observations agree. The Runtime inspector exposes the conclusion, evidence provenance, process group, lineage, and safe-action rationale under “Why is this running?”.
 
 `OwnerAwareLifecycleRouter` is the only presentation-level dispatch boundary for an observed listener action. It stops a live DevBerth-managed runtime through its reviewed service policy and may restart that runtime by stopping its revalidated group and launching the exact registered verified configuration. Before that restart, `AppModel` requires the current profile to remain verified and compares its digest with the active runtime registration; an edit cannot silently relaunch an older registered recipe. It stops, restarts, or removes an exact Docker container through Docker, and delegates standalone/Kubernetes-forward/SSH process stops to `SafeProcessController`. It never substitutes a host PID signal for a container action. A Compose service receives stop, dependency-free restart, or removal only after exact project/service/files/directory/environment/hash and container membership verification; every action repeats that proof immediately before mutation. Homebrew, launchd, and supervisor actions remain inspection-only until their exact controlling context exists. External observations never receive restart because no verified reconstruction recipe exists.
 
@@ -137,9 +138,15 @@ Starts follow `DependencyPlanner` layers, with one layer parallelized and later 
 
 ## Logs and diagnostics
 
-Managed stdout and stderr are streamed into an actor. Secret values are replaced before entries reach memory or disk. Each profile retains the latest 2,000 in-memory entries and a bounded two-megabyte redacted file under Application Support. The UI can pause rendering, clear, copy, search, and export.
+Managed stdout and stderr are streamed into an actor. The redactor holds possible secret-prefix suffixes so a known secret split across arbitrary output chunks is replaced before entries reach memory or disk. Partial lines are assembled before storage. Each profile retains the latest 2,000 in-memory entries and a bounded two-megabyte redacted file under Application Support. Normal writes append; overflow rotates to half the maximum so every subsequent line does not trigger another full-file rewrite. The UI can pause rendering, clear, copy, search, and export.
 
 Diagnostics include app/macOS versions, non-secret settings, command availability, non-command listener summaries, and the latest UI error. They intentionally exclude commands, environment values, log contents, and Keychain data.
+
+## Native product surface
+
+The sidebar order is Runtime, Projects, Sessions, Managed Services, History, Docker, and Settings. Runtime absorbs the former summary dashboard so metrics and list state derive from one live snapshot. Its table and project-grouped modes share the same protocol/search/saved-view filtering and persistent contextual inspector. Table columns expose process/PID, ownership, restart trust, health, runtime, uptime, and transient CPU/resident memory; network address and full fingerprint evidence remain in the inspector.
+
+The first-run guide is local and account-free. It states visibility limits, observation versus management, exact destructive revalidation, Keychain-only secrets, and non-upload behavior before routing into Runtime, project import, managed-service creation, or session capture. The menu bar and command palette invoke `AppModel` request/action boundaries; they do not bypass trust checks. Palette restart is offered only for an exact verified definition. See `PRODUCT_SURFACE.md`.
 
 ## Persistence and migrations
 
@@ -147,7 +154,7 @@ SwiftData schema V1 contains `ProjectRecord`, `LaunchProfileRecord`, `ProfileDep
 
 `DevBerthMigrationPlan` contains frozen V1 through V6 schemas. V2 adds separate runtime-instance, ownership-evidence, restart-trust, workspace-session, restore-result, project-discovery, and lifecycle-event records. V3 adds field-addressable full process fingerprints, managed-service process policies, and process-group snapshots. V4 adds the latest exact managed-service validation result. V5 adds lifecycle context and incident-summary sidecars without mutating the frozen V2 lifecycle entity. V6 adds reviewed managed-service check sidecars. Every transition is lightweight and additive; genuine V2, V3, V4, and V5 fixtures prove their next transition while the product migration fixture proves V1→current. Future changes must add a new `VersionedSchema` and explicit migration stage rather than editing any shipped schema identifier.
 
-Lifecycle context stores severity, source, trigger, fingerprint, listener, duration, and related-event IDs beside the frozen V2 base event. The store retains at most 5,000 lifecycle events, prunes base and context together every 100 writes, and retains at most 250 incident summaries. Runtime instances are upserted by runtime ID. V4 validation digests remain byte-compatible for profiles with no V6 service checks; adding or changing a reviewed check extends the digest and requires revalidation.
+Lifecycle context stores severity, source, trigger, fingerprint, listener, duration, and related-event IDs beside the frozen V2 base event. Listener-change bursts are recorded as one lifecycle batch and one compatibility-history batch, with one save per batch. The store retains at most 5,000 lifecycle events by pruning base/context pairs with 100-row headroom whenever its write countdown crosses zero; a large batch reserves at least its own size. Incident summaries retain at most 250 rows. Runtime instances are upserted by runtime ID. V4 validation digests remain byte-compatible for profiles with no V6 service checks; adding or changing a reviewed check extends the digest and requires revalidation.
 
 Production ownership inspection records only the redacted `OwnershipConclusion`, not raw environment values. `SwiftDataStore` retains the newest 1,000 ownership-evidence records and deletes the oldest on insertion; an in-memory production-store test proves both persistence and the bound.
 
@@ -174,6 +181,8 @@ See `SECURITY.md` and `PRIVACY.md` for operator-facing policy.
 Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, malformed records, Docker Engine inspection, and Compose JSON/hash output. Pure tests cover classification, diffs, exact restart digests including V6 checks, trust gating, isolated validation, secret staging/rollback/clone/delete, graph ordering/cycles, conflict detection, distinct runtime/readiness/health states, deterministic incidents, every service-check kind, retry timing, health degradation/recovery/cancellation, restart policy and crash-loop limits, listener lifecycle metadata, lifecycle retention, migrations through V6, bounded ownership evidence, bounded/cyclic lineage, deterministic owner classification, managed-runtime reconciliation, managed restart, owner-aware dispatch, explicit controller refusal, every required discovery ecosystem, Compose dependency/port extraction, exact Compose scope reconstruction, one-off/stale/hash-mismatch refusal, shell-review flags, native manifest redaction, unreviewed import persistence, session capture/comparison/preflight/dry-run, dependency parallelism, failed-layer blocking, and scoped rollback.
 
 Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong fingerprints, listener ownership, graceful exit, graceful timeout, confirmed force-stop, dedicated POSIX groups, child/multi-listener shutdown, `exec` replacement, supervisor restart, ignored `SIGTERM`, and detached-descendant exclusion. Every test owns and cleans up its fixture process.
+
+The UI-test target launches with `DEVBERTH_UI_TESTING=1`, uses an in-memory V6 container, skips product migration, and injects a static loopback listener plus resource snapshot owned entirely by the test configuration. It covers onboarding disclosure, primary navigation, and keyboard command-palette routing without inspecting or controlling the host runtime.
 
 ## Monitoring overhead
 

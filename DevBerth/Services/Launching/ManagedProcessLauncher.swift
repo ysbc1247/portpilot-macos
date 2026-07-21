@@ -410,6 +410,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         if let managed = running.removeValue(forKey: profileID) {
             managed.standardOutput.readabilityHandler = nil
             managed.standardError.readabilityHandler = nil
+            await logs.finalize(profileID: profileID)
             await runtimeRegistry.remove(serviceID: profileID, runtimeID: managed.runtime.id)
             return managed
         }

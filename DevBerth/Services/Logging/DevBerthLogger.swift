@@ -21,8 +21,15 @@ struct ServiceLogEntry: Identifiable, Codable, Sendable, Equatable {
 }
 
 actor ServiceLogBuffer {
+    private struct StreamKey: Hashable {
+        let profileID: UUID
+        let stream: LogStream
+    }
+
     private var entriesByProfile: [UUID: [ServiceLogEntry]] = [:]
     private var redactionsByProfile: [UUID: [String]] = [:]
+    private var pendingRedactionSuffixes: [StreamKey: String] = [:]
+    private var pendingLines: [StreamKey: String] = [:]
     private let maximumEntries: Int
     private let maximumPersistedBytes: Int
     private let logDirectory: URL
@@ -31,17 +38,22 @@ actor ServiceLogBuffer {
     init(
         maximumEntries: Int = 2_000,
         maximumPersistedBytes: Int = 2_000_000,
-        persistsToDisk: Bool = true
+        persistsToDisk: Bool = true,
+        logDirectory: URL? = nil
     ) {
         self.maximumEntries = max(100, maximumEntries)
         self.maximumPersistedBytes = max(64_000, maximumPersistedBytes)
         self.persistsToDisk = persistsToDisk
-        let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        self.logDirectory = applicationSupport
-            .appendingPathComponent(ProductIdentity.currentSupportDirectoryName, isDirectory: true)
-            .appendingPathComponent("ServiceLogs", isDirectory: true)
+        if let logDirectory {
+            self.logDirectory = logDirectory
+        } else {
+            let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            self.logDirectory = applicationSupport
+                .appendingPathComponent(ProductIdentity.currentSupportDirectoryName, isDirectory: true)
+                .appendingPathComponent("ServiceLogs", isDirectory: true)
+        }
         if persistsToDisk {
-            try? FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
+            try? FileManager.default.createDirectory(at: self.logDirectory, withIntermediateDirectories: true)
         }
     }
 
@@ -51,20 +63,32 @@ actor ServiceLogBuffer {
 
     func append(profileID: UUID, stream: LogStream, data: Data) {
         guard !data.isEmpty else { return }
-        let decoded = String(decoding: data, as: UTF8.self)
+        let key = StreamKey(profileID: profileID, stream: stream)
+        let decoded = (pendingRedactionSuffixes.removeValue(forKey: key) ?? "")
+            + String(decoding: data, as: UTF8.self)
         let secrets = redactionsByProfile[profileID] ?? []
-        let redacted = secrets.reduce(decoded) { value, secret in
+        let heldCount = longestSecretPrefixSuffix(in: decoded, secrets: secrets)
+        let stable = heldCount == 0 ? decoded : String(decoded.dropLast(heldCount))
+        if heldCount > 0 { pendingRedactionSuffixes[key] = String(decoded.suffix(heldCount)) }
+        let redacted = secrets.reduce(stable) { value, secret in
             value.replacingOccurrences(of: secret, with: "••••")
         }
-        var entries = entriesByProfile[profileID] ?? []
-        for line in redacted.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) where !line.isEmpty {
-            entries.append(ServiceLogEntry(
-                id: UUID(), profileID: profileID, timestamp: Date(), stream: stream, message: String(line)
-            ))
+        commitStableText(redacted, key: key)
+    }
+
+    func finalize(profileID: UUID) {
+        let keys = Set(pendingRedactionSuffixes.keys.filter { $0.profileID == profileID })
+            .union(pendingLines.keys.filter { $0.profileID == profileID })
+        let secrets = redactionsByProfile[profileID] ?? []
+        for key in keys {
+            if let suffix = pendingRedactionSuffixes.removeValue(forKey: key) {
+                let redacted = secrets.reduce(suffix) { value, secret in
+                    value.replacingOccurrences(of: secret, with: "••••")
+                }
+                commitStableText(redacted, key: key)
+            }
+            flushPendingLine(for: key)
         }
-        if entries.count > maximumEntries { entries.removeFirst(entries.count - maximumEntries) }
-        entriesByProfile[profileID] = entries
-        persist(profileID: profileID, text: redacted)
     }
 
     func entries(for profileID: UUID) -> [ServiceLogEntry] {
@@ -81,6 +105,8 @@ actor ServiceLogBuffer {
 
     func clear(profileID: UUID) {
         entriesByProfile[profileID] = []
+        pendingRedactionSuffixes = pendingRedactionSuffixes.filter { $0.key.profileID != profileID }
+        pendingLines = pendingLines.filter { $0.key.profileID != profileID }
         if persistsToDisk { try? Data().write(to: fileURL(profileID), options: .atomic) }
     }
 
@@ -90,16 +116,78 @@ actor ServiceLogBuffer {
         logDirectory.appendingPathComponent("\(profileID.uuidString).log")
     }
 
+    private func commitStableText(_ text: String, key: StreamKey) {
+        guard !text.isEmpty else { return }
+        let combined = (pendingLines.removeValue(forKey: key) ?? "") + text
+        var components = combined.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        if !combined.hasSuffix("\n"), let last = components.popLast() {
+            pendingLines[key] = last
+        } else if components.last == "" {
+            components.removeLast()
+        }
+        appendCompleteLines(components, key: key)
+    }
+
+    private func flushPendingLine(for key: StreamKey) {
+        guard let line = pendingLines.removeValue(forKey: key), !line.isEmpty else { return }
+        appendCompleteLines([line], key: key)
+    }
+
+    private func appendCompleteLines(_ lines: [String], key: StreamKey) {
+        let nonEmpty = lines.filter { !$0.isEmpty }
+        guard !nonEmpty.isEmpty else { return }
+        var entries = entriesByProfile[key.profileID] ?? []
+        for line in nonEmpty {
+            entries.append(ServiceLogEntry(
+                id: UUID(), profileID: key.profileID, timestamp: Date(), stream: key.stream, message: line
+            ))
+        }
+        if entries.count > maximumEntries { entries.removeFirst(entries.count - maximumEntries) }
+        entriesByProfile[key.profileID] = entries
+        persist(profileID: key.profileID, text: nonEmpty.joined(separator: "\n") + "\n")
+    }
+
     private func persist(profileID: UUID, text: String) {
         guard persistsToDisk else { return }
         let url = fileURL(profileID)
-        var existing = (try? Data(contentsOf: url)) ?? Data()
-        existing.append(Data(text.utf8))
-        if existing.count > maximumPersistedBytes {
-            existing = Data(existing.suffix(maximumPersistedBytes))
-            if let newline = existing.firstIndex(of: 10) { existing.removeSubrange(existing.startIndex...newline) }
+        let appended = Data(text.utf8)
+        do {
+            let currentSize = ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? NSNumber)?.intValue ?? 0
+            if currentSize + appended.count <= maximumPersistedBytes {
+                if !FileManager.default.fileExists(atPath: url.path) {
+                    FileManager.default.createFile(atPath: url.path, contents: nil)
+                }
+                let handle = try FileHandle(forWritingTo: url)
+                try handle.seekToEnd()
+                try handle.write(contentsOf: appended)
+                try handle.close()
+                return
+            }
+
+            var rotated = (try? Data(contentsOf: url)) ?? Data()
+            rotated.append(appended)
+            rotated = Data(rotated.suffix(maximumPersistedBytes / 2))
+            if let newline = rotated.firstIndex(of: 10) {
+                rotated.removeSubrange(rotated.startIndex...newline)
+            }
+            try rotated.write(to: url, options: .atomic)
+        } catch {
+            DevBerthLogger.persistence.error("Could not persist service log: \(error.localizedDescription, privacy: .public)")
         }
-        do { try existing.write(to: url, options: .atomic) }
-        catch { DevBerthLogger.persistence.error("Could not persist service log: \(error.localizedDescription, privacy: .public)") }
+    }
+
+    private func longestSecretPrefixSuffix(in text: String, secrets: [String]) -> Int {
+        var longest = 0
+        for secret in secrets where secret.count > 1 {
+            let maximum = min(text.count, secret.count - 1)
+            guard maximum > longest else { continue }
+            for length in stride(from: maximum, through: longest + 1, by: -1) {
+                if text.suffix(length) == secret.prefix(length) {
+                    longest = length
+                    break
+                }
+            }
+        }
+        return longest
     }
 }

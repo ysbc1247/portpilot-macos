@@ -23,9 +23,9 @@ struct LaunchProfilesView: View {
             if profiles.isEmpty {
                 EmptyStateView(
                     symbol: "play.square.stack",
-                    title: "No launch profiles",
-                    message: "Create and validate a launch profile before relying on restart.",
-                    actionTitle: "New Profile",
+                    title: "No managed services",
+                    message: "Create, review, and validate an explicit service definition before relying on restart.",
+                    actionTitle: "New Managed Service",
                     action: { showsNewProfile = true }
                 )
             } else {
@@ -92,9 +92,9 @@ struct LaunchProfilesView: View {
                 }
             }
         }
-        .navigationTitle("Launch Profiles")
+        .navigationTitle("Managed Services")
         .toolbar {
-            Button("New Profile", systemImage: "plus") { showsNewProfile = true }
+            Button("New Managed Service", systemImage: "plus") { showsNewProfile = true }
             Button("Edit", systemImage: "pencil") {
                 editingProfile = profiles.first { selection.contains($0.id) }
             }
@@ -130,7 +130,7 @@ struct LaunchProfilesView: View {
             ProfileLogsView(profileID: profile.id, profileName: profile.name).environmentObject(model)
         }
         .alert(
-            "Profile operation failed",
+            "Managed-service operation failed",
             isPresented: Binding(
                 get: { operationError != nil },
                 set: { if !$0 { operationError = nil } }
@@ -139,6 +139,39 @@ struct LaunchProfilesView: View {
             Button("OK") { operationError = nil }
         } message: {
             Text(operationError ?? "Unknown error")
+        }
+        .onChange(of: model.requestedManagedServiceCreation) { _, requested in
+            guard requested else { return }
+            model.requestedManagedServiceCreation = false
+            showsNewProfile = true
+        }
+        .onChange(of: model.requestedManagedServiceLogsID) { _, requestedID in
+            guard let requestedID,
+                  let profile = profiles.first(where: { $0.id == requestedID }) else { return }
+            model.requestedManagedServiceLogsID = nil
+            logsProfile = profile
+        }
+        .onChange(of: model.requestedManagedServiceID) { _, requestedID in
+            guard let requestedID else { return }
+            model.requestedManagedServiceID = nil
+            selection = [requestedID]
+        }
+        .onAppear { consumePendingRequest() }
+    }
+
+    private func consumePendingRequest() {
+        if model.requestedManagedServiceCreation {
+            model.requestedManagedServiceCreation = false
+            showsNewProfile = true
+        }
+        if let requestedID = model.requestedManagedServiceLogsID,
+           let profile = profiles.first(where: { $0.id == requestedID }) {
+            model.requestedManagedServiceLogsID = nil
+            logsProfile = profile
+        }
+        if let requestedID = model.requestedManagedServiceID {
+            model.requestedManagedServiceID = nil
+            selection = [requestedID]
         }
     }
 
@@ -292,7 +325,7 @@ struct LaunchProfilesView: View {
                 referencesStillInUse: referencesStillInUse
             )
         } catch {
-            operationError = "The profile was deleted, but an unused Keychain item could not be removed: \(error.localizedDescription)"
+            operationError = "The managed service was deleted, but an unused Keychain item could not be removed: \(error.localizedDescription)"
         }
         selection.subtract(ids)
     }
@@ -528,7 +561,7 @@ private struct LaunchProfileEditor: View {
                 }
                 Section("Identity") {
                     TextField("Name", text: $name)
-                    Picker("Profile type", selection: $kind) {
+                    Picker("Launch mechanism", selection: $kind) {
                         ForEach(LaunchMechanism.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     TextField("Command or executable", text: $command)
@@ -764,7 +797,7 @@ private struct LaunchProfileEditor: View {
             postSaveError = postSaveError ?? error
         }
         if let postSaveError {
-            errorMessage = "The profile was saved safely, but cleanup metadata needs attention: \(postSaveError.localizedDescription)"
+            errorMessage = "The managed service was saved safely, but cleanup metadata needs attention: \(postSaveError.localizedDescription)"
         } else {
             dismiss()
         }

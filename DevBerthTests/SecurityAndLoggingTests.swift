@@ -33,4 +33,17 @@ final class SecurityAndLoggingTests: XCTestCase {
         XCTAssertFalse(entries.contains { $0.message.contains("top-secret") })
         XCTAssertTrue(entries.allSatisfy { $0.message.contains("••••") })
     }
+
+    func testLogBufferRedactsSecretSplitAcrossArbitraryChunks() async {
+        let profileID = UUID()
+        let buffer = ServiceLogBuffer(maximumEntries: 100, persistsToDisk: false)
+        await buffer.setSecrets(["top-secret"], for: profileID)
+
+        await buffer.append(profileID: profileID, stream: .standardOutput, data: Data("value=top-".utf8))
+        await buffer.append(profileID: profileID, stream: .standardOutput, data: Data("secret\nready\n".utf8))
+
+        let entries = await buffer.entries(for: profileID)
+        XCTAssertEqual(entries.map(\.message), ["value=••••", "ready"])
+        XCTAssertFalse(entries.contains { $0.message.contains("top-secret") })
+    }
 }

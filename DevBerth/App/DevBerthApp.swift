@@ -8,9 +8,15 @@ struct DevBerthApp: App {
 
     init() {
         do {
-            let migration = try ProductDataMigrator().migrateForCurrentUser()
             let schema = Schema(DevBerthSchemaV6.models)
-            let configuration = ModelConfiguration("DevBerth", schema: schema, url: migration.storeURL)
+            let isUITesting = ProcessInfo.processInfo.environment["DEVBERTH_UI_TESTING"] == "1"
+            let configuration: ModelConfiguration
+            if isUITesting {
+                configuration = ModelConfiguration("DevBerthUITests", schema: schema, isStoredInMemoryOnly: true)
+            } else {
+                let migration = try ProductDataMigrator().migrateForCurrentUser()
+                configuration = ModelConfiguration("DevBerth", schema: schema, url: migration.storeURL)
+            }
             let createdContainer = try ModelContainer(
                 for: schema,
                 migrationPlan: DevBerthMigrationPlan.self,
@@ -18,11 +24,15 @@ struct DevBerthApp: App {
             )
             container = createdContainer
             let store = SwiftDataStore(modelContainer: createdContainer)
+            let discoverer: (any PortDiscovering)? = isUITesting ? UITestPortDiscoverer() : nil
+            let resourceReader: (any ProcessResourceUsageReading)? = isUITesting ? UITestResourceReader() : nil
             _model = StateObject(wrappedValue: AppModel(
+                discoverer: discoverer,
                 historyRecorder: store,
                 ownershipRecorder: store,
                 restartTrustStore: store,
-                workspaceSessionRecorder: store
+                workspaceSessionRecorder: store,
+                processResourceReader: resourceReader
             ))
         } catch {
             fatalError("Unable to initialize DevBerth's local database: \(error.localizedDescription)")
@@ -52,6 +62,51 @@ struct DevBerthApp: App {
                 .environmentObject(model)
                 .modelContainer(container)
         }
+    }
+}
+
+private struct UITestPortDiscoverer: PortDiscovering {
+    func discover() async throws -> [ObservedListener] {
+        let observedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let command = "/usr/bin/python3 -m http.server 45123"
+        let process = ObservedProcess(
+            fingerprint: ProcessFingerprint(
+                pid: 42_424,
+                uid: 501,
+                executablePath: "/usr/bin/python3",
+                startTime: observedAt,
+                commandLineDigest: ProcessFingerprint.digest(commandLine: command),
+                parentPID: 1,
+                detectedAt: observedAt
+            ),
+            name: "devberth-ui-fixture",
+            commandLine: command,
+            owner: "ui-test",
+            currentDirectory: "/tmp/devberth-ui-fixture",
+            parentName: "xctest",
+            runtime: .python,
+            project: nil,
+            isSystemProcess: false,
+            docker: nil,
+            launchedByDevBerth: false,
+            managedServiceID: nil
+        )
+        return [ObservedListener(
+            protocolKind: .tcp,
+            address: "127.0.0.1",
+            port: 45_123,
+            process: process,
+            firstDetectedAt: observedAt,
+            lastDetectedAt: observedAt
+        )]
+    }
+}
+
+private struct UITestResourceReader: ProcessResourceUsageReading {
+    func read(pids: Set<Int32>) async throws -> [Int32: ProcessResourceUsage] {
+        Dictionary(uniqueKeysWithValues: pids.map {
+            ($0, ProcessResourceUsage(cpuPercent: 1.5, residentMemoryBytes: 12_582_912, capturedAt: Date()))
+        })
     }
 }
 

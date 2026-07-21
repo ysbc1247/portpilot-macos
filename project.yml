@@ -62,6 +62,17 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.integration-tests
         GENERATE_INFOPLIST_FILE: YES
+  DevBerthUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: DevBerthUITests
+    dependencies:
+      - target: DevBerth
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.ui-tests
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   DevBerth:
     build:
@@ -76,6 +87,8 @@ schemes:
           parallelizable: true
           randomExecutionOrder: true
         - name: DevBerthIntegrationTests
+          parallelizable: false
+        - name: DevBerthUITests
           parallelizable: false
     run:
       config: Debug

@@ -3,9 +3,15 @@ import SwiftData
 
 @ModelActor
 actor SwiftDataStore: HistoryRecording, OwnershipRecording, RestartTrustStoring, RuntimeLifecycleRecording, WorkspaceSessionRecording {
-    private var lifecycleWriteCount = 0
+    private var lifecycleWritesUntilPrune = 100
     func record(_ event: HistoryEvent) async throws {
         modelContext.insert(ProcessHistoryEventRecord(event: event))
+        try modelContext.save()
+    }
+
+    func record(_ events: [HistoryEvent]) async throws {
+        guard !events.isEmpty else { return }
+        for event in events { modelContext.insert(ProcessHistoryEventRecord(event: event)) }
         try modelContext.save()
     }
 
@@ -81,9 +87,24 @@ actor SwiftDataStore: HistoryRecording, OwnershipRecording, RestartTrustStoring,
     func record(_ event: LifecycleEvent) async throws {
         modelContext.insert(try LifecycleEventRecord(event: event))
         modelContext.insert(try LifecycleEventContextRecord(event: event))
-        lifecycleWriteCount += 1
-        if lifecycleWriteCount.isMultiple(of: 100) {
-            try pruneLifecycleEvents(retaining: 5_000)
+        lifecycleWritesUntilPrune -= 1
+        if lifecycleWritesUntilPrune <= 0 {
+            try pruneLifecycleEvents(retaining: 4_900)
+            lifecycleWritesUntilPrune = 100
+        }
+        try modelContext.save()
+    }
+
+    func record(_ events: [LifecycleEvent]) async throws {
+        guard !events.isEmpty else { return }
+        for event in events {
+            modelContext.insert(try LifecycleEventRecord(event: event))
+            modelContext.insert(try LifecycleEventContextRecord(event: event))
+        }
+        lifecycleWritesUntilPrune -= events.count
+        if lifecycleWritesUntilPrune <= 0 {
+            try pruneLifecycleEvents(retaining: max(0, 5_000 - max(100, events.count)))
+            lifecycleWritesUntilPrune = 100
         }
         try modelContext.save()
     }

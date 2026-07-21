@@ -20,7 +20,7 @@ struct ProjectsView: View {
                 EmptyStateView(
                     symbol: "folder.badge.plus",
                     title: "No projects yet",
-                    message: "Group launch profiles into a project to start, stop, and inspect related services together.",
+                    message: "Group managed services into a project to start, stop, and inspect related runtime together.",
                     actionTitle: "New Project",
                     action: { showsNewProject = true }
                 )
@@ -46,6 +46,17 @@ struct ProjectsView: View {
             ProjectDiscoveryReviewView(project: project)
                 .environmentObject(model)
         }
+        .onChange(of: model.requestedProjectImport) { _, requested in
+            guard requested else { return }
+            model.requestedProjectImport = false
+            showsNewProject = true
+        }
+        .onAppear {
+            if model.requestedProjectImport {
+                model.requestedProjectImport = false
+                showsNewProject = true
+            }
+        }
     }
 
     private func projectSection(_ project: ProjectRecord) -> some View {
@@ -60,7 +71,7 @@ struct ProjectsView: View {
         }
         return Section {
             if projectProfiles.isEmpty {
-                Text("Add an existing launch profile to orchestrate this project.")
+                Text("Add an existing managed service to orchestrate this project.")
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 6)
             } else {
@@ -140,7 +151,7 @@ struct ProjectsView: View {
                     .disabled(project.folderPath == nil || configurations.isEmpty)
                     Menu("Add Service", systemImage: "plus") {
                         let available = profiles.filter { $0.projectID == nil }
-                        if available.isEmpty { Text("No unassigned profiles") }
+                        if available.isEmpty { Text("No unassigned managed services") }
                         ForEach(available) { profile in
                             Button(profile.name) {
                                 profile.projectID = project.id
