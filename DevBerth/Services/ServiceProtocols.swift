@@ -25,7 +25,7 @@ extension CommandRunning {
 }
 
 protocol PortDiscovering: Sendable {
-    func discover() async throws -> [NetworkListener]
+    func discover() async throws -> [ObservedListener]
 }
 
 protocol ProcessIdentityVerifying: Sendable {
@@ -42,7 +42,7 @@ struct TerminationOutcome: Sendable, Equatable {
 }
 
 protocol ProcessControlling: Sendable {
-    func terminate(_ process: ProcessMetadata, mode: TerminationMode) async throws -> TerminationOutcome
+    func terminate(_ process: ObservedProcess, mode: TerminationMode) async throws -> TerminationOutcome
 }
 
 protocol SecretStoring: Sendable {
@@ -60,11 +60,11 @@ protocol HistoryRecording: Sendable {
 }
 
 protocol LaunchProfileServing: Sendable {
-    func launch(_ profile: LaunchProfileConfiguration) async throws
+    func launch(_ profile: ManagedServiceConfiguration) async throws
     func stop(profileID: UUID, timeoutSeconds: Double) async throws
 }
 
 protocol ManagedProcessLaunching: Sendable {
-    func launch(_ profile: LaunchProfileConfiguration) async throws
+    func launch(_ profile: ManagedServiceConfiguration) async throws
     func stop(profileID: UUID, timeoutSeconds: Double) async throws
 }

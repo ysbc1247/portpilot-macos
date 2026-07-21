@@ -2,6 +2,7 @@
 
 - Target macOS 14 or newer with SwiftUI and Swift Concurrency. Use AppKit only when a native SwiftUI API cannot provide the required behavior.
 - Keep transient runtime models in `DevBerth/Domain` and SwiftData records in `DevBerth/Persistence`; never persist live `Process` objects.
+- Keep `ObservedListener` and `ObservedProcess` as operating-system evidence, and `ManagedServiceConfiguration` as durable user-authored intent. Do not make an observation manageable or restartable by adding configuration flags to it.
 - UI code must depend on service protocols. It must not invoke `Process`, `lsof`, `ps`, `kill`, Docker, or a shell directly.
 - Invoke trusted tools with an executable URL and discrete argument array through `CommandRunning`. Only explicitly user-authored launch profiles may use a login shell.
 - A destructive process action must revalidate PID, executable, and start time through `ProcessIdentityVerifying` immediately before signaling. Never weaken the protected-process checks to make an action succeed.

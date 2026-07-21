@@ -45,8 +45,8 @@ func makeProcess(
     startTime: Date = Date(timeIntervalSince1970: 1_700_000_000),
     owner: String = "developer",
     system: Bool = false
-) -> ProcessMetadata {
-    ProcessMetadata(
+) -> ObservedProcess {
+    ObservedProcess(
         identity: ProcessIdentity(pid: pid, executablePath: executable, startTime: startTime),
         parentPID: 1,
         name: URL(fileURLWithPath: executable).lastPathComponent,
@@ -60,12 +60,12 @@ func makeProcess(
         isSystemProcess: system,
         docker: nil,
         launchedByDevBerth: false,
-        launchProfileID: nil
+        managedServiceID: nil
     )
 }
 
-func makeListener(port: UInt16 = 3000, pid: Int32 = 42) -> NetworkListener {
-    NetworkListener(
+func makeListener(port: UInt16 = 3000, pid: Int32 = 42) -> ObservedListener {
+    ObservedListener(
         protocolKind: .tcp,
         address: "127.0.0.1",
         port: port,

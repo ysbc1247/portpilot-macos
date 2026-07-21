@@ -9,7 +9,7 @@ final class SecurityAndLoggingTests: XCTestCase {
 
     func testSecretReferencesEncodeWithoutSecretValues() throws {
         let reference = UUID()
-        let profile = LaunchProfileConfiguration(
+        let profile = ManagedServiceConfiguration(
             name: "API", command: "api", workingDirectory: "/tmp",
             environment: ["MODE": "development"],
             secretReferences: ["API_TOKEN": reference]

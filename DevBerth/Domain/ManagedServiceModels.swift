@@ -1,6 +1,6 @@
 import Foundation
 
-enum LaunchProfileKind: String, Codable, CaseIterable, Sendable {
+enum LaunchMechanism: String, Codable, CaseIterable, Sendable {
     case genericCommand
     case npmScript
     case pnpmScript
@@ -42,7 +42,7 @@ enum ShellSelection: Hashable, Codable, Sendable {
     case custom(path: String)
 }
 
-struct ExpectedPortConfiguration: Hashable, Codable, Sendable, Identifiable {
+struct ExpectedListenerConfiguration: Hashable, Codable, Sendable, Identifiable {
     let id: UUID
     var port: UInt16
     var protocolKind: ListenerProtocol
@@ -55,23 +55,23 @@ struct HealthCheckConfiguration: Hashable, Codable, Sendable {
     var intervalSeconds: Double
 }
 
-struct LaunchProfileConfiguration: Hashable, Codable, Sendable, Identifiable {
+struct ManagedServiceConfiguration: Hashable, Codable, Sendable, Identifiable {
     let id: UUID
     var name: String
     var projectID: UUID?
-    var kind: LaunchProfileKind
+    var launchMechanism: LaunchMechanism
     var command: String
     var arguments: [String]
     var workingDirectory: String
     var shell: ShellSelection
     var environment: [String: String]
     var secretReferences: [String: UUID]
-    var expectedPorts: [ExpectedPortConfiguration]
+    var expectedPorts: [ExpectedListenerConfiguration]
     var startupTimeoutSeconds: Double
     var shutdownTimeoutSeconds: Double
     var restartPolicy: RestartPolicy
     var healthCheck: HealthCheckConfiguration?
-    var dependencyProfileIDs: [UUID]
+    var dependencyServiceIDs: [UUID]
     var logFile: String?
     var tags: [String]
     var icon: String?
@@ -83,19 +83,19 @@ struct LaunchProfileConfiguration: Hashable, Codable, Sendable, Identifiable {
         id: UUID = UUID(),
         name: String,
         projectID: UUID? = nil,
-        kind: LaunchProfileKind = .genericCommand,
+        launchMechanism: LaunchMechanism = .genericCommand,
         command: String,
         arguments: [String] = [],
         workingDirectory: String,
         shell: ShellSelection = .direct,
         environment: [String: String] = [:],
         secretReferences: [String: UUID] = [:],
-        expectedPorts: [ExpectedPortConfiguration] = [],
+        expectedPorts: [ExpectedListenerConfiguration] = [],
         startupTimeoutSeconds: Double = 30,
         shutdownTimeoutSeconds: Double = 5,
         restartPolicy: RestartPolicy = .never,
         healthCheck: HealthCheckConfiguration? = nil,
-        dependencyProfileIDs: [UUID] = [],
+        dependencyServiceIDs: [UUID] = [],
         logFile: String? = nil,
         tags: [String] = [],
         icon: String? = nil,
@@ -106,7 +106,7 @@ struct LaunchProfileConfiguration: Hashable, Codable, Sendable, Identifiable {
         self.id = id
         self.name = name
         self.projectID = projectID
-        self.kind = kind
+        self.launchMechanism = launchMechanism
         self.command = command
         self.arguments = arguments
         self.workingDirectory = workingDirectory
@@ -118,7 +118,7 @@ struct LaunchProfileConfiguration: Hashable, Codable, Sendable, Identifiable {
         self.shutdownTimeoutSeconds = shutdownTimeoutSeconds
         self.restartPolicy = restartPolicy
         self.healthCheck = healthCheck
-        self.dependencyProfileIDs = dependencyProfileIDs
+        self.dependencyServiceIDs = dependencyServiceIDs
         self.logFile = logFile
         self.tags = tags
         self.icon = icon
@@ -136,7 +136,7 @@ struct ProjectConfiguration: Hashable, Codable, Sendable, Identifiable {
     var profileIDs: [UUID]
 }
 
-struct ProfileValidationIssue: Hashable, Sendable, Identifiable {
+struct ManagedServiceValidationIssue: Hashable, Sendable, Identifiable {
     enum Severity: Sendable { case warning, error }
     let id = UUID()
     let field: String
@@ -144,9 +144,9 @@ struct ProfileValidationIssue: Hashable, Sendable, Identifiable {
     let severity: Severity
 }
 
-enum LaunchProfileValidator {
-    static func validate(_ profile: LaunchProfileConfiguration, fileManager: FileManager = .default) -> [ProfileValidationIssue] {
-        var issues: [ProfileValidationIssue] = []
+enum ManagedServiceValidator {
+    static func validate(_ profile: ManagedServiceConfiguration, fileManager: FileManager = .default) -> [ManagedServiceValidationIssue] {
+        var issues: [ManagedServiceValidationIssue] = []
         if profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             issues.append(.init(field: "name", message: "A profile name is required.", severity: .error))
         }
@@ -185,16 +185,16 @@ enum DependencyGraphError: LocalizedError, Equatable {
 }
 
 enum DependencyPlanner {
-    static func orderedLayers(for profiles: [LaunchProfileConfiguration]) throws -> [[LaunchProfileConfiguration]] {
+    static func orderedLayers(for profiles: [ManagedServiceConfiguration]) throws -> [[ManagedServiceConfiguration]] {
         let byID = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
         for profile in profiles {
-            if let missing = profile.dependencyProfileIDs.first(where: { byID[$0] == nil }) {
+            if let missing = profile.dependencyServiceIDs.first(where: { byID[$0] == nil }) {
                 throw DependencyGraphError.missingProfile(missing)
             }
         }
 
-        var remaining = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, Set($0.dependencyProfileIDs)) })
-        var layers: [[LaunchProfileConfiguration]] = []
+        var remaining = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, Set($0.dependencyServiceIDs)) })
+        var layers: [[ManagedServiceConfiguration]] = []
         var completed = Set<UUID>()
 
         while !remaining.isEmpty {

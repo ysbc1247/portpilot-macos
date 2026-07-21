@@ -51,7 +51,7 @@ final class LaunchProfileRecord {
         self.command = command
         self.workingDirectory = workingDirectory
         self.projectID = nil
-        self.kindRawValue = LaunchProfileKind.genericCommand.rawValue
+        self.kindRawValue = LaunchMechanism.genericCommand.rawValue
         self.argumentsData = Data("[]".utf8)
         self.shellData = Data("{\"direct\":{}}".utf8)
         self.environmentData = Data("{}".utf8)
@@ -145,7 +145,7 @@ final class PortObservationRecord {
     var lastDetectedAt: Date
     var releasedAt: Date?
 
-    init(listener: NetworkListener) {
+    init(listener: ObservedListener) {
         id = UUID()
         port = Int(listener.port)
         protocolRawValue = listener.protocolKind.rawValue

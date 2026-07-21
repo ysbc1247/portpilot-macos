@@ -6,11 +6,11 @@ struct ActivePortsView: View {
     @State private var selection = Set<String>()
     @State private var protocolFilter: ListenerProtocol?
     @State private var sort = SortChoice.port
-    @SceneStorage("activePorts.columnCustomization") private var columnCustomization: TableColumnCustomization<NetworkListener>
+    @SceneStorage("activePorts.columnCustomization") private var columnCustomization: TableColumnCustomization<ObservedListener>
 
     private enum SortChoice: String, CaseIterable { case port = "Port", process = "Process", project = "Project", runtime = "Runtime", uptime = "Uptime" }
 
-    private var displayedListeners: [NetworkListener] {
+    private var displayedListeners: [ObservedListener] {
         model.filteredListeners
             .filter { protocolFilter == nil || $0.protocolKind == protocolFilter }
             .sorted { lhs, rhs in
@@ -84,9 +84,9 @@ struct ActivePortsView: View {
         NSPasteboard.general.setString(value, forType: .string)
     }
 
-    @TableColumnBuilder<NetworkListener, Never>
-    private var activePortColumns: some TableColumnContent<NetworkListener, Never> {
-        TableColumn("Status") { (listener: NetworkListener) in
+    @TableColumnBuilder<ObservedListener, Never>
+    private var activePortColumns: some TableColumnContent<ObservedListener, Never> {
+        TableColumn("Status") { (listener: ObservedListener) in
             HStack(spacing: 6) {
                 StatusDot(status: listener.process.isSystemProcess ? .warning : .healthy)
                 Text(listener.protocolKind.rawValue).font(.caption).foregroundStyle(.secondary)
@@ -94,34 +94,34 @@ struct ActivePortsView: View {
         }
         .width(min: 70, ideal: 82, max: 95)
         .customizationID("status")
-        TableColumn("Port") { (listener: NetworkListener) in PortBadge(port: listener.port) }
+        TableColumn("Port") { (listener: ObservedListener) in PortBadge(port: listener.port) }
             .width(min: 72, ideal: 82, max: 100)
             .customizationID("port")
-        TableColumn("Process") { (listener: NetworkListener) in
+        TableColumn("Process") { (listener: ObservedListener) in
             Label(listener.process.name, systemImage: listener.process.runtime.symbolName).lineLimit(1)
         }
         .width(min: 130, ideal: 180)
         .customizationID("process")
-        TableColumn("Project") { (listener: NetworkListener) in
+        TableColumn("Project") { (listener: ObservedListener) in
             Text(listener.process.project?.name ?? "—")
                 .foregroundStyle(listener.process.project == nil ? .secondary : .primary)
         }
         .width(min: 100, ideal: 150)
         .customizationID("project")
-        TableColumn("PID") { (listener: NetworkListener) in
+        TableColumn("PID") { (listener: ObservedListener) in
             Text(listener.process.identity.pid, format: .number.grouping(.never)).monospacedDigit()
         }
         .width(min: 55, ideal: 65, max: 90)
         .customizationID("pid")
-        TableColumn("Address") { (listener: NetworkListener) in
+        TableColumn("Address") { (listener: ObservedListener) in
             Text(listener.address).font(.system(.body, design: .monospaced)).lineLimit(1)
         }
         .width(min: 95, ideal: 130)
         .customizationID("address")
-        TableColumn("Runtime") { (listener: NetworkListener) in Text(listener.process.runtime.rawValue) }
+        TableColumn("Runtime") { (listener: ObservedListener) in Text(listener.process.runtime.rawValue) }
             .width(min: 90, ideal: 120)
             .customizationID("runtime")
-        TableColumn("Uptime") { (listener: NetworkListener) in
+        TableColumn("Uptime") { (listener: ObservedListener) in
             Text(listener.process.identity.startTime.map { $0.formatted(.relative(presentation: .numeric)) } ?? "Unknown")
                 .foregroundStyle(.secondary)
         }
@@ -132,7 +132,7 @@ struct ActivePortsView: View {
 
 private struct ProcessInspectorView: View {
     @EnvironmentObject private var model: AppModel
-    let listener: NetworkListener
+    let listener: ObservedListener
     @State private var showsForceConfirmation = false
     @State private var showsProfileReview = false
 
@@ -238,14 +238,14 @@ private struct ProcessInspectorView: View {
 private struct DiscoveredProfileReviewView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    let listener: NetworkListener
+    let listener: ObservedListener
     @State private var name: String
     @State private var command: String
     @State private var argumentsText: String
     @State private var workingDirectory: String
     @State private var reviewed = false
 
-    init(listener: NetworkListener) {
+    init(listener: ObservedListener) {
         self.listener = listener
         _name = State(initialValue: listener.process.project?.name ?? listener.process.name)
         _command = State(initialValue: listener.process.executablePath ?? listener.process.name)
@@ -287,7 +287,7 @@ private struct DiscoveredProfileReviewView: View {
 
     private func save() {
         let profile = LaunchProfileRecord(name: name, command: command, workingDirectory: workingDirectory)
-        profile.kindRawValue = LaunchProfileKind.executable.rawValue
+        profile.kindRawValue = LaunchMechanism.executable.rawValue
         profile.isReviewed = reviewed
         let arguments = argumentsText.split(whereSeparator: \.isNewline).map(String.init)
         profile.argumentsData = (try? JSONEncoder().encode(arguments)) ?? Data("[]".utf8)

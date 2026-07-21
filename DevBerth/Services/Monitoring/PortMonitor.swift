@@ -18,7 +18,7 @@ actor PortMonitor {
         monitoringTask?.cancel()
         let (stream, continuation) = AsyncStream<MonitoringUpdate>.makeStream(bufferingPolicy: .bufferingNewest(1))
         monitoringTask = Task { [discoverer] in
-            var previous: [NetworkListener] = []
+            var previous: [ObservedListener] = []
             while !Task.isCancelled {
                 do {
                     let listeners = try await discoverer.discover()

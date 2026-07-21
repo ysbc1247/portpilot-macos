@@ -24,7 +24,7 @@ final class RuntimeAndClassificationTests: XCTestCase {
     func testAddressScopes() {
         XCTAssertEqual(makeListener().addressScope, .loopback)
         var listener = makeListener()
-        listener = NetworkListener(protocolKind: .tcp, address: "::", port: listener.port, process: listener.process, firstDetectedAt: listener.firstDetectedAt, lastDetectedAt: listener.lastDetectedAt)
+        listener = ObservedListener(protocolKind: .tcp, address: "::", port: listener.port, process: listener.process, firstDetectedAt: listener.firstDetectedAt, lastDetectedAt: listener.lastDetectedAt)
         XCTAssertEqual(listener.addressScope, .wildcard)
     }
 }

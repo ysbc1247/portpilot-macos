@@ -1,6 +1,6 @@
 import Foundation
 
-struct ProcessMetadataProvider: Sendable {
+struct ObservedProcessProvider: Sendable {
     private let runner: any CommandRunning
     private let inferer: ProjectInferer?
 
@@ -9,7 +9,7 @@ struct ProcessMetadataProvider: Sendable {
         self.inferer = inferer
     }
 
-    func metadata(pid: Int32, fallbackName: String, fallbackOwner: String) async -> ProcessMetadata {
+    func metadata(pid: Int32, fallbackName: String, fallbackOwner: String) async -> ObservedProcess {
         let arguments = [
             "-ww", "-p", String(pid), "-o", "ppid=", "-o", "user=", "-o", "lstart=", "-o", "command="
         ]
@@ -26,7 +26,7 @@ struct ProcessMetadataProvider: Sendable {
         let owner = parsed?.owner ?? fallbackOwner
         let command = parsed?.command ?? fallbackName
         let identity = ProcessIdentity(pid: pid, executablePath: executable, startTime: parsed?.startTime)
-        return ProcessMetadata(
+        return ObservedProcess(
             identity: identity,
             parentPID: parsed?.parentPID,
             name: name,
@@ -40,7 +40,7 @@ struct ProcessMetadataProvider: Sendable {
             isSystemProcess: SystemProcessClassifier.isSystemProcess(name: name, executable: executable, owner: owner, currentDirectory: cwd),
             docker: nil,
             launchedByDevBerth: false,
-            launchProfileID: nil
+            managedServiceID: nil
         )
     }
 

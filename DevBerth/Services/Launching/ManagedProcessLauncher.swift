@@ -23,14 +23,14 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         self.resolver = resolver
     }
 
-    func launch(_ profile: LaunchProfileConfiguration) async throws {
+    func launch(_ profile: ManagedServiceConfiguration) async throws {
         guard profile.isReviewed else {
             throw DevBerthError.launchValidation("Review inferred command fields before launching this profile.")
         }
         guard running[profile.id]?.process.isRunning != true else {
             throw DevBerthError.launchValidation("\(profile.name) is already running under DevBerth.")
         }
-        let issues = LaunchProfileValidator.validate(profile).filter { $0.severity == .error }
+        let issues = ManagedServiceValidator.validate(profile).filter { $0.severity == .error }
         guard issues.isEmpty else {
             throw DevBerthError.launchValidation(issues.map(\.message).joined(separator: " "))
         }
@@ -59,7 +59,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
             }
             executable = URL(fileURLWithPath: path)
             let authoredCommand: String
-            if profile.kind == .customShell {
+            if profile.launchMechanism == .customShell {
                 authoredCommand = ([profile.command] + profile.arguments).joined(separator: " ")
             } else {
                 authoredCommand = ShellEscaper.command(executable: profile.command, arguments: profile.arguments)
@@ -134,4 +134,3 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         }
     }
 }
-

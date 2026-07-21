@@ -12,7 +12,7 @@ actor ProjectOrchestrator {
         self.launcher = launcher
     }
 
-    func start(profiles: [LaunchProfileConfiguration]) async throws -> ProjectStartResult {
+    func start(profiles: [ManagedServiceConfiguration]) async throws -> ProjectStartResult {
         let startedAt = Date()
         let layers = try DependencyPlanner.orderedLayers(for: profiles)
         var started: [UUID] = []
@@ -33,7 +33,7 @@ actor ProjectOrchestrator {
         return ProjectStartResult(startedProfileIDs: started, durationSeconds: Date().timeIntervalSince(startedAt))
     }
 
-    func stop(profiles: [LaunchProfileConfiguration]) async throws {
+    func stop(profiles: [ManagedServiceConfiguration]) async throws {
         let layers = try DependencyPlanner.orderedLayers(for: profiles)
         for layer in layers.reversed() {
             try await withThrowingTaskGroup(of: Void.self) { group in

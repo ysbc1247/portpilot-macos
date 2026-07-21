@@ -3,7 +3,7 @@ import Foundation
 
 enum DiagnosticsReportBuilder {
     static func build(
-        listeners: [NetworkListener],
+        listeners: [ObservedListener],
         refreshInterval: Double,
         historyRetentionDays: Int,
         notificationsEnabled: Bool,

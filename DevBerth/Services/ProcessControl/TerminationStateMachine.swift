@@ -39,7 +39,7 @@ enum TerminationStateMachine {
 }
 
 enum ProcessSafetyPolicy {
-    static func terminationBlockReason(for process: ProcessMetadata) -> String? {
+    static func terminationBlockReason(for process: ObservedProcess) -> String? {
         if process.owner == "root" {
             return "Root-owned processes must be managed explicitly outside DevBerth."
         }

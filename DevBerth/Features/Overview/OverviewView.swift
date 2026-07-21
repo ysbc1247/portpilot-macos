@@ -9,7 +9,7 @@ struct OverviewView: View {
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query(sort: \ProcessHistoryEventRecord.timestamp, order: .reverse) private var history: [ProcessHistoryEventRecord]
 
-    private var conflicts: [(LaunchProfileRecord, ExpectedPortRecord, NetworkListener)] {
+    private var conflicts: [(LaunchProfileRecord, ExpectedPortRecord, ObservedListener)] {
         expectedPorts.compactMap { expected in
             guard
                 let profile = profiles.first(where: { $0.id == expected.profileID }),

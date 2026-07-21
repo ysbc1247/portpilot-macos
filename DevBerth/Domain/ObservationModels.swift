@@ -77,7 +77,7 @@ struct DockerAssociation: Hashable, Codable, Sendable {
     let containerPort: UInt16?
 }
 
-struct ProcessMetadata: Hashable, Codable, Sendable, Identifiable {
+struct ObservedProcess: Hashable, Codable, Sendable, Identifiable {
     var id: ProcessIdentity { identity }
     let identity: ProcessIdentity
     let parentPID: Int32?
@@ -92,14 +92,14 @@ struct ProcessMetadata: Hashable, Codable, Sendable, Identifiable {
     let isSystemProcess: Bool
     let docker: DockerAssociation?
     let launchedByDevBerth: Bool
-    let launchProfileID: UUID?
+    let managedServiceID: UUID?
 }
 
-struct NetworkListener: Hashable, Codable, Sendable, Identifiable {
+struct ObservedListener: Hashable, Codable, Sendable, Identifiable {
     let protocolKind: ListenerProtocol
     let address: String
     let port: UInt16
-    let process: ProcessMetadata
+    let process: ObservedProcess
     var firstDetectedAt: Date
     var lastDetectedAt: Date
 
@@ -121,20 +121,20 @@ struct NetworkListener: Hashable, Codable, Sendable, Identifiable {
 }
 
 struct RuntimeSnapshot: Equatable, Sendable {
-    let listeners: [NetworkListener]
+    let listeners: [ObservedListener]
     let capturedAt: Date
 }
 
 struct RuntimeDiff: Equatable, Sendable {
-    let added: [NetworkListener]
-    let updated: [NetworkListener]
-    let removed: [NetworkListener]
+    let added: [ObservedListener]
+    let updated: [ObservedListener]
+    let removed: [ObservedListener]
 
     static let empty = RuntimeDiff(added: [], updated: [], removed: [])
 }
 
 enum RuntimeDiffer {
-    static func diff(previous: [NetworkListener], current: [NetworkListener]) -> RuntimeDiff {
+    static func diff(previous: [ObservedListener], current: [ObservedListener]) -> RuntimeDiff {
         let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
         let currentByID = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0) })
         let added = current.filter { previousByID[$0.id] == nil }

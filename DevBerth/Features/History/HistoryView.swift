@@ -112,7 +112,7 @@ struct HistoryView: View {
         }
     }
 
-    private var relatedConfiguration: LaunchProfileConfiguration? {
+    private var relatedConfiguration: ManagedServiceConfiguration? {
         guard
             let event = events.first(where: { selection.contains($0.id) }),
             let profileID = event.profileID,

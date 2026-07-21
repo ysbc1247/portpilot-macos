@@ -10,7 +10,7 @@ actor SafeProcessController: ProcessControlling {
         self.verifier = verifier
     }
 
-    func terminate(_ process: ProcessMetadata, mode: TerminationMode) async throws -> TerminationOutcome {
+    func terminate(_ process: ObservedProcess, mode: TerminationMode) async throws -> TerminationOutcome {
         let startedAt = Date()
         var state = TerminationStateMachine.reduce(state: .idle, event: .begin)
         guard state == .validatingIdentity else { throw DevBerthError.unexpected("Termination could not begin.") }

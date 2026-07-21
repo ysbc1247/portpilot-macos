@@ -25,7 +25,7 @@ struct LaunchProfilesView: View {
             } else {
                 Table(profiles, selection: $selection) {
                     TableColumn("Name", value: \.name)
-                    TableColumn("Type") { Text(LaunchProfileKind(rawValue: $0.kindRawValue)?.title ?? "Command") }
+                    TableColumn("Type") { Text(LaunchMechanism(rawValue: $0.kindRawValue)?.title ?? "Command") }
                     TableColumn("Command") { Text($0.command).font(.system(.body, design: .monospaced)).lineLimit(1) }
                     TableColumn("Working Directory", value: \.workingDirectory)
                     TableColumn("Ports") { profile in
@@ -130,7 +130,7 @@ private struct LaunchProfileEditor: View {
     private let secretStore: any SecretStoring = KeychainSecretStore()
 
     @State private var name: String
-    @State private var kind: LaunchProfileKind
+    @State private var kind: LaunchMechanism
     @State private var command: String
     @State private var argumentsText: String
     @State private var workingDirectory: String
@@ -169,7 +169,7 @@ private struct LaunchProfileEditor: View {
         let health = record?.healthCheckData.flatMap { try? decoder.decode(HealthCheckConfiguration.self, from: $0) }
         let matchingPorts = expectedPorts.filter { $0.profileID == record?.id }
         _name = State(initialValue: record?.name ?? "")
-        _kind = State(initialValue: record.flatMap { LaunchProfileKind(rawValue: $0.kindRawValue) } ?? .genericCommand)
+        _kind = State(initialValue: record.flatMap { LaunchMechanism(rawValue: $0.kindRawValue) } ?? .genericCommand)
         _command = State(initialValue: record?.command ?? "")
         _argumentsText = State(initialValue: arguments.joined(separator: "\n"))
         _workingDirectory = State(initialValue: record?.workingDirectory ?? NSHomeDirectory())
@@ -198,7 +198,7 @@ private struct LaunchProfileEditor: View {
                 Section("Identity") {
                     TextField("Name", text: $name)
                     Picker("Profile type", selection: $kind) {
-                        ForEach(LaunchProfileKind.allCases, id: \.self) { Text($0.title).tag($0) }
+                        ForEach(LaunchMechanism.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     TextField("Command or executable", text: $command)
                     TextField("Arguments (one per line)", text: $argumentsText, axis: .vertical).lineLimit(2...6)

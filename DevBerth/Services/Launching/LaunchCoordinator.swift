@@ -15,8 +15,8 @@ actor LaunchCoordinator: LaunchProfileServing {
         self.healthChecker = healthChecker
     }
 
-    func launch(_ profile: LaunchProfileConfiguration) async throws {
-        let validationErrors = LaunchProfileValidator.validate(profile).filter { $0.severity == .error }
+    func launch(_ profile: ManagedServiceConfiguration) async throws {
+        let validationErrors = ManagedServiceValidator.validate(profile).filter { $0.severity == .error }
         guard validationErrors.isEmpty else {
             throw DevBerthError.launchValidation(validationErrors.map(\.message).joined(separator: " "))
         }
@@ -44,7 +44,7 @@ actor LaunchCoordinator: LaunchProfileServing {
         try await processLauncher.stop(profileID: profileID, timeoutSeconds: timeoutSeconds)
     }
 
-    private func waitForExpectedPorts(_ profile: LaunchProfileConfiguration) async throws {
+    private func waitForExpectedPorts(_ profile: ManagedServiceConfiguration) async throws {
         let required = profile.expectedPorts.filter(\.required)
         guard !required.isEmpty else { return }
         let deadline = Date().addingTimeInterval(profile.startupTimeoutSeconds)

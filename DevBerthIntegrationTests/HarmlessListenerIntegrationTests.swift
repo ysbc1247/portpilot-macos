@@ -9,7 +9,7 @@ final class HarmlessListenerIntegrationTests: XCTestCase {
 
         let discovery = LocalPortDiscovery(runner: FoundationCommandRunner(), includeProjectInference: false)
         let deadline = Date().addingTimeInterval(5)
-        var found: NetworkListener?
+        var found: ObservedListener?
         while Date() < deadline && found == nil {
             found = try await discovery.discover().first { $0.process.identity.pid == server.processIdentifier }
             if found == nil { try await Task.sleep(for: .milliseconds(200)) }
@@ -55,7 +55,7 @@ final class HarmlessListenerIntegrationTests: XCTestCase {
         return process
     }
 
-    private func waitForListener(pid: Int32, runner: any CommandRunning) async throws -> NetworkListener {
+    private func waitForListener(pid: Int32, runner: any CommandRunning) async throws -> ObservedListener {
         let discovery = LocalPortDiscovery(runner: runner, includeProjectInference: false)
         let deadline = Date().addingTimeInterval(5)
         while Date() < deadline {

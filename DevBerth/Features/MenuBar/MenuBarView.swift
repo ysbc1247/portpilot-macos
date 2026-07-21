@@ -11,7 +11,7 @@ struct MenuBarView: View {
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query(sort: \ProjectRecord.name) private var projects: [ProjectRecord]
 
-    private var visible: [NetworkListener] {
+    private var visible: [ObservedListener] {
         let trimmed = portSearch.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return Array(model.listeners.prefix(8)) }
         return model.listeners.filter { String($0.port).contains(trimmed) || $0.process.name.localizedCaseInsensitiveContains(trimmed) }

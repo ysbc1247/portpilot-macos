@@ -6,7 +6,7 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 
 | Boundary | Responsibility | Production implementation |
 | --- | --- | --- |
-| Domain | Runtime values, identity, profiles, dependency planning, conflicts, history | Value types in `DevBerth/Domain` |
+| Domain | OS observations, durable managed-service intent, identity, dependency planning, conflicts, history | Value types in `DevBerth/Domain` |
 | Command execution | Direct executable URL plus discrete argument arrays | `FoundationCommandRunner` |
 | Process discovery | Tagged listener parsing and process enrichment | `LocalPortDiscovery`, `ProcessMetadataProvider` |
 | Monitoring | Polling, snapshots, diffs, pause/resume | `PortMonitor` actor |
@@ -32,6 +32,12 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 
 The listener identity is `PID + protocol + address + port`. Process identity is `PID + executable path + start time`. First/last detection timestamps belong to transient listener state and history, not a persisted live `Process` object.
 
+## Domain vocabulary
+
+`ObservedListener` and `ObservedProcess` are transient facts reported by the operating system. An observed listener contains an observed process because the listener-to-process edge is direct evidence from `lsof`; neither type contains launch instructions or restart claims. `ManagedServiceConfiguration` is durable, reviewed user intent: launch mechanism, command, arguments, environment references, expected listeners, health/readiness, shutdown/restart policy, dependencies, and log settings. The existing `LaunchProfileRecord` name remains a V1 persistence compatibility detail and is converted at the boundary by `LaunchProfileRecord+Domain`.
+
+Future runtime instances, ownership conclusions, and workspace sessions must reference these concepts rather than accumulate more optional state on observations or managed-service configuration.
+
 ## Discovery strategy
 
 DevBerth invokes `/usr/sbin/lsof` using `-F0` machine fields, numeric hosts/ports, and separate selectors for TCP `LISTEN` and UDP endpoints. The parser tracks process and file records and ignores malformed fields. IPv6 addresses are unwrapped from brackets only after splitting on the final port colon.
@@ -55,7 +61,7 @@ Termination is intentionally conservative:
 
 A changed identity is never treated as the original process. This prevents PID-reuse termination bugs.
 
-## Launch profiles
+## Managed service configuration
 
 A discovered process is evidence, not an executable recipe. Saving one opens a review sheet and prefills only best-effort values. `ManagedProcessLauncher` refuses unreviewed profiles.
 

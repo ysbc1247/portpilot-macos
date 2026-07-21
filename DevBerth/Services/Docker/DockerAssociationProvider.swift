@@ -9,7 +9,7 @@ actor DockerAssociationProvider {
         self.client = client
     }
 
-    func correlate(_ listeners: [NetworkListener]) async -> [NetworkListener] {
+    func correlate(_ listeners: [ObservedListener]) async -> [ObservedListener] {
         if Date().timeIntervalSince(lastRefresh) > 5 {
             await refresh()
         }
@@ -43,9 +43,9 @@ actor DockerAssociationProvider {
     }
 }
 
-private extension NetworkListener {
-    func associatingDocker(_ association: DockerAssociation) -> NetworkListener {
-        let value = ProcessMetadata(
+private extension ObservedListener {
+    func associatingDocker(_ association: DockerAssociation) -> ObservedListener {
+        let value = ObservedProcess(
             identity: process.identity,
             parentPID: process.parentPID,
             name: process.name,
@@ -59,9 +59,9 @@ private extension NetworkListener {
             isSystemProcess: process.isSystemProcess,
             docker: association,
             launchedByDevBerth: process.launchedByDevBerth,
-            launchProfileID: process.launchProfileID
+            managedServiceID: process.managedServiceID
         )
-        return NetworkListener(
+        return ObservedListener(
             protocolKind: protocolKind,
             address: address,
             port: port,

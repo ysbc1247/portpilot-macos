@@ -9,7 +9,7 @@ final class LaunchCoordinatorTests: XCTestCase {
             processLauncher: launcher,
             healthChecker: PassingHealthChecker()
         )
-        let profile = LaunchProfileConfiguration(
+        let profile = ManagedServiceConfiguration(
             name: "Web", command: "/usr/bin/true", workingDirectory: "/tmp",
             expectedPorts: [.init(id: UUID(), port: 3000, protocolKind: .tcp, required: true)]
         )
@@ -28,7 +28,7 @@ final class LaunchCoordinatorTests: XCTestCase {
         let listener = makeListener(port: 45678)
         let discovery = SequencedDiscovery(snapshots: [[], [listener]])
         let coordinator = LaunchCoordinator(discoverer: discovery, processLauncher: launcher, healthChecker: PassingHealthChecker())
-        let profile = LaunchProfileConfiguration(
+        let profile = ManagedServiceConfiguration(
             name: "Fixture", command: "/usr/bin/true", workingDirectory: "/tmp",
             expectedPorts: [.init(id: UUID(), port: 45678, protocolKind: .tcp, required: true)],
             startupTimeoutSeconds: 1
@@ -40,14 +40,14 @@ final class LaunchCoordinatorTests: XCTestCase {
 }
 
 private struct FixedDiscovery: PortDiscovering {
-    let listeners: [NetworkListener]
-    func discover() async throws -> [NetworkListener] { listeners }
+    let listeners: [ObservedListener]
+    func discover() async throws -> [ObservedListener] { listeners }
 }
 
 private actor SequencedDiscovery: PortDiscovering {
-    var snapshots: [[NetworkListener]]
-    init(snapshots: [[NetworkListener]]) { self.snapshots = snapshots }
-    func discover() async throws -> [NetworkListener] {
+    var snapshots: [[ObservedListener]]
+    init(snapshots: [[ObservedListener]]) { self.snapshots = snapshots }
+    func discover() async throws -> [ObservedListener] {
         guard snapshots.count > 1 else { return snapshots.first ?? [] }
         return snapshots.removeFirst()
     }
@@ -55,7 +55,7 @@ private actor SequencedDiscovery: PortDiscovering {
 
 private actor RecordingManagedLauncher: ManagedProcessLaunching {
     private(set) var launches = 0
-    func launch(_ profile: LaunchProfileConfiguration) async throws { launches += 1 }
+    func launch(_ profile: ManagedServiceConfiguration) async throws { launches += 1 }
     func stop(profileID: UUID, timeoutSeconds: Double) async throws {}
 }
 

@@ -3,8 +3,8 @@ import Foundation
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published private(set) var listeners: [NetworkListener] = []
-    @Published private(set) var recentChanges: [NetworkListener] = []
+    @Published private(set) var listeners: [ObservedListener] = []
+    @Published private(set) var recentChanges: [ObservedListener] = []
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
     @Published var isMonitoring = true
@@ -58,7 +58,7 @@ final class AppModel: ObservableObject {
         )
     }
 
-    var filteredListeners: [NetworkListener] {
+    var filteredListeners: [ObservedListener] {
         guard !searchText.isEmpty else { return listeners }
         return listeners.filter { listener in
             let text = [
@@ -70,7 +70,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    var selectedListener: NetworkListener? {
+    var selectedListener: ObservedListener? {
         listeners.first(where: { $0.id == selectedListenerID })
     }
 
@@ -113,7 +113,7 @@ final class AppModel: ObservableObject {
         notificationPorts = Set(ports.compactMap { UInt16(exactly: $0) })
     }
 
-    func terminate(_ listener: NetworkListener, mode: TerminationMode) async {
+    func terminate(_ listener: ObservedListener, mode: TerminationMode) async {
         let pid = listener.process.identity.pid
         guard !processesBeingControlled.contains(pid) else { return }
         processesBeingControlled.insert(pid)
@@ -130,7 +130,7 @@ final class AppModel: ObservableObject {
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: listener.port,
                 processIdentity: listener.process.identity, processName: listener.process.name,
-                projectID: nil, profileID: listener.process.launchProfileID, type: eventType,
+                projectID: nil, profileID: listener.process.managedServiceID, type: eventType,
                 result: outcome.didExit ? .succeeded : .failed,
                 errorDetails: outcome.didExit ? nil : "The process did not exit before the graceful shutdown timeout.",
                 durationSeconds: outcome.durationSeconds
@@ -144,7 +144,7 @@ final class AppModel: ObservableObject {
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: listener.port,
                 processIdentity: listener.process.identity, processName: listener.process.name,
-                projectID: nil, profileID: listener.process.launchProfileID, type: eventType,
+                projectID: nil, profileID: listener.process.managedServiceID, type: eventType,
                 result: .failed, errorDetails: error.localizedDescription,
                 durationSeconds: Date().timeIntervalSince(startedAt)
             ))
@@ -153,7 +153,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func launchProfile(_ profile: LaunchProfileConfiguration, bypassCachedConflict: Bool = false) async {
+    func launchProfile(_ profile: ManagedServiceConfiguration, bypassCachedConflict: Bool = false) async {
         let startedAt = Date()
         profileFailures[profile.id] = nil
         if !bypassCachedConflict,
@@ -236,7 +236,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func stopProfile(_ profile: LaunchProfileConfiguration) async {
+    func stopProfile(_ profile: ManagedServiceConfiguration) async {
         let startedAt = Date()
         do {
             try await launchService.stop(profileID: profile.id, timeoutSeconds: profile.shutdownTimeoutSeconds)
@@ -255,7 +255,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func startProject(_ profiles: [LaunchProfileConfiguration]) async {
+    func startProject(_ profiles: [ManagedServiceConfiguration]) async {
         let startedAt = Date()
         do {
             let result = try await projectOrchestrator.start(profiles: profiles)
@@ -273,7 +273,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func stopProject(_ profiles: [LaunchProfileConfiguration]) async {
+    func stopProject(_ profiles: [ManagedServiceConfiguration]) async {
         do {
             try await projectOrchestrator.stop(profiles: profiles)
             runningProfileIDs.subtract(profiles.map(\.id))
@@ -288,7 +288,7 @@ final class AppModel: ObservableObject {
             Task { await record(HistoryEvent(
                 id: UUID(), timestamp: Date(), port: listener.port,
                 processIdentity: listener.process.identity, processName: listener.process.name,
-                projectID: nil, profileID: listener.process.launchProfileID,
+                projectID: nil, profileID: listener.process.managedServiceID,
                 type: .portDetected, result: .observed, errorDetails: nil, durationSeconds: nil
             )) }
         }
@@ -297,13 +297,13 @@ final class AppModel: ObservableObject {
             Task { await record(HistoryEvent(
                 id: UUID(), timestamp: Date(), port: listener.port,
                 processIdentity: listener.process.identity, processName: listener.process.name,
-                projectID: nil, profileID: listener.process.launchProfileID,
+                projectID: nil, profileID: listener.process.managedServiceID,
                 type: .portReleased, result: .observed, errorDetails: nil, durationSeconds: nil
             )) }
         }
     }
 
-    private func notifyIfConfigured(_ listener: NetworkListener, change: String) {
+    private func notifyIfConfigured(_ listener: ObservedListener, change: String) {
         guard
             UserDefaults.standard.bool(forKey: "notifyConfiguredPorts"),
             notificationPorts.contains(listener.port)

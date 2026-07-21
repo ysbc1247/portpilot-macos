@@ -43,21 +43,21 @@ struct HistoryEvent: Hashable, Codable, Sendable, Identifiable {
 
 struct PortConflict: Hashable, Sendable, Identifiable {
     var id: String { listener.id }
-    let expectedPort: ExpectedPortConfiguration
-    let listener: NetworkListener
+    let expectedPort: ExpectedListenerConfiguration
+    let listener: ObservedListener
     let owningProjectID: UUID?
 }
 
 struct PendingLaunchConflict: Identifiable, Sendable {
     let id = UUID()
-    let profile: LaunchProfileConfiguration
+    let profile: ManagedServiceConfiguration
     let conflict: PortConflict
 }
 
 enum PortConflictDetector {
     static func conflicts(
-        for profile: LaunchProfileConfiguration,
-        listeners: [NetworkListener]
+        for profile: ManagedServiceConfiguration,
+        listeners: [ObservedListener]
     ) -> [PortConflict] {
         profile.expectedPorts.compactMap { expected in
             guard let match = listeners.first(where: {

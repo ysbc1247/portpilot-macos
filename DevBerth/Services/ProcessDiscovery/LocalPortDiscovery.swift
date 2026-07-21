@@ -2,10 +2,10 @@ import Foundation
 
 actor LocalPortDiscovery: PortDiscovering {
     private let runner: any CommandRunning
-    private let metadataProvider: ProcessMetadataProvider
+    private let metadataProvider: ObservedProcessProvider
     private var firstDetected: [String: Date] = [:]
     private struct CachedMetadata {
-        let value: ProcessMetadata
+        let value: ObservedProcess
         let lsofProcessName: String
         let cachedAt: Date
     }
@@ -15,13 +15,13 @@ actor LocalPortDiscovery: PortDiscovering {
 
     init(runner: any CommandRunning, includeProjectInference: Bool = true) {
         self.runner = runner
-        self.metadataProvider = ProcessMetadataProvider(
+        self.metadataProvider = ObservedProcessProvider(
             runner: runner,
             inferer: includeProjectInference ? ProjectInferer() : nil
         )
     }
 
-    func discover() async throws -> [NetworkListener] {
+    func discover() async throws -> [ObservedListener] {
         async let tcpResult = runner.run(
             executable: URL(fileURLWithPath: "/usr/sbin/lsof"),
             arguments: ["-nP", "-a", "-iTCP", "-sTCP:LISTEN", "-F0pcLftPnT", "+c", "0"]
@@ -41,7 +41,7 @@ actor LocalPortDiscovery: PortDiscovering {
         let raw = LsofFieldParser.parse(tcp.stdout, defaultProtocol: .tcp)
             + LsofFieldParser.parse(udp.stdout, defaultProtocol: .udp)
         let grouped = Dictionary(grouping: raw, by: \.pid)
-        var metadata: [Int32: ProcessMetadata] = [:]
+        var metadata: [Int32: ObservedProcess] = [:]
         let now = Date()
         let refreshPIDs = Set(
             grouped.keys.compactMap { pid -> (Int32, Date)? in
@@ -63,7 +63,7 @@ actor LocalPortDiscovery: PortDiscovering {
             }
         }
 
-        await withTaskGroup(of: (Int32, ProcessMetadata).self) { group in
+        await withTaskGroup(of: (Int32, ObservedProcess).self) { group in
             for (pid, listeners) in grouped where metadata[pid] == nil {
                 let fallback = listeners[0]
                 group.addTask { [metadataProvider] in
@@ -86,12 +86,12 @@ actor LocalPortDiscovery: PortDiscovering {
         }
 
         metadataCache = metadataCache.filter { grouped[$0.key] != nil }
-        let listeners = raw.compactMap { item -> NetworkListener? in
+        let listeners = raw.compactMap { item -> ObservedListener? in
             guard let process = metadata[item.pid] else { return nil }
             let id = "\(item.pid):\(item.protocolKind.rawValue):\(item.address):\(item.port)"
             let first = firstDetected[id] ?? now
             firstDetected[id] = first
-            return NetworkListener(
+            return ObservedListener(
                 protocolKind: item.protocolKind,
                 address: item.address,
                 port: item.port,
