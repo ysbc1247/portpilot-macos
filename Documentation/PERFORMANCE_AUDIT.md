@@ -124,6 +124,14 @@ Docker correlation now precedes the runtime diff. The semantic comparator exclud
 
 The process metadata cache now uses a native, non-spawning identity read for PID, UID, start time, parent PID, executable path/device/inode, argument digest, and current directory. It invalidates PID reuse, `exec`, executable replacement, argument changes, and directory changes immediately, retains entries for five minutes, refreshes at most three otherwise-expired entries per scan, and never exceeds 512 current entries.
 
+## Background work fixes
+
+- Passive Docker observation now uses the existing batched `ps` plus one `inspect` path directly, removing the separate `docker version` command. Its normal cache is 30 seconds, failures back off exponentially to five minutes, and manual or completed Docker mutations invalidate immediately.
+- Process resource sampling is independent of listener cadence: one second during transitions, five seconds active, 30 seconds background, and 60 seconds idle, with immediate sampling when the PID set changes.
+- Ongoing health schedules use the reviewed fast interval only for recovery, move to a minimum fifteen-second interval after three healthy samples, back off repeated failures to sixty seconds, add ten-percent jitter, and share a four-batch concurrency gate. Stop, exit, deletion, and sleep suppress stale work.
+- Managed stdout/stderr bytes are combined in 50 ms ingress batches before redaction, line parsing, bounded persistence, and UI visibility. The open log view checks a lightweight revision twice per second and fetches entries only after a committed batch.
+- Compatibility process history is pruned to the newest 5,000 records at startup and with 100-record write headroom, matching the existing lifecycle bound without altering shipped schemas.
+
 ## Evidence still to append
 
 - complete 1/5/15-minute idle CPU, memory, wakeup, WAL, and row-count checkpoints;
