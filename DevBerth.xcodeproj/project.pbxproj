@@ -23,6 +23,7 @@
 		14DAEE1DD2443A28A8825CC4 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996099AC5AF505DEBBF80B04 /* AppModel.swift */; };
 		1521DC6E81A147409FA3431D /* ProjectDiscoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A90382D36276B90A2C3838 /* ProjectDiscoveryTests.swift */; };
 		17CECB9ABAC202EC703D955D /* ProcessLineageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4D7F7DD715D29CC596A3B6 /* ProcessLineageProvider.swift */; };
+		1815B9236ECB0774E163CAD6 /* AppModelPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4C9C60E374F3FF379B1AC3A /* AppModelPerformanceTests.swift */; };
 		1985ED4EC007832FDB468123 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8874536D6F42BE575663D244 /* JSONValue.swift */; };
 		1AF40EE5F31D28AEADAB43BC /* RuntimeAndClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA688D4DBA71F83FD6A72BB /* RuntimeAndClassificationTests.swift */; };
 		1B0D10E3DEB2DB4F900AE56D /* DockerCLIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D97877AC906205957A6C8A9 /* DockerCLIClient.swift */; };
@@ -94,6 +95,7 @@
 		7FC22B2A01C124E7BE5D0F2B /* HTTPHealthChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106925A3C19AA914FD8A6C8E /* HTTPHealthChecker.swift */; };
 		8126BBFD7328CB533EC01E5F /* PersistentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7DE9AFA59A86FDD0E83BF82 /* PersistentModels.swift */; };
 		81B277CCF1F68097A67F6710 /* DevBerthMCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F899E14182EAB3C68EAA0C /* DevBerthMCPServer.swift */; };
+		82AD1CE47C258CE45592A3E2 /* PerformanceBenchmarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2160AFD04FDED20D0DF119F6 /* PerformanceBenchmarkTests.swift */; };
 		84F3036AD0E07B9C45F81CA5 /* RuntimePresentationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E6A95965FAA2FCB0362A2C5 /* RuntimePresentationModels.swift */; };
 		8659A0813729058D915BFF4A /* NativeProjectDiscoveryAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6210B1073193C6748D99FD3F /* NativeProjectDiscoveryAdapters.swift */; };
 		87086294CA840C789FD855FA /* ProjectInferer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163E0483F03524B1EBF291C2 /* ProjectInferer.swift */; };
@@ -256,6 +258,7 @@
 		1CAC55806EDB0182F79707CC /* lsof_tcp.fields */ = {isa = PBXFileReference; path = lsof_tcp.fields; sourceTree = "<group>"; };
 		1CFDC4065A2C392DB3FE7D37 /* UnixControlSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnixControlSocket.swift; sourceTree = "<group>"; };
 		1DF0296774E7BC2CCB70D6B1 /* RuntimeLifecycleTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeLifecycleTracker.swift; sourceTree = "<group>"; };
+		2160AFD04FDED20D0DF119F6 /* PerformanceBenchmarkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceBenchmarkTests.swift; sourceTree = "<group>"; };
 		25F467C90F276E40C4550FAC /* HarmlessListenerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarmlessListenerIntegrationTests.swift; sourceTree = "<group>"; };
 		2836D26D412DF4A5D6C435CE /* ProcessSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSafetyTests.swift; sourceTree = "<group>"; };
 		29DEEB99B5DA7438BBA95317 /* ManagedServicePersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedServicePersistence.swift; sourceTree = "<group>"; };
@@ -325,6 +328,7 @@
 		A1D8BF217638A90253F3E8F1 /* CapabilityRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapabilityRegistry.swift; sourceTree = "<group>"; };
 		A2A28A11672F0AAC5C8E2872 /* WorkspaceSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSessionCoordinator.swift; sourceTree = "<group>"; };
 		A3960E28AF5CD1076F1FC187 /* LaunchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchCoordinator.swift; sourceTree = "<group>"; };
+		A4C9C60E374F3FF379B1AC3A /* AppModelPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelPerformanceTests.swift; sourceTree = "<group>"; };
 		A526150CBE5099F1EF0D7DE0 /* multi_port_fixture.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = multi_port_fixture.py; sourceTree = "<group>"; };
 		A62D8B0F6300A539B14980E7 /* ProcessFingerprintVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessFingerprintVerifier.swift; sourceTree = "<group>"; };
 		A73D9CAFF25383ADFDCF7D74 /* ProcessGroupPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessGroupPersistenceTests.swift; sourceTree = "<group>"; };
@@ -765,6 +769,7 @@
 			isa = PBXGroup;
 			children = (
 				D2A1F74276207FD6337DAD56 /* AdaptiveMonitoringTests.swift */,
+				A4C9C60E374F3FF379B1AC3A /* AppModelPerformanceTests.swift */,
 				9B9AC72B7125A6F0F3BF2329 /* DockerTests.swift */,
 				755560AA16F59AB997751A21 /* EventBatchingTests.swift */,
 				FC785A7D1CE69D53A040B082 /* HealthCheckTests.swift */,
@@ -775,6 +780,7 @@
 				FCD92C1B0DE5DD2B05A6EE25 /* ManagedServiceTests.swift */,
 				60D4AE4155A4838DE8A76924 /* MCPIntegrationManagerTests.swift */,
 				942F9F67C08A5214843D32DD /* OwnershipTests.swift */,
+				2160AFD04FDED20D0DF119F6 /* PerformanceBenchmarkTests.swift */,
 				D27D62BA0DAA607E5BBC0C42 /* PerformanceInstrumentationTests.swift */,
 				676732238A5B4AD14BCC6AB2 /* PerformanceSoakTests.swift */,
 				685AE2D075F6DC31E9CAAB54 /* PersistenceTests.swift */,
@@ -1328,6 +1334,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0FBEAB65085D6B96BA36A088 /* AdaptiveMonitoringTests.swift in Sources */,
+				1815B9236ECB0774E163CAD6 /* AppModelPerformanceTests.swift in Sources */,
 				F4E5FE5BF85B5DFEF5D893EE /* DockerTests.swift in Sources */,
 				CF4DE583570D9851188A527A /* EventBatchingTests.swift in Sources */,
 				7ECFF41AF02D51CC2B09C5DE /* HealthCheckTests.swift in Sources */,
@@ -1338,6 +1345,7 @@
 				CF08103831AFC7555386409B /* MCPIntegrationManagerTests.swift in Sources */,
 				EA10F0597CF288E155FF13B3 /* ManagedServiceTests.swift in Sources */,
 				729A31CFE8CE61E9D7E1A102 /* OwnershipTests.swift in Sources */,
+				82AD1CE47C258CE45592A3E2 /* PerformanceBenchmarkTests.swift in Sources */,
 				31BA1C8CD106529529D5BDC8 /* PerformanceInstrumentationTests.swift in Sources */,
 				7D279B5AE37D77024EA387F3 /* PerformanceSoakTests.swift in Sources */,
 				D35CEBB1F0AD4FA041C901AF /* PersistenceTests.swift in Sources */,

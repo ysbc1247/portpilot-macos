@@ -85,6 +85,54 @@ final class AdaptiveMonitoringTests: XCTestCase {
         XCTAssertFalse(noisy.isMeaningfullyDifferent(from: old))
         XCTAssertTrue(changed.isMeaningfullyDifferent(from: old))
     }
+
+    func testMutationWakeSleepResumeAndStopKeepOneCancellableLoop() async throws {
+        let discoverer = CountingPortDiscoverer(delaySeconds: 0.005)
+        let monitor = PortMonitor(
+            discoverer: discoverer,
+            configuration: MonitoringConfiguration(
+                transitionIntervalSeconds: 5,
+                activeIntervalSeconds: 5,
+                backgroundIntervalSeconds: 5,
+                idleIntervalSeconds: 5,
+                transitionDurationSeconds: 0,
+                idleAfterSeconds: 0
+            )
+        )
+        _ = await monitor.updates(every: 5)
+        try await waitForCallCount(1, discoverer: discoverer)
+
+        await monitor.requestRefresh()
+        try await waitForCallCount(2, discoverer: discoverer)
+
+        await monitor.setSuspended(true)
+        let suspendedCount = await discoverer.stats().callCount
+        try await Task.sleep(for: .milliseconds(150))
+        let countWhileSuspended = await discoverer.stats().callCount
+        XCTAssertEqual(countWhileSuspended, suspendedCount)
+
+        await monitor.setSuspended(false)
+        try await waitForCallCount(suspendedCount + 1, discoverer: discoverer)
+        let resumedStats = await discoverer.stats()
+        XCTAssertEqual(resumedStats.maximumConcurrentCalls, 1)
+
+        await monitor.stop()
+        let stoppedCount = await discoverer.stats().callCount
+        try await Task.sleep(for: .milliseconds(150))
+        let finalCount = await discoverer.stats().callCount
+        XCTAssertEqual(finalCount, stoppedCount)
+    }
+
+    private func waitForCallCount(
+        _ expected: Int,
+        discoverer: CountingPortDiscoverer
+    ) async throws {
+        for _ in 0..<50 {
+            if await discoverer.stats().callCount >= expected { return }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Timed out waiting for monitor scan \(expected).")
+    }
 }
 
 private actor CountingPortDiscoverer: PortDiscovering {
