@@ -55,14 +55,14 @@ Development mode is a separate Debug-only host with an in-memory V7 container an
 
 ## Runtime state flow
 
-1. `PortMonitor` asks `PortDiscovering` for a snapshot outside the main actor.
+1. One application-lifetime `PortMonitor` loop asks `PortDiscovering` for a snapshot outside the main actor. Repeated starts are idempotent, immediate refresh requests coalesce behind an in-flight scan, sleep suspends the loop, and wake schedules one transition scan. The configured preference remains the visible active interval; transitions use 0.75 seconds, hidden stable work uses at least 10 seconds, and a hidden runtime unchanged for three minutes uses at least 30 seconds.
 2. `LocalPortDiscovery` runs separate TCP and UDP `lsof` calls with NUL-delimited tagged fields.
 3. Unique listener PIDs are enriched using fixed-shape `ps` fingerprint data and tagged `lsof` `cwd`/`txt` paths.
-4. Process metadata is cached for 30 seconds. At most three stale entries are refreshed per poll, preventing synchronized command bursts; disappeared PIDs are evicted immediately.
-5. `RuntimeDiffer` derives added, updated, and removed listeners by stable listener ID.
+4. Process metadata is cached for five minutes and bounded to 512 current entries. A native `libproc`/`sysctl` identity key covers PID, UID, start time, parent PID, executable path/device/inode, argument digest, and current directory. PID reuse, `exec`, argument, executable-identity, or directory changes invalidate immediately without spawning a validation command; at most three otherwise-expired entries refresh per scan and disappeared PIDs are evicted immediately.
+5. Docker associations are joined before `RuntimeDiffer` derives added, updated, and removed listeners by stable listener ID. The semantic comparator includes verified process, project, managed-service, and Docker evidence but excludes first/last observation timestamps and fingerprint detection time.
 6. Docker associations are refreshed on a five-second cache and joined by host port and protocol. One `docker inspect` batch supplies current state, health, restart policy, exact port bindings, and canonical labels; expensive Compose scope proof is cached for fifteen seconds only while its path evidence is unchanged.
 7. One bounded `ps` call per batch of at most 128 unique listener PIDs reads CPU percentage and resident memory. Malformed, disappeared, or inaccessible PIDs remain unavailable; this transient evidence never authorizes control.
-8. `AppModel` publishes the correlated snapshot and resource map on the main actor, records added/changed/released listeners as structured lifecycle evidence plus compatibility history, and optionally schedules configured-port notifications.
+8. `AppModel` always retains the freshest observation evidence but publishes listener state only for a semantic diff. Resource state publishes only for PID-set changes, a one-percentage-point CPU change, or at least a 1 MiB/five-percent memory change. Only semantic added/changed/released listeners enter lifecycle/history recording or configured-port notifications.
 9. The selected listener is reconciled against the managed-runtime registry, Docker metadata, bounded process lineage, and deterministic external-owner rules. The result is a transient `RuntimeOwnershipGraph`; its primary conclusion is persisted with bounded retention.
 10. SwiftUI renders the existing value graph instead of causing OS queries from view bodies.
 
@@ -215,6 +215,7 @@ Performance instrumentation is a shared service rather than view-specific loggin
 - Discovery, monitoring, launching, lifecycle tracking, service checks, process control, Docker correlation, logs, and persistence are actor-isolated.
 - The main actor owns observable presentation state only.
 - Monitoring uses an `AsyncStream` buffered to the newest update, so slow UI work does not build an unbounded queue.
+- Exactly one monitor loop owns discovery. UI scene recreation updates visibility state rather than creating a second loop; event refreshes interrupt the cancellable delay and coalesce to at most one follow-up scan.
 - Project layers use throwing task groups, which cancel sibling/remaining work after a failure.
 - Project-file parsing and manifest writes run behind actor-isolated service protocols; SwiftUI owns selection and presentation, not file evaluation.
 - Session capture, comparison, fresh preflight, layered launch, and rollback run in an actor; independent services use task groups while SwiftUI holds only preview and confirmation state.
@@ -246,7 +247,7 @@ Reproduce the raw discovery measurement with `swiftc Scripts/measure_discovery.s
 
 ## Trade-offs
 
-- Polling is portable and testable on macOS 14; no public event API exposes all TCP/UDP ownership metadata. The default two-second interval is configurable.
-- A 30-second rolling metadata cache can briefly show stale non-destructive labels, but process termination always performs fresh verification.
+- Polling is portable and testable on macOS 14; no public event API exposes all TCP/UDP ownership metadata. The visible active interval is configurable, while conservative transition/background/idle derivations prevent a preference from causing high hidden-window duty cycle.
+- A five-minute rolling metadata cache can briefly show stale non-destructive labels only when identity is unchanged. Native identity checks invalidate PID reuse, `exec`, executable replacement, argument changes, and directory changes immediately; process termination still performs fresh full verification.
 - App Sandbox is incompatible with core global process operations. The replacement controls are strict arguments, local-only data, protected-process policy, identity verification, no elevation, and Hardened Runtime.
 - Runtime heuristics add useful labels but never replace verified raw values.

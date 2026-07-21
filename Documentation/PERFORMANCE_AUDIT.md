@@ -116,6 +116,14 @@ This chain explains both the background CPU result and the additional visible-wi
 
 The same component retains bounded, non-secret diagnostic counters for scan latency/count, coalescing, cache size/hit rate, Docker latency, health checks, background tasks, and recent performance warnings. The internal UI is added in a separate review shard.
 
+## Runtime scheduling and semantic fixes
+
+The optimized pipeline has one idempotent `PortMonitor` loop. Immediate refresh requests interrupt its cancellable delay and collapse behind an in-flight scan, preventing the former cancel-and-recreate overlap. Main-window and menu-bar visibility select the configured active cadence; transitions use a short burst, hidden stable monitoring uses at least ten seconds, and a hidden runtime unchanged for three minutes backs off to at least thirty seconds. System sleep suspends work and wake schedules one fresh transition scan.
+
+Docker correlation now precedes the runtime diff. The semantic comparator excludes `firstDetectedAt`, `lastDetectedAt`, and fingerprint `detectedAt`, but retains process identity, command, project, managed-service, and Docker evidence. AppModel therefore retains fresh evidence without invalidating SwiftUI or writing lifecycle rows for timestamp-only scans. Resource state applies explicit CPU and memory publication thresholds.
+
+The process metadata cache now uses a native, non-spawning identity read for PID, UID, start time, parent PID, executable path/device/inode, argument digest, and current directory. It invalidates PID reuse, `exec`, executable replacement, argument changes, and directory changes immediately, retains entries for five minutes, refreshes at most three otherwise-expired entries per scan, and never exceeds 512 current entries.
+
 ## Evidence still to append
 
 - complete 1/5/15-minute idle CPU, memory, wakeup, WAL, and row-count checkpoints;
