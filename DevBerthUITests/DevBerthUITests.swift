@@ -66,6 +66,17 @@ final class DevBerthUITests: XCTestCase {
         XCTAssertTrue(app.buttons["New Managed Service"].waitForExistence(timeout: 3))
     }
 
+    func testSettingsExposePermissionAndMCPRepairActions() {
+        let app = launchApp(onboardingCompleted: true)
+        XCTAssertTrue(app.staticTexts["Runtime"].waitForExistence(timeout: 8))
+
+        app.staticTexts["Settings"].firstMatch.click()
+
+        XCTAssertTrue(app.buttons["Open Full Disk Access Settings"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Set Up / Repair Codex MCP"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Global Codex configuration"].exists)
+    }
+
     func testEscapeDismissesCommandPaletteAndCustomSheets() {
         let app = launchApp(onboardingCompleted: true)
         XCTAssertTrue(app.staticTexts["Runtime"].waitForExistence(timeout: 8))

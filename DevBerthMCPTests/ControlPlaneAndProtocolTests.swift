@@ -26,6 +26,7 @@ final class CapabilityParityTests: XCTestCase {
         XCTAssertEqual(Set(ControlCapabilityRegistry.resources.map(\.uri)).count, ControlCapabilityRegistry.resources.count)
         XCTAssertEqual(Set(ControlCapabilityRegistry.prompts.map(\.name)).count, ControlCapabilityRegistry.prompts.count)
         XCTAssertEqual(ControlCapabilityRegistry.prompts.filter(\.developmentOnly).map(\.name), ["run_development_acceptance_suite"])
+        XCTAssertTrue(ControlCapabilityRegistry.prompts.contains { $0.name == "manage_local_development" && !$0.developmentOnly })
         XCTAssertTrue(ControlErrorCode.allCases.contains(.identityMismatch))
         XCTAssertTrue(ControlErrorCode.allCases.contains(.productionDataProtected))
         XCTAssertLessThanOrEqual(ControlProtocolConstants.maximumFrameBytes, 4 * 1_024 * 1_024)
