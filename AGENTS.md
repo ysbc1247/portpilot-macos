@@ -164,6 +164,20 @@ Create the required documentation directories and files if they do not yet exist
 - If a conflict requires a product, strategy, data, or research judgment, stop and ask the user what to keep instead of guessing.
 - If checks are failing or required review is missing on any PR in the sequence, report the blocker, leave the remaining PRs unmerged, and do not force-merge unless the user explicitly instructs that exact action.
 
+## GitHub Versioning and Release Protocol
+
+- Treat the immutable `vMAJOR.MINOR.PATCH` Git tag and corresponding published GitHub Release as the canonical source-project version.
+- Every pull request merged into `main` must produce exactly one version through `.github/workflows/release-on-merge.yml`. Do not disable, bypass, rename, or delete this workflow without an explicit version-migration decision and matching documentation update.
+- Keep repository changes on pull requests. A direct push to `main` is a workflow violation, creates no release, and must be corrected through the normal PR path rather than manually inventing a version.
+- Merge PRs into `main` as separate updates. Do not batch multiple PRs into one merge-queue group or main update; one merged PR must map to one release-workflow run and one version.
+- While the project remains on the `0.1` source-release line, use `v0.1.<GITHUB_RUN_NUMBER>`. The workflow run number is the patch component so queued merges receive unique deterministic versions and reruns remain idempotent.
+- Never move, reuse, overwrite, or delete a published version tag. If publishing is interrupted after tag creation, rerun the same workflow so it completes that tag's missing release.
+- Before merging, make the PR title and body release-ready. The body must truthfully state what changed, why, user or developer impact, and observed validation; do not merge placeholder or stale release input.
+- Every release must identify the merged PR, preserve its full title and description, link the exact merge commit, and compare with the previous source release when one exists.
+- After every merge, verify CI and the release workflow succeeded for the merge commit, verify the new tag targets that commit, and inspect the published release details before reporting the task complete.
+- Keep GitHub source versions separate from the Xcode `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` until signed binary distribution is designed. Never claim that a source release contains an installable, signed, notarized, or automatically updatable app unless those artifacts were actually produced and verified.
+- Record version-line changes, release-automation decisions, alternatives, and recovery procedures in `docs/implementations/github-release-versioning/README.md`; keep this section prescriptive.
+
 ## DevBerth Engineering Rules
 
 - Target macOS 14 or newer with SwiftUI and Swift Concurrency. Use AppKit only when a native SwiftUI API cannot provide the required behavior.
