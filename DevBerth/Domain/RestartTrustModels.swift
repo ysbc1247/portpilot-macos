@@ -108,8 +108,17 @@ enum ManagedServiceConfigurationDigest {
         let definition = RestartDefinition(profile: profile)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = (try? encoder.encode(definition)) ?? Data()
-        return ProcessFingerprint.digest(commandLine: data.base64EncodedString())
+        let definitionData = (try? encoder.encode(definition)) ?? Data()
+        var digestInput = definitionData.base64EncodedString()
+
+        // Preserve existing V4 validation digests when no V6 checks are
+        // configured. Reviewed checks extend the definition only when present.
+        if !profile.serviceChecks.isEmpty {
+            let checks = profile.serviceChecks.sorted { $0.id.uuidString < $1.id.uuidString }
+            let checksData = (try? encoder.encode(checks)) ?? Data()
+            digestInput += "|service-checks:\(checksData.base64EncodedString())"
+        }
+        return ProcessFingerprint.digest(commandLine: digestInput)
     }
 }
 

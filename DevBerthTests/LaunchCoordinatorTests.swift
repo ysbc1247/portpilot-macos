@@ -37,6 +37,42 @@ final class LaunchCoordinatorTests: XCTestCase {
         let launches = await launcher.launches
         XCTAssertEqual(launches, 1)
     }
+
+    func testBackgroundHealthMonitoringRecordsDegradationRecoveryAndStopsAfterExit() async throws {
+        let launcher = RecordingManagedLauncher()
+        let health = SequencedHealthChecker(outcomes: [true, false, true, true])
+        let lifecycle = RecordingLifecycleObserver()
+        let coordinator = LaunchCoordinator(
+            discoverer: FixedDiscovery(listeners: []),
+            processLauncher: launcher,
+            healthChecker: health,
+            lifecycle: lifecycle
+        )
+        let profile = ManagedServiceConfiguration(
+            name: "Health fixture",
+            command: "/usr/bin/true",
+            workingDirectory: "/tmp",
+            healthCheck: HealthCheckConfiguration(
+                url: try XCTUnwrap(URL(string: "http://127.0.0.1:49905/health")),
+                expectedStatus: 200,
+                intervalSeconds: 0.05
+            )
+        )
+
+        try await coordinator.launch(profile)
+        for _ in 0..<30 {
+            if await lifecycle.healthStates().count >= 3 { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+
+        let states = await lifecycle.healthStates()
+        XCTAssertEqual(Array(states.prefix(3)), [true, false, true])
+        await coordinator.runtimeDidExit(profileID: profile.id)
+        let callsAfterExit = await health.callCount()
+        try await Task.sleep(for: .milliseconds(400))
+        let finalCallCount = await health.callCount()
+        XCTAssertEqual(finalCallCount, callsAfterExit)
+    }
 }
 
 private struct FixedDiscovery: PortDiscovering {
@@ -61,4 +97,45 @@ private actor RecordingManagedLauncher: ManagedProcessLaunching {
 
 private struct PassingHealthChecker: HealthChecking {
     func waitUntilHealthy(configuration: HealthCheckConfiguration, timeoutSeconds: Double) async throws {}
+}
+
+private actor SequencedHealthChecker: HealthChecking {
+    private var outcomes: [Bool]
+    private var calls = 0
+
+    init(outcomes: [Bool]) {
+        self.outcomes = outcomes
+    }
+
+    func waitUntilHealthy(
+        configuration: HealthCheckConfiguration,
+        timeoutSeconds: Double
+    ) async throws {
+        calls += 1
+        let succeeded = outcomes.isEmpty ? true : outcomes.removeFirst()
+        if !succeeded { throw DevBerthError.healthCheckTimedOut(configuration.url) }
+    }
+
+    func callCount() -> Int { calls }
+}
+
+private actor RecordingLifecycleObserver: RuntimeLifecycleObserving {
+    private var recordedHealthStates: [Bool] = []
+
+    func transition(_ update: RuntimeLifecycleUpdate) async {
+        switch update {
+        case .healthPassed:
+            recordedHealthStates.append(true)
+        case .healthDegraded:
+            recordedHealthStates.append(false)
+        default:
+            break
+        }
+    }
+
+    func snapshots() async -> AsyncStream<RuntimeLifecycleSnapshot> {
+        AsyncStream { continuation in continuation.finish() }
+    }
+
+    func healthStates() -> [Bool] { recordedHealthStates }
 }

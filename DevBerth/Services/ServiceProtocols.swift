@@ -70,6 +70,27 @@ protocol HealthChecking: Sendable {
     func waitUntilHealthy(configuration: HealthCheckConfiguration, timeoutSeconds: Double) async throws
 }
 
+struct HTTPProbeResponse: Sendable, Equatable {
+    let statusCode: Int
+    let body: String
+}
+
+protocol HTTPProbing: Sendable {
+    func probe(url: URL, timeoutSeconds: Double) async throws -> HTTPProbeResponse
+}
+
+protocol DockerHealthInspecting: Sendable {
+    func healthStatus(containerID: String) async throws -> String
+}
+
+protocol DependencyReadinessProviding: Sendable {
+    func isReady(managedServiceID: UUID) async -> Bool
+}
+
+protocol ServiceCheckRunning: Sendable {
+    func run(_ checks: [ServiceCheckConfiguration]) async throws -> [ServiceCheckResult]
+}
+
 protocol HistoryRecording: Sendable {
     func record(_ event: HistoryEvent) async throws
 }
@@ -88,6 +109,21 @@ protocol ManagedServiceValidating: Sendable {
     func validate(_ profile: ManagedServiceConfiguration) async -> ManagedServiceValidationResult
 }
 
+protocol RuntimeLifecycleRecording: Sendable {
+    func record(_ runtime: RuntimeInstance) async throws
+    func record(_ event: LifecycleEvent) async throws
+    func record(_ incident: RuntimeIncidentSummary) async throws
+}
+
+protocol RuntimeLifecycleObserving: Sendable {
+    func transition(_ update: RuntimeLifecycleUpdate) async
+    func snapshots() async -> AsyncStream<RuntimeLifecycleSnapshot>
+}
+
+protocol ManagedProcessExitObserving: Sendable {
+    func managedProcessDidExit(_ notice: ManagedProcessExitNotice) async
+}
+
 protocol OwnerAwareLifecycleRouting: Sendable {
     func perform(
         _ action: LifecycleActionKind,
@@ -99,6 +135,11 @@ protocol OwnerAwareLifecycleRouting: Sendable {
 protocol LaunchProfileServing: Sendable {
     func launch(_ profile: ManagedServiceConfiguration) async throws
     func stop(profileID: UUID, timeoutSeconds: Double) async throws
+    func runtimeDidExit(profileID: UUID) async
+}
+
+extension LaunchProfileServing {
+    func runtimeDidExit(profileID: UUID) async {}
 }
 
 protocol ManagedProcessLaunching: Sendable {

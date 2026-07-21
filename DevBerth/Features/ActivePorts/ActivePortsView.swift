@@ -138,6 +138,9 @@ private struct ProcessInspectorView: View {
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @Query private var validationRecords: [ManagedServiceValidationRecord]
+    @Query private var serviceChecks: [ManagedServiceCheckRecord]
+    @Query(sort: \LifecycleEventRecord.timestamp, order: .reverse) private var lifecycleEvents: [LifecycleEventRecord]
+    @Query(sort: \RuntimeIncidentSummaryRecord.generatedAt, order: .reverse) private var incidentRecords: [RuntimeIncidentSummaryRecord]
     let listener: ObservedListener
     @State private var showsForceConfirmation = false
     @State private var showsProfileReview = false
@@ -202,6 +205,17 @@ private struct ProcessInspectorView: View {
                     isLoading: model.ownershipInspectionsInProgress.contains(listener.id)
                 )
                 RestartTrustExplanationView(summary: restartTrustSummary)
+                if let managedServiceID = listener.process.managedServiceID {
+                    ManagedRuntimeIntelligenceView(
+                        status: model.runtimeStatuses[managedServiceID],
+                        incident: model.runtimeIncidents[managedServiceID]
+                            ?? incidentRecords.first { $0.managedServiceID == managedServiceID }?.summary,
+                        recentEvents: lifecycleEvents
+                            .filter { $0.managedServiceID == managedServiceID }
+                            .prefix(5)
+                            .map { $0 }
+                    )
+                }
                 if let project = listener.process.project {
                     GroupBox("Inferred project") {
                         VStack(spacing: 10) {
@@ -336,7 +350,8 @@ private struct ProcessInspectorView: View {
         return profile.configuration(
             dependencies: dependencies,
             expectedPorts: expectedPorts,
-            processPolicies: processPolicies
+            processPolicies: processPolicies,
+            serviceChecks: serviceChecks
         )
     }
 
@@ -358,6 +373,57 @@ private struct ProcessInspectorView: View {
         case .sshTunnel: "Stop SSH Tunnel"
         default: "Graceful Stop"
         }
+    }
+}
+
+private struct ManagedRuntimeIntelligenceView: View {
+    let status: ManagedServiceRuntimeStatus?
+    let incident: RuntimeIncidentSummary?
+    let recentEvents: [LifecycleEventRecord]
+
+    var body: some View {
+        GroupBox("Managed runtime health") {
+            VStack(alignment: .leading, spacing: DevBerthSpacing.medium) {
+                if let status {
+                    InspectorRow(title: "Process", value: status.processRunning ? "Running" : "Stopped")
+                    InspectorRow(title: "Lifecycle", value: humanized(status.lifecycleState.rawValue))
+                    InspectorRow(title: "Readiness / health", value: humanized(status.healthState.rawValue))
+                    Text(status.statusMessage).font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("No live runtime transition has been observed in this app session.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                if let incident {
+                    Divider()
+                    Label(incident.title, systemImage: "exclamationmark.bubble.fill")
+                        .font(.subheadline.bold()).foregroundStyle(.orange)
+                    Text(incident.cause).font(.caption)
+                    Text(incident.suggestedAction).font(.caption).foregroundStyle(.secondary)
+                }
+
+                if !recentEvents.isEmpty {
+                    Divider()
+                    Text("Recent lifecycle events").font(.caption.bold()).foregroundStyle(.secondary)
+                    ForEach(recentEvents) { event in
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(event.summary).font(.caption)
+                            Text(event.timestamp.formatted())
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func humanized(_ value: String) -> String {
+        value.replacingOccurrences(
+            of: "([a-z])([A-Z])",
+            with: "$1 $2",
+            options: .regularExpression
+        ).capitalized
     }
 }
 

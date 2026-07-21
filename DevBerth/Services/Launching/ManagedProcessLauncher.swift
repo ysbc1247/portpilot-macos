@@ -4,12 +4,14 @@ import Foundation
 actor ManagedProcessLauncher: ManagedProcessLaunching {
     private struct ManagedProcess {
         let runtime: ManagedRuntimeHandle
+        let profile: ManagedServiceConfiguration
         let expectedPorts: [ExpectedListenerConfiguration]
         let standardOutput: FileHandle
         let standardError: FileHandle
         var knownFingerprints: [Int32: ProcessFingerprint]
         var latestSnapshot: ProcessGroupSnapshot
         var leaderExitStatus: Int32?
+        var stopRequested: Bool
     }
 
     private let secrets: any SecretStoring
@@ -22,6 +24,8 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
     private let groupOperator: any ProcessGroupOperating
     private let listenerDiscoverer: any PortDiscovering
     private let runtimeRegistry: ManagedRuntimeRegistry
+    private let lifecycle: any RuntimeLifecycleObserving
+    private let exitObserver: any ManagedProcessExitObserving
     private var running: [UUID: ManagedProcess] = [:]
 
     init(
@@ -35,7 +39,9 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         groupInspector: (any ProcessGroupInspecting)? = nil,
         groupOperator: any ProcessGroupOperating = DarwinProcessGroupOperator(),
         listenerDiscoverer: (any PortDiscovering)? = nil,
-        runtimeRegistry: ManagedRuntimeRegistry = ManagedRuntimeRegistry()
+        runtimeRegistry: ManagedRuntimeRegistry = ManagedRuntimeRegistry(),
+        lifecycle: (any RuntimeLifecycleObserving)? = nil,
+        exitObserver: (any ManagedProcessExitObserving)? = nil
     ) {
         let resolvedProcessInspector = processInspector ?? SystemProcessInspector(runner: runner)
         self.secrets = secrets
@@ -54,6 +60,8 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
             includeProjectInference: false
         )
         self.runtimeRegistry = runtimeRegistry
+        self.lifecycle = lifecycle ?? RuntimeLifecycleTracker()
+        self.exitObserver = exitObserver ?? ManagedProcessExitHub()
     }
 
     func launch(_ profile: ManagedServiceConfiguration) async throws {
@@ -139,14 +147,17 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
             knownFingerprints[fingerprint.pid] = fingerprint
             running[profile.id] = ManagedProcess(
                 runtime: runtime,
+                profile: profile,
                 expectedPorts: profile.expectedPorts,
                 standardOutput: spawned.standardOutput,
                 standardError: spawned.standardError,
                 knownFingerprints: knownFingerprints,
                 latestSnapshot: snapshot,
-                leaderExitStatus: nil
+                leaderExitStatus: nil,
+                stopRequested: false
             )
             await runtimeRegistry.register(runtime: runtime, configuration: profile, snapshot: snapshot)
+            await lifecycle.transition(.processSpawned(runtime, profile))
             startExitWatcher(profileID: profile.id, pid: spawned.pid)
             await logs.append(
                 profileID: profile.id,
@@ -166,13 +177,26 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
 
     func stop(profileID: UUID, timeoutSeconds: Double) async throws {
         guard var managed = running[profileID] else { return }
+        managed.stopRequested = true
+        running[profileID] = managed
+        await lifecycle.transition(.stopping(
+            serviceID: profileID,
+            runtimeID: managed.runtime.id,
+            reason: "Graceful managed shutdown requested."
+        ))
         let listenerOwnerPIDs = await currentListenerOwnerPIDs(for: managed)
         let snapshot = try await groupInspector.snapshot(
             for: managed.runtime,
             listenerOwnerPIDs: listenerOwnerPIDs
         )
         guard !snapshot.liveControlledMembers.isEmpty else {
-            await remove(profileID: profileID)
+            if let removed = await remove(profileID: profileID) {
+                await lifecycle.transition(.stopped(
+                    serviceID: profileID,
+                    runtimeID: removed.runtime.id,
+                    reason: "Managed process scope was already stopped."
+                ))
+            }
             return
         }
 
@@ -213,7 +237,13 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
                 }()
             }
             if stopped {
-                await remove(profileID: profileID)
+                if let removed = await remove(profileID: profileID) {
+                    await lifecycle.transition(.stopped(
+                        serviceID: profileID,
+                        runtimeID: removed.runtime.id,
+                        reason: "Managed process scope stopped gracefully."
+                    ))
+                }
                 return
             }
             try await Task.sleep(for: .milliseconds(100))
@@ -328,16 +358,62 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         )
         if managed.runtime.processPolicy.terminationScope == .rootProcessOnly
             || !groupOperator.processGroupExists(managed.runtime.processGroupID) {
-            await remove(profileID: profileID)
+            await completeExit(profileID: profileID, expectedRuntimeID: managed.runtime.id)
+        } else {
+            startGroupExitWatcher(profileID: profileID, runtimeID: managed.runtime.id)
         }
     }
 
-    private func remove(profileID: UUID) async {
+    private func startGroupExitWatcher(profileID: UUID, runtimeID: UUID) {
+        Task { [weak self] in
+            guard let self else { return }
+            for _ in 0..<3_600 {
+                guard await self.isCurrentRuntime(profileID: profileID, runtimeID: runtimeID) else { return }
+                guard await self.processGroupStillExists(profileID: profileID, runtimeID: runtimeID) else {
+                    await self.completeExit(profileID: profileID, expectedRuntimeID: runtimeID)
+                    return
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    private func isCurrentRuntime(profileID: UUID, runtimeID: UUID) -> Bool {
+        running[profileID]?.runtime.id == runtimeID
+    }
+
+    private func processGroupStillExists(profileID: UUID, runtimeID: UUID) -> Bool {
+        guard let managed = running[profileID], managed.runtime.id == runtimeID else { return false }
+        return groupOperator.processGroupExists(managed.runtime.processGroupID)
+    }
+
+    private func completeExit(profileID: UUID, expectedRuntimeID: UUID) async {
+        guard let managed = running[profileID], managed.runtime.id == expectedRuntimeID else { return }
+        let result = Self.exitResult(status: managed.leaderExitStatus, at: Date())
+        guard let removed = await remove(profileID: profileID) else { return }
+        await lifecycle.transition(.exited(
+            profile: removed.profile,
+            runtime: removed.runtime,
+            result: result,
+            intentional: removed.stopRequested
+        ))
+        await exitObserver.managedProcessDidExit(ManagedProcessExitNotice(
+            profile: removed.profile,
+            runtime: removed.runtime,
+            result: result,
+            intentional: removed.stopRequested
+        ))
+    }
+
+    @discardableResult
+    private func remove(profileID: UUID) async -> ManagedProcess? {
         if let managed = running.removeValue(forKey: profileID) {
             managed.standardOutput.readabilityHandler = nil
             managed.standardError.readabilityHandler = nil
             await runtimeRegistry.remove(serviceID: profileID, runtimeID: managed.runtime.id)
+            return managed
         }
+        return nil
     }
 
     private static func reap(pid: Int32) {
@@ -351,5 +427,32 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
             return "Managed leader exited with status \((status >> 8) & 0xff)."
         }
         return "Managed leader exited after signal \(signal)."
+    }
+
+    private static func exitResult(status: Int32?, at date: Date) -> RuntimeExitResult {
+        guard let status else {
+            return RuntimeExitResult(
+                exitedAt: date,
+                exitCode: nil,
+                signal: nil,
+                reason: "The managed process scope ended."
+            )
+        }
+        let signal = status & 0x7f
+        if signal == 0 {
+            let code = (status >> 8) & 0xff
+            return RuntimeExitResult(
+                exitedAt: date,
+                exitCode: code,
+                signal: nil,
+                reason: "The managed leader exited with status \(code)."
+            )
+        }
+        return RuntimeExitResult(
+            exitedAt: date,
+            exitCode: nil,
+            signal: signal,
+            reason: "The managed leader exited after signal \(signal)."
+        )
     }
 }

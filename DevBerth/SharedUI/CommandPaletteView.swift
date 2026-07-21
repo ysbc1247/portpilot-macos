@@ -9,6 +9,7 @@ struct CommandPaletteView: View {
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
+    @Query private var serviceChecks: [ManagedServiceCheckRecord]
 
     private struct Action: Identifiable {
         let id = UUID()
@@ -34,7 +35,8 @@ struct CommandPaletteView: View {
             guard let profile = record.configuration(
                 dependencies: dependencies,
                 expectedPorts: expectedPorts,
-                processPolicies: processPolicies
+                processPolicies: processPolicies,
+                serviceChecks: serviceChecks
             ) else { return nil }
             return Action(title: "Start \(profile.name)", symbol: "play", keywords: "profile \(profile.tags.joined(separator: " "))") {
                 Task { await model.launchProfile(profile) }

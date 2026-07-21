@@ -10,6 +10,7 @@ struct ProjectsView: View {
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
+    @Query private var serviceChecks: [ManagedServiceCheckRecord]
     @State private var showsNewProject = false
 
     var body: some View {
@@ -48,7 +49,8 @@ struct ProjectsView: View {
             $0.configuration(
                 dependencies: dependencies,
                 expectedPorts: expectedPorts,
-                processPolicies: processPolicies
+                processPolicies: processPolicies,
+                serviceChecks: serviceChecks
             )
         }
         return Section {
@@ -59,7 +61,7 @@ struct ProjectsView: View {
             } else {
                 ForEach(projectProfiles) { profile in
                     HStack {
-                        StatusDot(status: model.runningProfileIDs.contains(profile.id) ? .healthy : .stopped)
+                        StatusDot(status: visualStatus(for: profile.id))
                         Image(systemName: "play.square")
                         Text(profile.name)
                         Spacer()
@@ -122,6 +124,19 @@ struct ProjectsView: View {
         let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
         let configuration = NSWorkspace.OpenConfiguration()
         NSWorkspace.shared.open([URL(fileURLWithPath: path)], withApplicationAt: terminal, configuration: configuration)
+    }
+
+    private func visualStatus(for profileID: UUID) -> StatusDot.Status {
+        guard let status = model.runtimeStatuses[profileID] else {
+            return model.runningProfileIDs.contains(profileID) ? .healthy : .stopped
+        }
+        if status.lifecycleState == .failed || status.healthState == .unhealthy { return .failed }
+        if status.healthState == .degraded { return .warning }
+        if status.lifecycleState == .starting
+            || status.lifecycleState == .waitingForDependency
+            || status.lifecycleState == .waitingForPort
+            || status.lifecycleState == .waitingForReadiness { return .warning }
+        return status.processRunning ? .healthy : .stopped
     }
 }
 

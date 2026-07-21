@@ -20,6 +20,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var ownershipGraphs: [String: RuntimeOwnershipGraph] = [:]
     @Published private(set) var ownershipInspectionsInProgress = Set<String>()
     @Published private(set) var servicesBeingValidated = Set<UUID>()
+    @Published private(set) var runtimeStatuses: [UUID: ManagedServiceRuntimeStatus] = [:]
+    @Published private(set) var runtimeIncidents: [UUID: RuntimeIncidentSummary] = [:]
 
     private let monitor: PortMonitor
     private let lifecycleRouter: any OwnerAwareLifecycleRouting
@@ -28,6 +30,8 @@ final class AppModel: ObservableObject {
     private let ownershipResolver: any RuntimeOwnershipResolving
     private let validationService: any ManagedServiceValidating
     private let restartTrustStore: (any RestartTrustStoring)?
+    private let runtimeLifecycle: any RuntimeLifecycleObserving
+    private let exitHub: ManagedProcessExitHub
     private let launchService: any LaunchProfileServing
     private let projectOrchestrator: ProjectOrchestrator
     private let notifier: any PortNotifying
@@ -35,6 +39,9 @@ final class AppModel: ObservableObject {
     private var notificationPorts = Set<UInt16>()
     let logBuffer: ServiceLogBuffer
     private var monitoringTask: Task<Void, Never>?
+    private var lifecycleTask: Task<Void, Never>?
+    private var exitTask: Task<Void, Never>?
+    private var automaticRestartLimiters: [UUID: AutomaticRestartLimiter] = [:]
     var refreshInterval: Double = 2
 
     init(
@@ -45,23 +52,41 @@ final class AppModel: ObservableObject {
         restartTrustStore: (any RestartTrustStoring)? = nil,
         ownershipResolver: (any RuntimeOwnershipResolving)? = nil,
         lifecycleRouter: (any OwnerAwareLifecycleRouting)? = nil,
-        validationService: (any ManagedServiceValidating)? = nil
+        validationService: (any ManagedServiceValidating)? = nil,
+        runtimeLifecycle: (any RuntimeLifecycleObserving)? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
         let logs = ServiceLogBuffer()
         let runtimeRegistry = ManagedRuntimeRegistry()
+        let lifecycleRecorder = historyRecorder as? any RuntimeLifecycleRecording
+        let resolvedRuntimeLifecycle = runtimeLifecycle ?? RuntimeLifecycleTracker(
+            recorder: lifecycleRecorder
+        )
+        let resolvedExitHub = ManagedProcessExitHub()
+        let serviceCheckRunner = ServiceCheckRunner(
+            discoverer: service,
+            http: URLSessionHTTPProber(),
+            commandRunner: runner,
+            docker: DockerCLIHealthInspector(runner: runner),
+            dependencies: resolvedRuntimeLifecycle as? any DependencyReadinessProviding
+                ?? RuntimeLifecycleTracker()
+        )
         let managedLauncher = ManagedProcessLauncher(
             secrets: KeychainSecretStore(),
             logs: logs,
             runner: runner,
             listenerDiscoverer: service,
-            runtimeRegistry: runtimeRegistry
+            runtimeRegistry: runtimeRegistry,
+            lifecycle: resolvedRuntimeLifecycle,
+            exitObserver: resolvedExitHub
         )
         let coordinator = LaunchCoordinator(
             discoverer: service,
             processLauncher: managedLauncher,
-            healthChecker: HTTPHealthChecker()
+            healthChecker: HTTPHealthChecker(),
+            lifecycle: resolvedRuntimeLifecycle,
+            serviceCheckRunner: serviceCheckRunner
         )
         let resolvedProcessController = processController ?? SafeProcessController(
             runner: runner,
@@ -78,6 +103,8 @@ final class AppModel: ObservableObject {
         self.historyRecorder = historyRecorder
         self.ownershipRecorder = ownershipRecorder
         self.restartTrustStore = restartTrustStore
+        self.runtimeLifecycle = resolvedRuntimeLifecycle
+        self.exitHub = resolvedExitHub
         self.ownershipResolver = ownershipResolver ?? RuntimeOwnershipResolver(
             runtimeRegistry: runtimeRegistry,
             lineageProvider: SystemProcessLineageProvider(
@@ -92,6 +119,27 @@ final class AppModel: ObservableObject {
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
         self.dockerAssociations = DockerAssociationProvider(client: dockerClient)
+        lifecycleTask = Task { [weak self, resolvedRuntimeLifecycle] in
+            let stream = await resolvedRuntimeLifecycle.snapshots()
+            for await snapshot in stream {
+                guard let self, !Task.isCancelled else { break }
+                runtimeStatuses = snapshot.statuses
+                runtimeIncidents = snapshot.incidents
+            }
+        }
+        exitTask = Task { [weak self, resolvedExitHub] in
+            let stream = await resolvedExitHub.notices()
+            for await notice in stream {
+                guard let self, !Task.isCancelled else { break }
+                await handleManagedExit(notice)
+            }
+        }
+    }
+
+    deinit {
+        monitoringTask?.cancel()
+        lifecycleTask?.cancel()
+        exitTask?.cancel()
     }
 
     var filteredListeners: [ObservedListener] {
@@ -529,21 +577,30 @@ final class AppModel: ObservableObject {
     private func recordPortChanges(_ diff: RuntimeDiff) {
         for listener in diff.added {
             notifyIfConfigured(listener, change: "became active")
-            Task { await record(HistoryEvent(
-                id: UUID(), timestamp: Date(), port: listener.port,
-                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
-                projectID: nil, profileID: listener.process.managedServiceID,
-                type: .portDetected, result: .observed, errorDetails: nil, durationSeconds: nil
-            )) }
+            Task {
+                await runtimeLifecycle.transition(.listenerObserved(listener, change: .discovered))
+                await record(HistoryEvent(
+                    id: UUID(), timestamp: Date(), port: listener.port,
+                    processFingerprint: listener.process.fingerprint, processName: listener.process.name,
+                    projectID: nil, profileID: listener.process.managedServiceID,
+                    type: .portDetected, result: .observed, errorDetails: nil, durationSeconds: nil
+                ))
+            }
+        }
+        for listener in diff.updated {
+            Task { await runtimeLifecycle.transition(.listenerObserved(listener, change: .changed)) }
         }
         for listener in diff.removed {
             notifyIfConfigured(listener, change: "was released")
-            Task { await record(HistoryEvent(
-                id: UUID(), timestamp: Date(), port: listener.port,
-                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
-                projectID: nil, profileID: listener.process.managedServiceID,
-                type: .portReleased, result: .observed, errorDetails: nil, durationSeconds: nil
-            )) }
+            Task {
+                await runtimeLifecycle.transition(.listenerObserved(listener, change: .released))
+                await record(HistoryEvent(
+                    id: UUID(), timestamp: Date(), port: listener.port,
+                    processFingerprint: listener.process.fingerprint, processName: listener.process.name,
+                    projectID: nil, profileID: listener.process.managedServiceID,
+                    type: .portReleased, result: .observed, errorDetails: nil, durationSeconds: nil
+                ))
+            }
         }
     }
 
@@ -578,5 +635,86 @@ final class AppModel: ObservableObject {
         guard let historyRecorder else { return }
         do { try await historyRecorder.record(event) }
         catch { presentedError = .unexpected("History could not be saved: \(error.localizedDescription)") }
+    }
+
+    private func handleManagedExit(_ notice: ManagedProcessExitNotice) async {
+        runningProfileIDs.remove(notice.profile.id)
+        await launchService.runtimeDidExit(profileID: notice.profile.id)
+        guard !notice.intentional else { return }
+        guard RestartPolicyEvaluator.shouldRestart(
+            policy: notice.profile.restartPolicy,
+            result: notice.result,
+            intentional: notice.intentional
+        ) else { return }
+
+        while !Task.isCancelled {
+            let startedAt = Date()
+            var limiter = automaticRestartLimiters[notice.profile.id] ?? AutomaticRestartLimiter()
+            guard let attempt = limiter.registerAttempt(at: startedAt) else {
+                let reason = "Automatic restart stopped after three attempts within one minute."
+                profileFailures[notice.profile.id] = reason
+                await runtimeLifecycle.transition(.restartFailed(
+                    serviceID: notice.profile.id,
+                    reason: reason
+                ))
+                return
+            }
+            automaticRestartLimiters[notice.profile.id] = limiter
+            let delay = RestartPolicyEvaluator.delaySeconds(forAttempt: attempt)
+            await runtimeLifecycle.transition(.restartScheduled(
+                serviceID: notice.profile.id,
+                attempt: attempt,
+                delaySeconds: delay
+            ))
+            do {
+                try await Task.sleep(for: .seconds(delay))
+                try await requireVerifiedRestartTrust(for: notice.profile)
+                try await launchService.launch(notice.profile)
+                runningProfileIDs.insert(notice.profile.id)
+                profileFailures[notice.profile.id] = nil
+                await record(HistoryEvent(
+                    id: UUID(), timestamp: Date(), port: notice.profile.expectedPorts.first?.port,
+                    processFingerprint: nil, processName: notice.profile.name,
+                    projectID: notice.profile.projectID, profileID: notice.profile.id,
+                    type: .restartRequested, result: .succeeded,
+                    errorDetails: "Automatic restart attempt \(attempt) succeeded.",
+                    durationSeconds: Date().timeIntervalSince(startedAt)
+                ))
+                return
+            } catch is CancellationError {
+                return
+            } catch let error as DevBerthError {
+                let reason = "Automatic restart attempt \(attempt) failed: \(error.localizedDescription)"
+                profileFailures[notice.profile.id] = reason
+                await runtimeLifecycle.transition(.restartFailed(
+                    serviceID: notice.profile.id,
+                    reason: reason
+                ))
+                await record(HistoryEvent(
+                    id: UUID(), timestamp: Date(), port: notice.profile.expectedPorts.first?.port,
+                    processFingerprint: nil, processName: notice.profile.name,
+                    projectID: notice.profile.projectID, profileID: notice.profile.id,
+                    type: .restartRequested, result: .failed,
+                    errorDetails: reason,
+                    durationSeconds: Date().timeIntervalSince(startedAt)
+                ))
+                if case .restartTrustRequired = error { return }
+            } catch {
+                let reason = "Automatic restart attempt \(attempt) failed: \(error.localizedDescription)"
+                profileFailures[notice.profile.id] = reason
+                await runtimeLifecycle.transition(.restartFailed(
+                    serviceID: notice.profile.id,
+                    reason: reason
+                ))
+                await record(HistoryEvent(
+                    id: UUID(), timestamp: Date(), port: notice.profile.expectedPorts.first?.port,
+                    processFingerprint: nil, processName: notice.profile.name,
+                    projectID: notice.profile.projectID, profileID: notice.profile.id,
+                    type: .restartRequested, result: .failed,
+                    errorDetails: reason,
+                    durationSeconds: Date().timeIntervalSince(startedAt)
+                ))
+            }
+        }
     }
 }

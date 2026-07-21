@@ -72,6 +72,7 @@ struct ManagedServiceConfiguration: Hashable, Codable, Sendable, Identifiable {
     var restartPolicy: RestartPolicy
     var processPolicy: ManagedServiceProcessPolicy
     var healthCheck: HealthCheckConfiguration?
+    var serviceChecks: [ServiceCheckConfiguration]
     var dependencyServiceIDs: [UUID]
     var logFile: String?
     var tags: [String]
@@ -97,6 +98,7 @@ struct ManagedServiceConfiguration: Hashable, Codable, Sendable, Identifiable {
         restartPolicy: RestartPolicy = .never,
         processPolicy: ManagedServiceProcessPolicy = .controlledProcessGroup,
         healthCheck: HealthCheckConfiguration? = nil,
+        serviceChecks: [ServiceCheckConfiguration] = [],
         dependencyServiceIDs: [UUID] = [],
         logFile: String? = nil,
         tags: [String] = [],
@@ -121,6 +123,7 @@ struct ManagedServiceConfiguration: Hashable, Codable, Sendable, Identifiable {
         self.restartPolicy = restartPolicy
         self.processPolicy = processPolicy
         self.healthCheck = healthCheck
+        self.serviceChecks = serviceChecks
         self.dependencyServiceIDs = dependencyServiceIDs
         self.logFile = logFile
         self.tags = tags

@@ -80,6 +80,24 @@ final class RestartTrustTests: XCTestCase {
         XCTAssertNotEqual(ManagedServiceConfigurationDigest.make(for: profile), original)
     }
 
+    func testConfigurationDigestChangesWhenReviewedServiceChecksChange() throws {
+        var profile = restartTrustProfile()
+        let v4CompatibleDigest = ManagedServiceConfigurationDigest.make(for: profile)
+        profile.serviceChecks = [ServiceCheckConfiguration(
+            kind: .http(
+                url: try XCTUnwrap(URL(string: "http://127.0.0.1:49904/health")),
+                expectedStatus: 200,
+                responseContains: "ready"
+            ),
+            failureMessage: "Readiness failed."
+        )]
+        let checkedDigest = ManagedServiceConfigurationDigest.make(for: profile)
+        profile.serviceChecks[0].failureMessage = "New reviewed failure guidance."
+
+        XCTAssertNotEqual(checkedDigest, v4CompatibleDigest)
+        XCTAssertNotEqual(ManagedServiceConfigurationDigest.make(for: profile), checkedDigest)
+    }
+
     func testValidationRunnerStartsChecksAndStopsIsolatedCandidate() async {
         let launcher = RecordingValidationLauncher()
         let clock = AdvancingValidationClock()

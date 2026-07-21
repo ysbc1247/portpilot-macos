@@ -33,6 +33,7 @@ struct RootView: View {
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
+    @Query private var serviceChecks: [ManagedServiceCheckRecord]
 
     var body: some View {
         NavigationSplitView {
@@ -97,7 +98,8 @@ struct RootView: View {
                 if let configuration = profile.configuration(
                     dependencies: dependencies,
                     expectedPorts: expectedPorts,
-                    processPolicies: processPolicies
+                    processPolicies: processPolicies,
+                    serviceChecks: serviceChecks
                 ) {
                     await model.launchProfile(configuration)
                 }

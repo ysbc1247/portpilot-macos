@@ -12,12 +12,15 @@
 - Store secret values only through `SecretStoring` (Keychain in production). SwiftData may contain opaque secret references, never secret values.
 - Treat secret-like environment names as Keychain-only. Profile edits must stage Keychain mutations before persistence, roll them back when validation or persistence fails, remove only references no remaining profile uses, and give duplicated profiles independent references.
 - A managed service is verified restartable only when a successful isolated start/readiness/controlled-stop result exists for the exact current `ManagedServiceConfigurationDigest`. All ordinary, project, favorite, menu-bar, and automatic launches must enforce this gate; only the validation runner may bypass it.
+- Treat process-running, required-listener-open, service-ready, and service-healthy as separate runtime facts. Never infer health from PID existence, and emit lifecycle evidence only when a source actually observes the transition.
+- Route managed launch, stop, exit, health, and automatic-restart transitions through `RuntimeLifecycleObserving`. Lifecycle metadata must be structured, bounded, and secret-safe; a check failure may persist its reviewed failure message, never an HTTP body, command output, or environment value.
+- Automatic restart must re-check exact restart trust, cancel stale health monitors, apply bounded exponential backoff, and stop after the rolling crash-loop limit. An intentional stop never qualifies for automatic restart.
 - Ownership evidence, lifecycle details, discovery metadata, and workspace-session snapshots may store identifiers and redacted explanations, never secret values or raw environment values.
 - Keep verified process metadata separate from inferred classification or relaunch suggestions in the UI and domain models.
 - Add parser fixtures and tests when changing command formats. Tests must use mocks and must never terminate real user processes.
 - Localize user-facing strings with `String(localized:)` or `LocalizedStringKey`; keep business-logic errors actionable and non-secret.
 - Treat `ProductIdentity` and `ProductDataMigrator` as the compatibility boundary for the PortPilot-to-DevBerth rename. Never remove legacy identifiers or reset user storage without a tested migration and an explicit compatibility decision.
-- Treat `DevBerthSchemaV1`, `DevBerthSchemaV2`, `DevBerthSchemaV3`, and `DevBerthSchemaV4` as shipped, immutable schemas. Add a new version and migration stage for later persistence changes, and validate from a previous-version fixture.
+- Treat `DevBerthSchemaV1` through `DevBerthSchemaV6` as shipped, immutable schemas. Add a new version and migration stage for later persistence changes, and validate from a previous-version fixture. V5 owns lifecycle context and incident summaries; V6 owns managed-service check sidecars.
 - Regenerate `DevBerth.xcodeproj` with `xcodegen generate` after changing `project.yml`.
 - Validate locally with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project DevBerth.xcodeproj -scheme DevBerth -destination 'platform=macOS' test`.
 - Architectural boundary or contract changes require matching updates to this file and `Documentation/ARCHITECTURE.md` (or the relevant `docs/implementations/*/README.md`).

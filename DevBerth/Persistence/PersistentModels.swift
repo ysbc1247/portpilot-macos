@@ -222,13 +222,22 @@ enum DevBerthSchemaV1: VersionedSchema {
 
 enum DevBerthMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [DevBerthSchemaV1.self, DevBerthSchemaV2.self, DevBerthSchemaV3.self, DevBerthSchemaV4.self]
+        [
+            DevBerthSchemaV1.self,
+            DevBerthSchemaV2.self,
+            DevBerthSchemaV3.self,
+            DevBerthSchemaV4.self,
+            DevBerthSchemaV5.self,
+            DevBerthSchemaV6.self
+        ]
     }
     static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: DevBerthSchemaV1.self, toVersion: DevBerthSchemaV2.self),
             .lightweight(fromVersion: DevBerthSchemaV2.self, toVersion: DevBerthSchemaV3.self),
-            .lightweight(fromVersion: DevBerthSchemaV3.self, toVersion: DevBerthSchemaV4.self)
+            .lightweight(fromVersion: DevBerthSchemaV3.self, toVersion: DevBerthSchemaV4.self),
+            .lightweight(fromVersion: DevBerthSchemaV4.self, toVersion: DevBerthSchemaV5.self),
+            .lightweight(fromVersion: DevBerthSchemaV5.self, toVersion: DevBerthSchemaV6.self)
         ]
     }
 }

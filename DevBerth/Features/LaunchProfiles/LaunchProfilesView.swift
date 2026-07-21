@@ -8,6 +8,7 @@ struct LaunchProfilesView: View {
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
+    @Query private var serviceCheckRecords: [ManagedServiceCheckRecord]
     @Query private var trustRecords: [ManagedServiceTrustRecord]
     @Query private var validationRecords: [ManagedServiceValidationRecord]
     @State private var selection = Set<UUID>()
@@ -50,8 +51,8 @@ struct LaunchProfilesView: View {
                     }
                     .width(min: 155, ideal: 185)
                     TableColumn("Status") { profile in
-                        if model.runningProfileIDs.contains(profile.id) {
-                            Label("Running", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                        if let status = model.runtimeStatuses[profile.id] {
+                            RuntimeStatusLabel(status: status)
                         } else if model.profileFailures[profile.id] != nil {
                             Label("Failed", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
                         } else {
@@ -111,7 +112,8 @@ struct LaunchProfilesView: View {
                 profiles: profiles,
                 dependencies: dependencies,
                 expectedPorts: expectedPorts,
-                processPolicies: processPolicies
+                processPolicies: processPolicies,
+                serviceChecks: serviceCheckRecords
             )
         }
         .sheet(item: $editingProfile) { profile in
@@ -120,7 +122,8 @@ struct LaunchProfilesView: View {
                 profiles: profiles,
                 dependencies: dependencies,
                 expectedPorts: expectedPorts,
-                processPolicies: processPolicies
+                processPolicies: processPolicies,
+                serviceChecks: serviceCheckRecords
             )
         }
         .sheet(item: $logsProfile) { profile in
@@ -147,7 +150,8 @@ struct LaunchProfilesView: View {
         profile.configuration(
             dependencies: dependencies,
             expectedPorts: expectedPorts,
-            processPolicies: processPolicies
+            processPolicies: processPolicies,
+            serviceChecks: serviceCheckRecords
         )
     }
 
@@ -215,6 +219,31 @@ struct LaunchProfilesView: View {
             managedServiceID: copy.id,
             policy: sourcePolicy
         ))
+        if let checks = serviceCheckRecords.first(where: { $0.managedServiceID == source.id })?.checks,
+           !checks.isEmpty {
+            do {
+                context.insert(try ManagedServiceCheckRecord(
+                    managedServiceID: copy.id,
+                    checks: checks.map { check in
+                        var cloned = check
+                        cloned = ServiceCheckConfiguration(
+                            kind: cloned.kind,
+                            timeoutSeconds: cloned.timeoutSeconds,
+                            intervalSeconds: cloned.intervalSeconds,
+                            retryLimit: cloned.retryLimit,
+                            initialDelaySeconds: cloned.initialDelaySeconds,
+                            failureMessage: cloned.failureMessage
+                        )
+                        return cloned
+                    }
+                ))
+            } catch {
+                context.rollback()
+                await secretLifecycle.rollback(staged)
+                operationError = error.localizedDescription
+                return
+            }
+        }
         do {
             try context.save()
         } catch {
@@ -241,6 +270,7 @@ struct LaunchProfilesView: View {
         processPolicies.filter { ids.contains($0.managedServiceID) }.forEach(context.delete)
         trustRecords.filter { ids.contains($0.managedServiceID) }.forEach(context.delete)
         validationRecords.filter { ids.contains($0.managedServiceID) }.forEach(context.delete)
+        serviceCheckRecords.filter { ids.contains($0.managedServiceID) }.forEach(context.delete)
         do {
             try context.save()
         } catch {
@@ -265,6 +295,64 @@ struct LaunchProfilesView: View {
             operationError = "The profile was deleted, but an unused Keychain item could not be removed: \(error.localizedDescription)"
         }
         selection.subtract(ids)
+    }
+}
+
+private struct RuntimeStatusLabel: View {
+    let status: ManagedServiceRuntimeStatus
+
+    var body: some View {
+        Label(title, systemImage: symbol)
+            .foregroundStyle(color)
+            .help(status.statusMessage)
+            .accessibilityLabel("Service status: \(title)")
+            .accessibilityHint(status.statusMessage)
+    }
+
+    private var title: String {
+        switch status.lifecycleState {
+        case .waitingForDependency: "Waiting for dependency"
+        case .waitingForPort: "Waiting for port"
+        case .waitingForReadiness: "Checking readiness"
+        case .starting: "Starting"
+        case .stopping: "Stopping"
+        case .failed: "Failed"
+        case .running:
+            switch status.healthState {
+            case .healthy: "Healthy"
+            case .degraded, .unhealthy: "Degraded"
+            case .ready: "Ready"
+            default: "Running"
+            }
+        case .stopped, .exited: "Stopped"
+        case .unknown: "Unknown"
+        case .externallyManaged: "Externally managed"
+        }
+    }
+
+    private var symbol: String {
+        switch status.lifecycleState {
+        case .starting, .waitingForDependency, .waitingForPort, .waitingForReadiness: "clock.arrow.circlepath"
+        case .stopping: "stop.circle"
+        case .failed: "xmark.octagon.fill"
+        case .running:
+            status.healthState == .healthy ? "heart.fill" :
+                ([RuntimeHealthState.degraded, .unhealthy].contains(status.healthState)
+                    ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+        case .stopped, .exited: "stop.circle"
+        case .unknown: "questionmark.circle"
+        case .externallyManaged: "arrow.up.right.circle"
+        }
+    }
+
+    private var color: Color {
+        switch status.lifecycleState {
+        case .failed: .red
+        case .running where status.healthState == .healthy: .green
+        case .running where status.healthState == .degraded || status.healthState == .unhealthy: .orange
+        case .starting, .waitingForDependency, .waitingForPort, .waitingForReadiness, .stopping: .blue
+        default: .secondary
+        }
     }
 }
 
@@ -301,6 +389,7 @@ private struct LaunchProfileEditor: View {
     let dependencies: [ProfileDependencyRecord]
     let expectedPorts: [ExpectedPortRecord]
     let processPolicies: [ManagedServiceProcessPolicyRecord]
+    let serviceChecks: [ManagedServiceCheckRecord]
     private let secretLifecycle = SecretLifecycleCoordinator()
     private let draftID: UUID
     private let existingSecretReferences: [String: UUID]
@@ -320,6 +409,15 @@ private struct LaunchProfileEditor: View {
     @State private var terminationScope: ManagedProcessTerminationScope
     @State private var healthURL: String
     @State private var expectedStatus: Int
+    @State private var responseContains: String
+    @State private var requiredFilePath: String
+    @State private var healthCommandPath: String
+    @State private var healthCommandArguments: String
+    @State private var dockerHealthContainerID: String
+    @State private var checkInterval: Double
+    @State private var checkRetryLimit: Int
+    @State private var checkInitialDelay: Double
+    @State private var checkFailureMessage: String
     @State private var dependencyID: UUID?
     @State private var tagsText: String
     @State private var launchesAutomatically: Bool
@@ -337,13 +435,15 @@ private struct LaunchProfileEditor: View {
         profiles: [LaunchProfileRecord],
         dependencies: [ProfileDependencyRecord],
         expectedPorts: [ExpectedPortRecord],
-        processPolicies: [ManagedServiceProcessPolicyRecord]
+        processPolicies: [ManagedServiceProcessPolicyRecord],
+        serviceChecks: [ManagedServiceCheckRecord]
     ) {
         self.record = record
         self.profiles = profiles
         self.dependencies = dependencies
         self.expectedPorts = expectedPorts
         self.processPolicies = processPolicies
+        self.serviceChecks = serviceChecks
         draftID = record?.id ?? UUID()
         let decoder = JSONDecoder()
         let arguments = record.flatMap { try? decoder.decode([String].self, from: $0.argumentsData) } ?? []
@@ -353,6 +453,7 @@ private struct LaunchProfileEditor: View {
         existingSecretReferences = secretReferences
         let tags = record.flatMap { try? decoder.decode([String].self, from: $0.tagsData) } ?? []
         let health = record?.healthCheckData.flatMap { try? decoder.decode(HealthCheckConfiguration.self, from: $0) }
+        let storedChecks = serviceChecks.first { $0.managedServiceID == record?.id }?.checks ?? []
         let matchingPorts = expectedPorts.filter { $0.profileID == record?.id }
         _name = State(initialValue: record?.name ?? "")
         _kind = State(initialValue: record.flatMap { LaunchMechanism(rawValue: $0.kindRawValue) } ?? .genericCommand)
@@ -379,6 +480,33 @@ private struct LaunchProfileEditor: View {
         } ?? .controlledProcessGroup)
         _healthURL = State(initialValue: health?.url.absoluteString ?? "")
         _expectedStatus = State(initialValue: health?.expectedStatus ?? 200)
+        _responseContains = State(initialValue: storedChecks.compactMap { check -> String? in
+            if case let .http(_, _, responseContains) = check.kind { return responseContains }
+            return nil
+        }.first ?? "")
+        _requiredFilePath = State(initialValue: storedChecks.compactMap { check -> String? in
+            if case let .fileExists(path) = check.kind { return path }
+            return nil
+        }.first ?? "")
+        _healthCommandPath = State(initialValue: storedChecks.compactMap { check -> String? in
+            if case let .executable(path, _, _) = check.kind { return path }
+            return nil
+        }.first ?? "")
+        _healthCommandArguments = State(initialValue: storedChecks.compactMap { check -> String? in
+            if case let .executable(_, arguments, _) = check.kind { return arguments.joined(separator: "\n") }
+            return nil
+        }.first ?? "")
+        _dockerHealthContainerID = State(initialValue: storedChecks.compactMap { check -> String? in
+            if case let .dockerHealth(containerID) = check.kind { return containerID }
+            return nil
+        }.first ?? "")
+        _checkInterval = State(initialValue: storedChecks.first?.intervalSeconds ?? health?.intervalSeconds ?? 0.5)
+        _checkRetryLimit = State(initialValue: storedChecks.first?.retryLimit ?? 60)
+        _checkInitialDelay = State(initialValue: storedChecks.first?.initialDelaySeconds ?? 0)
+        let storedFailureMessages = Set(storedChecks.map(\.failureMessage))
+        _checkFailureMessage = State(initialValue: storedFailureMessages.count == 1
+            ? storedFailureMessages.first ?? ""
+            : "")
         _dependencyID = State(initialValue: dependencies.first { $0.profileID == record?.id }?.dependencyProfileID)
         _tagsText = State(initialValue: tags.joined(separator: ", "))
         _launchesAutomatically = State(initialValue: record?.launchesAutomatically ?? false)
@@ -436,6 +564,30 @@ private struct LaunchProfileEditor: View {
                     Stepper("Expected HTTP status: \(expectedStatus)", value: $expectedStatus, in: 100...599)
                     Stepper("Startup timeout: \(Int(startupTimeout)) seconds", value: $startupTimeout, in: 1...300)
                     Stepper("Shutdown timeout: \(Int(shutdownTimeout)) seconds", value: $shutdownTimeout, in: 1...60)
+                    Stepper(
+                        "Check interval: \(checkInterval.formatted(.number.precision(.fractionLength(1)))) seconds",
+                        value: $checkInterval,
+                        in: 0.1...30,
+                        step: 0.1
+                    )
+                    Stepper("Retry limit: \(checkRetryLimit)", value: $checkRetryLimit, in: 1...300)
+                    Stepper(
+                        "Initial delay: \(checkInitialDelay.formatted(.number.precision(.fractionLength(1)))) seconds",
+                        value: $checkInitialDelay,
+                        in: 0...120,
+                        step: 0.5
+                    )
+                    TextField("Required HTTP response text (optional)", text: $responseContains)
+                    TextField("Required file path (optional)", text: $requiredFilePath)
+                    TextField("Health command executable (optional)", text: $healthCommandPath)
+                    if !healthCommandPath.isEmpty {
+                        TextField("Health command arguments (one per line)", text: $healthCommandArguments, axis: .vertical)
+                            .lineLimit(2...5)
+                    }
+                    TextField("Docker container ID for health (optional)", text: $dockerHealthContainerID)
+                    TextField("Custom additional-check failure message (optional)", text: $checkFailureMessage)
+                    Text("Expected TCP listeners use the same startup timeout. Additional checks use the interval, retry limit, initial delay, and reviewed failure message above.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Keychain environment") {
                     ForEach(secretNames, id: \.self) { secret in
@@ -644,7 +796,11 @@ private struct LaunchProfileEditor: View {
             guard let url = URL(string: trimmedHealthURL), ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
                 throw DevBerthError.launchValidation("The health-check URL must be an HTTP or HTTPS URL.")
             }
-            healthCheck = HealthCheckConfiguration(url: url, expectedStatus: expectedStatus, intervalSeconds: 0.5)
+            healthCheck = HealthCheckConfiguration(
+                url: url,
+                expectedStatus: expectedStatus,
+                intervalSeconds: checkInterval
+            )
         }
         let shell: ShellSelection = usesLoginShell ? .loginShell(path: shellPath) : .direct
         return ManagedServiceConfiguration(
@@ -667,6 +823,7 @@ private struct LaunchProfileEditor: View {
                 terminationScope: terminationScope
             ),
             healthCheck: healthCheck,
+            serviceChecks: makeServiceChecks(healthCheck: healthCheck),
             dependencyServiceIDs: dependencyID.map { [$0] } ?? [],
             logFile: record?.logFile,
             tags: tagsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) },
@@ -762,7 +919,104 @@ private struct LaunchProfileEditor: View {
                 policy: candidate.processPolicy
             ))
         }
+        if let storedChecks = serviceChecks.first(where: { $0.managedServiceID == candidate.id }) {
+            try storedChecks.apply(candidate.serviceChecks)
+        } else if !candidate.serviceChecks.isEmpty {
+            context.insert(try ManagedServiceCheckRecord(
+                managedServiceID: candidate.id,
+                checks: candidate.serviceChecks
+            ))
+        }
         try context.save()
+    }
+
+    private func makeServiceChecks(
+        healthCheck: HealthCheckConfiguration?
+    ) -> [ServiceCheckConfiguration] {
+        let existing = serviceChecks.first { $0.managedServiceID == draftID }?.checks ?? []
+        func id(matching predicate: (ServiceCheckKind) -> Bool) -> UUID {
+            existing.first { predicate($0.kind) }?.id ?? UUID()
+        }
+        var checks: [ServiceCheckConfiguration] = []
+        if let healthCheck, !responseContains.isEmpty {
+            checks.append(ServiceCheckConfiguration(
+                id: id { if case .http = $0 { return true }; return false },
+                kind: .http(
+                    url: healthCheck.url,
+                    expectedStatus: healthCheck.expectedStatus,
+                    responseContains: responseContains
+                ),
+                timeoutSeconds: startupTimeout,
+                intervalSeconds: checkInterval,
+                retryLimit: checkRetryLimit,
+                initialDelaySeconds: checkInitialDelay,
+                failureMessage: additionalCheckFailure(
+                    default: "The HTTP response did not contain the reviewed text."
+                )
+            ))
+        }
+        if !requiredFilePath.isEmpty {
+            checks.append(ServiceCheckConfiguration(
+                id: id { if case .fileExists = $0 { return true }; return false },
+                kind: .fileExists(path: requiredFilePath),
+                timeoutSeconds: startupTimeout,
+                intervalSeconds: checkInterval,
+                retryLimit: checkRetryLimit,
+                initialDelaySeconds: checkInitialDelay,
+                failureMessage: additionalCheckFailure(
+                    default: "The required file did not appear before the timeout."
+                )
+            ))
+        }
+        if !healthCommandPath.isEmpty {
+            checks.append(ServiceCheckConfiguration(
+                id: id { if case .executable = $0 { return true }; return false },
+                kind: .executable(
+                    path: healthCommandPath,
+                    arguments: healthCommandArguments.split(whereSeparator: \.isNewline).map(String.init),
+                    workingDirectory: workingDirectory
+                ),
+                timeoutSeconds: startupTimeout,
+                intervalSeconds: checkInterval,
+                retryLimit: checkRetryLimit,
+                initialDelaySeconds: checkInitialDelay,
+                failureMessage: additionalCheckFailure(
+                    default: "The reviewed health command did not exit successfully."
+                )
+            ))
+        }
+        if !dockerHealthContainerID.isEmpty {
+            checks.append(ServiceCheckConfiguration(
+                id: id { if case .dockerHealth = $0 { return true }; return false },
+                kind: .dockerHealth(containerID: dockerHealthContainerID),
+                timeoutSeconds: startupTimeout,
+                intervalSeconds: checkInterval,
+                retryLimit: checkRetryLimit,
+                initialDelaySeconds: checkInitialDelay,
+                failureMessage: additionalCheckFailure(
+                    default: "Docker did not report the reviewed container healthy."
+                )
+            ))
+        }
+        if let dependencyID {
+            checks.append(ServiceCheckConfiguration(
+                id: id { if case .dependencyReady = $0 { return true }; return false },
+                kind: .dependencyReady(managedServiceID: dependencyID),
+                timeoutSeconds: startupTimeout,
+                intervalSeconds: checkInterval,
+                retryLimit: checkRetryLimit,
+                initialDelaySeconds: checkInitialDelay,
+                failureMessage: additionalCheckFailure(
+                    default: "The required dependency did not become ready."
+                )
+            ))
+        }
+        return checks
+    }
+
+    private func additionalCheckFailure(default defaultMessage: String) -> String {
+        let reviewed = checkFailureMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        return reviewed.isEmpty ? defaultMessage : reviewed
     }
 
     private func referencesStillInUse(including candidateReferences: [String: UUID]) -> Set<UUID> {

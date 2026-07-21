@@ -9,7 +9,7 @@ struct DevBerthApp: App {
     init() {
         do {
             let migration = try ProductDataMigrator().migrateForCurrentUser()
-            let schema = Schema(DevBerthSchemaV4.models)
+            let schema = Schema(DevBerthSchemaV6.models)
             let configuration = ModelConfiguration("DevBerth", schema: schema, url: migration.storeURL)
             let createdContainer = try ModelContainer(
                 for: schema,

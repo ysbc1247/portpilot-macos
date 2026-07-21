@@ -41,6 +41,20 @@ final class RuntimeInstanceRecord {
         lifecycleEventIDsData = try encoder.encode(runtime.lifecycleEventIDs)
         updatedAt = Date()
     }
+
+    func apply(_ runtime: RuntimeInstance) throws {
+        let encoder = JSONEncoder()
+        lifecycleStateRawValue = runtime.lifecycleState.rawValue
+        healthStateRawValue = runtime.healthState.rawValue
+        listenerIDsData = try encoder.encode(runtime.listenerIDs.sorted())
+        exitCode = runtime.exitResult?.exitCode.map(Int.init)
+        exitSignal = runtime.exitResult?.signal.map(Int.init)
+        exitReason = runtime.exitResult?.reason
+        exitedAt = runtime.exitResult?.exitedAt
+        logMetadataIDsData = try encoder.encode(runtime.logMetadataIDs)
+        lifecycleEventIDsData = try encoder.encode(runtime.lifecycleEventIDs)
+        updatedAt = Date()
+    }
 }
 
 @Model

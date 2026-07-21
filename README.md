@@ -17,6 +17,8 @@ DevBerth is a native macOS developer utility for discovering, understanding, sto
 - Supports generic commands, npm/pnpm/Yarn/Bun scripts, Gradle, Maven, executables, custom shells, Docker containers, and Docker Compose services.
 - Starts project dependencies in ordered layers while parallelizing independent services and rejecting dependency cycles.
 - Uses transactional Keychain-backed secret references, bounded redacted logs, expected-port readiness, optional HTTP health checks, and preflight conflict resolution.
+- Separates process, listener, readiness, and health state; supports reviewed HTTP text, command, file, Docker, and dependency checks with bounded retry behavior.
+- Records a searchable lifecycle timeline, runtime instances, health transitions, unexpected exits, automatic-restart evidence, and deterministic incident summaries.
 - Maps published Docker host ports to container ports, image, container, and Compose metadata; Docker absence never breaks listener monitoring.
 - Persists projects, profiles, expected ports, dependencies, observations, favorites, settings, log metadata, and event history with SwiftData.
 - Includes Overview, Active Ports, Projects, Launch Profiles, History, Docker, Settings, a `⌘K` command palette, and a menu-bar utility.

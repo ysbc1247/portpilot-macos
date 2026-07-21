@@ -8,6 +8,7 @@ struct OverviewView: View {
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
+    @Query private var serviceChecks: [ManagedServiceCheckRecord]
     @Query(sort: \ProcessHistoryEventRecord.timestamp, order: .reverse) private var history: [ProcessHistoryEventRecord]
 
     private var conflicts: [(LaunchProfileRecord, ExpectedPortRecord, ObservedListener)] {
@@ -33,7 +34,7 @@ struct OverviewView: View {
                     metric(title: "Active listeners", value: model.listeners.count, symbol: "antenna.radiowaves.left.and.right")
                     metric(title: "Running projects", value: activeProjectCount, symbol: "folder")
                     metric(title: "Port conflicts", value: conflicts.count, symbol: "exclamationmark.triangle")
-                    metric(title: "Failed services", value: model.profileFailures.count, symbol: "xmark.octagon")
+                    metric(title: "Unhealthy services", value: unhealthyServiceCount, symbol: "heart.slash")
                 }
 
                 HStack(alignment: .top, spacing: DevBerthSpacing.large) {
@@ -48,7 +49,8 @@ struct OverviewView: View {
                                     if let profile = record.configuration(
                                         dependencies: dependencies,
                                         expectedPorts: expectedPorts,
-                                        processPolicies: processPolicies
+                                        processPolicies: processPolicies,
+                                        serviceChecks: serviceChecks
                                     ) {
                                         HStack {
                                             Image(systemName: "star.fill").foregroundStyle(.yellow)
@@ -141,6 +143,14 @@ struct OverviewView: View {
 
     private var activeProjectCount: Int {
         projects.filter { project in profiles.contains { $0.projectID == project.id && model.runningProfileIDs.contains($0.id) } }.count
+    }
+
+    private var unhealthyServiceCount: Int {
+        model.runtimeStatuses.values.filter {
+            $0.lifecycleState == .failed
+                || $0.healthState == .degraded
+                || $0.healthState == .unhealthy
+        }.count
     }
 
     private func metric(title: LocalizedStringKey, value: Int, symbol: String) -> some View {

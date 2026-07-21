@@ -4,7 +4,8 @@ extension LaunchProfileRecord {
     func configuration(
         dependencies: [ProfileDependencyRecord],
         expectedPorts: [ExpectedPortRecord],
-        processPolicies: [ManagedServiceProcessPolicyRecord] = []
+        processPolicies: [ManagedServiceProcessPolicyRecord] = [],
+        serviceChecks: [ManagedServiceCheckRecord] = []
     ) -> ManagedServiceConfiguration? {
         guard let kind = LaunchMechanism(rawValue: kindRawValue) else { return nil }
         let decoder = JSONDecoder()
@@ -37,6 +38,7 @@ extension LaunchProfileRecord {
             restartPolicy: RestartPolicy(rawValue: restartPolicyRawValue) ?? .never,
             processPolicy: processPolicies.first { $0.managedServiceID == id }?.policy ?? .controlledProcessGroup,
             healthCheck: healthCheck,
+            serviceChecks: serviceChecks.first { $0.managedServiceID == id }?.checks ?? [],
             dependencyServiceIDs: dependencies.filter { $0.profileID == id }.map(\.dependencyProfileID),
             logFile: logFile,
             tags: tags,

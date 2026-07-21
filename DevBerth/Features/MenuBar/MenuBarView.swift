@@ -10,6 +10,7 @@ struct MenuBarView: View {
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
+    @Query private var serviceChecks: [ManagedServiceCheckRecord]
     @Query(sort: \ProjectRecord.name) private var projects: [ProjectRecord]
 
     private var visible: [ObservedListener] {
@@ -23,7 +24,8 @@ struct MenuBarView: View {
             HStack {
                 VStack(alignment: .leading) {
                     Text("DevBerth").font(.headline)
-                    Text("\(model.listeners.count) active listeners").font(.caption).foregroundStyle(.secondary)
+                    Text("\(activeManagedCount) managed · \(unexpectedListenerCount) unexpected · \(unhealthyCount) unhealthy")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 StatusDot(status: model.isMonitoring ? .healthy : .stopped)
@@ -52,7 +54,8 @@ struct MenuBarView: View {
                     if let profile = record.configuration(
                         dependencies: dependencies,
                         expectedPorts: expectedPorts,
-                        processPolicies: processPolicies
+                        processPolicies: processPolicies,
+                        serviceChecks: serviceChecks
                     ) {
                         HStack {
                             Image(systemName: "star.fill").foregroundStyle(.yellow)
@@ -79,7 +82,8 @@ struct MenuBarView: View {
                         $0.configuration(
                             dependencies: dependencies,
                             expectedPorts: expectedPorts,
-                            processPolicies: processPolicies
+                            processPolicies: processPolicies,
+                            serviceChecks: serviceChecks
                         )
                     }
                     HStack {
@@ -104,5 +108,19 @@ struct MenuBarView: View {
         }
         .padding()
         .frame(width: 390)
+    }
+
+    private var activeManagedCount: Int {
+        model.runtimeStatuses.values.filter(\.processRunning).count
+    }
+
+    private var unexpectedListenerCount: Int {
+        model.listeners.filter { $0.process.managedServiceID == nil }.count
+    }
+
+    private var unhealthyCount: Int {
+        model.runtimeStatuses.values.filter {
+            $0.lifecycleState == .failed || $0.healthState == .degraded || $0.healthState == .unhealthy
+        }.count
     }
 }
