@@ -22,6 +22,8 @@ The 149-test result includes all four UI cases plus schema and product-identity 
 
 The UI-test process launches with `DEVBERTH_UI_TESTING=1`. It skips product migration, uses in-memory SwiftData, and injects one static loopback listener/resource reading. It never enumerates or controls host processes or containers. Tests cover first-run disclosures, sidebar order and named destination actions, Runtime ownership and restart-trust evidence, filtering/empty state, and keyboard command-palette routing. Xcode emits a non-fatal `no debugger version` diagnostic before UI-host launch on this machine; the signed runner then executes normally and the result bundle reports four passes.
 
+Headless GitHub Actions compiles the isolated UI-test runner with local signing, then executes the 145 unit, migration, and harmless integration cases with code signing disabled and `DevBerthUITests` skipped. The full 149-test signed scheme remains a local macOS quality gate because native UI-host execution depends on a logged-in graphical session.
+
 ## Runtime and visual evidence
 
 - Computer Use inspected the final native accessibility tree and `Documentation/Screenshots/runtime-phase-2.jpeg`. It confirmed the exact sidebar hierarchy, labeled toolbar controls, four top metrics, protocol filtering, table headers, a static listener row with ownership/trust/health/runtime/uptime/resource evidence, and the persistent inspector. The inspection caught a vertically centered Runtime workspace; the layout was corrected and re-inspected top-aligned with a full-height table.

@@ -40,6 +40,16 @@ jobs:
           CODE_SIGNING_ALLOWED=NO
           build
 
+      - name: Compile isolated UI test target
+        run: >-
+          xcodebuild
+          -project DevBerth.xcodeproj
+          -scheme DevBerth
+          -configuration Debug
+          -destination 'platform=macOS,arch=arm64'
+          -only-testing:DevBerthUITests
+          build-for-testing
+
       - name: Run unit and safe integration tests
         run: >-
           xcodebuild
@@ -48,6 +58,7 @@ jobs:
           -configuration Debug
           -destination 'platform=macOS,arch=arm64'
           CODE_SIGNING_ALLOWED=NO
+          -skip-testing:DevBerthUITests
           -resultBundlePath TestResults.xcresult
           test
 
