@@ -22,7 +22,7 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Report toolchain
         run: |
@@ -58,4 +58,3 @@ jobs:
           name: PortPilot-TestResults
           path: TestResults.xcresult
           retention-days: 7
-
