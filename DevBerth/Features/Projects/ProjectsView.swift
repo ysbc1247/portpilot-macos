@@ -13,6 +13,7 @@ struct ProjectsView: View {
     @Query private var serviceChecks: [ManagedServiceCheckRecord]
     @State private var showsNewProject = false
     @State private var discoveryProject: ProjectRecord?
+    @State private var pendingObservedStop: ProjectObservedStopRequest?
 
     var body: some View {
         Group {
@@ -46,6 +47,25 @@ struct ProjectsView: View {
             ProjectDiscoveryReviewView(project: project)
                 .environmentObject(model)
         }
+        .sheet(item: $pendingObservedStop) { request in
+            ActionConfirmationSheet(
+                title: request.isProject ? Text("Stop observed project services?") : Text("Stop observed service?"),
+                message: Text(request.message),
+                actionTitle: request.isProject ? Text("Stop All Active Services") : Text("Stop Service"),
+                actionRole: .destructive
+            ) {
+                Task {
+                    if request.isProject {
+                        await model.stopProject(
+                            request.configurations,
+                            confirmsObservedProcesses: true
+                        )
+                    } else if let service = request.configurations.first {
+                        await model.stopProfile(service, confirmsObservedProcess: true)
+                    }
+                }
+            }
+        }
         .onChange(of: model.requestedProjectImport) { _, requested in
             guard requested else { return }
             model.requestedProjectImport = false
@@ -73,7 +93,7 @@ struct ProjectsView: View {
             values[configuration.id] = model.managedServiceActivity(for: configuration)
         }
         let startableCount = activities.values.filter { $0.state == .stopped }.count
-        let stoppableCount = activities.values.filter { $0.state == .controlled }.count
+        let stoppableCount = activities.values.filter { $0.state != .stopped }.count
         let operation = model.projectOperations[project.id]
         let projectIsBusy = operation?.isRunning == true
         return Section {
@@ -85,6 +105,7 @@ struct ProjectsView: View {
                 ForEach(projectProfiles) { profile in
                     let configuration = configurations.first { $0.id == profile.id }
                     let activity = activities[profile.id]
+                    let serviceOperation = model.serviceOperations[profile.id]
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             StatusDot(status: visualStatus(for: profile.id, activity: activity))
@@ -96,14 +117,28 @@ struct ProjectsView: View {
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
-                            if let configuration, let activity {
+                            if let serviceOperation, serviceOperation.isRunning {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text(serviceOperation.kind == .stop ? "Stopping…" : "Starting…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if let configuration, let activity {
                                 switch activity.state {
                                 case .controlled:
                                     Button("Stop") { Task { await model.stopProfile(configuration) } }
                                         .disabled(projectIsBusy)
                                 case .observed:
+                                    Button("Stop") {
+                                        pendingObservedStop = ProjectObservedStopRequest(
+                                            configurations: [configuration],
+                                            isProject: false,
+                                            observedServiceCount: 1
+                                        )
+                                    }
+                                    .disabled(projectIsBusy)
+                                    .help("Stop the exact observed owner after confirmation and fresh identity validation.")
                                     Button("Inspect") { model.inspectObservedRuntime(for: configuration) }
-                                        .help("Inspect the observed owner before taking control.")
                                 case .stopped:
                                     Button("Start") { Task { await model.launchProfile(configuration) } }
                                         .disabled(projectIsBusy)
@@ -146,6 +181,15 @@ struct ProjectsView: View {
                             Label(failure, systemImage: "exclamationmark.triangle.fill")
                                 .font(.caption)
                                 .foregroundStyle(.red)
+                        } else if let serviceOperation, !serviceOperation.isRunning {
+                            Label(
+                                serviceOperation.message,
+                                systemImage: serviceOperation.phase == .succeeded
+                                    ? "checkmark.circle.fill"
+                                    : "xmark.octagon.fill"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(serviceOperation.phase == .succeeded ? .green : .red)
                         }
                     }
                     .padding(.vertical, 4)
@@ -180,7 +224,16 @@ struct ProjectsView: View {
                         : "Start \(startableCount) stopped service(s) in dependency order.")
 
                     Button {
-                        Task { await model.stopProject(configurations) }
+                        let observedCount = activities.values.filter { $0.state == .observed }.count
+                        if observedCount > 0 {
+                            pendingObservedStop = ProjectObservedStopRequest(
+                                configurations: configurations,
+                                isProject: true,
+                                observedServiceCount: observedCount
+                            )
+                        } else {
+                            Task { await model.stopProject(configurations) }
+                        }
                     } label: {
                         Label(
                             operation?.isRunning == true && operation?.kind == .stop
@@ -191,8 +244,8 @@ struct ProjectsView: View {
                     }
                     .disabled(configurations.isEmpty || projectIsBusy)
                     .help(stoppableCount == 0
-                        ? "No DevBerth-controlled project services are running."
-                        : "Stop \(stoppableCount) controlled service(s) in reverse dependency order.")
+                        ? "All project services are already stopped."
+                        : "Stop \(stoppableCount) active service(s) in reverse dependency order.")
                     Button("Discover Services", systemImage: "sparkle.magnifyingglass") {
                         discoveryProject = project
                     }
@@ -384,6 +437,20 @@ struct ProjectsView: View {
         return String(
             localized: "Observed on \(activity.openExpectedPortCount) of \(activity.expectedPortCount) expected ports"
         )
+    }
+}
+
+private struct ProjectObservedStopRequest: Identifiable {
+    let id = UUID()
+    let configurations: [ManagedServiceConfiguration]
+    let isProject: Bool
+    let observedServiceCount: Int
+
+    var message: String {
+        let scope = isProject
+            ? "This includes \(observedServiceCount) service(s) running outside DevBerth."
+            : "This service is running outside DevBerth."
+        return "\(scope) DevBerth will revalidate each exact process, container, or Compose owner immediately before stopping it. Protected or unverifiable owners will remain running."
     }
 }
 

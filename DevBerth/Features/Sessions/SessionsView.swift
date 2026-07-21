@@ -22,6 +22,7 @@ struct SessionsView: View {
     @State private var showsCapture = false
     @State private var restoreSession: WorkspaceSession?
     @State private var deletionRecord: WorkspaceSessionRecord?
+    @State private var pendingObservedStopID: UUID?
 
     private var configurations: [ManagedServiceConfiguration] {
         profiles.compactMap {
@@ -89,21 +90,37 @@ struct SessionsView: View {
             SessionRestorePreviewView(session: session, services: configurations)
                 .environmentObject(model)
         }
-        .alert(
-            "Delete workspace session?",
-            isPresented: Binding(
-                get: { deletionRecord != nil },
-                set: { if !$0 { deletionRecord = nil } }
-            ),
-            presenting: deletionRecord
-        ) { record in
-            Button("Cancel", role: .cancel) { deletionRecord = nil }
-            Button("Delete", role: .destructive) {
+        .sheet(item: $deletionRecord) { record in
+            ActionConfirmationSheet(
+                title: Text("Delete workspace session?"),
+                message: Text("\(record.name) and its restore results will be removed. Lifecycle audit events remain in bounded history."),
+                actionTitle: Text("Delete"),
+                actionRole: .destructive
+            ) {
                 deleteSession(record)
-                deletionRecord = nil
             }
-        } message: { record in
-            Text("\(record.name) and its restore results will be removed. Lifecycle audit events remain in bounded history.")
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { pendingObservedStopID != nil },
+                set: { if !$0 { pendingObservedStopID = nil } }
+            )
+        ) {
+            if let configuration = pendingObservedStopConfiguration {
+                ActionConfirmationSheet(
+                    title: Text("Stop observed service?"),
+                    message: Text("\(configuration.name) is active outside DevBerth. Its exact process, container, or Compose owner will be revalidated immediately before stopping it. The saved session expectation is not changed."),
+                    actionTitle: Text("Stop \(configuration.name)"),
+                    actionRole: .destructive
+                ) {
+                    Task {
+                        await model.stopProfile(
+                            configuration,
+                            confirmsObservedProcess: true
+                        )
+                    }
+                }
+            }
         }
         .onAppear {
             if model.requestedSessionCapture {
@@ -205,31 +222,66 @@ struct SessionsView: View {
         GroupBox("Expected managed services") {
             VStack(spacing: 0) {
                 ForEach(session.serviceSnapshots) { snapshot in
-                    HStack(spacing: DevBerthSpacing.medium) {
-                        StatusDot(status: snapshot.expectedState == .running ? .healthy : .stopped)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(serviceName(snapshot.managedServiceID)).font(.headline)
-                            HStack(spacing: 6) {
-                                Text(snapshot.expectedState == .running ? "Expected running" : "Expected stopped")
-                                if !snapshot.dependencyServiceIDs.isEmpty {
-                                    Text("Depends on \(snapshot.dependencyServiceIDs.map(serviceName).joined(separator: ", "))")
-                                }
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        ForEach(snapshot.expectedListeners) { listener in PortBadge(port: listener.port) }
-                        Text(snapshot.previousHealthState.title)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 9)
+                    savedServiceRow(snapshot)
                     if snapshot.id != session.serviceSnapshots.last?.id { Divider() }
                 }
             }
             .padding(.horizontal, 4)
         }
+    }
+
+    private func savedServiceRow(_ snapshot: WorkspaceSessionServiceSnapshot) -> some View {
+        let service = serviceConfiguration(for: snapshot.managedServiceID)
+        let activity = service.map { model.managedServiceActivity(for: $0) }
+        let operation = model.serviceOperations[snapshot.managedServiceID]
+        return HStack(spacing: DevBerthSpacing.medium) {
+            StatusDot(status: snapshot.expectedState == .running ? .healthy : .stopped)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(serviceName(snapshot.managedServiceID)).font(.headline)
+                HStack(spacing: 6) {
+                    Text(snapshot.expectedState == .running ? "Expected running" : "Expected stopped")
+                    if !snapshot.dependencyServiceIDs.isEmpty {
+                        Text("Depends on \(snapshot.dependencyServiceIDs.map(serviceName).joined(separator: ", "))")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            Spacer()
+            ForEach(snapshot.expectedListeners) { listener in PortBadge(port: listener.port) }
+            Text(snapshot.previousHealthState.title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Divider().frame(height: 18)
+            if let operation, operation.isRunning {
+                ProgressView().controlSize(.small)
+                Text(operation.kind == .stop ? "Stopping…" : "Starting…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let service, let activity {
+                Label(
+                    currentActivityTitle(activity.state),
+                    systemImage: currentActivitySymbol(activity.state)
+                )
+                .font(.caption)
+                .foregroundStyle(activity.state == .stopped ? Color.secondary : Color.green)
+                switch activity.state {
+                case .controlled:
+                    Button("Stop") { Task { await model.stopProfile(service) } }
+                case .observed:
+                    Button("Stop") { pendingObservedStopID = service.id }
+                    Button("Inspect") { model.inspectObservedRuntime(for: service) }
+                case .stopped:
+                    Button("Start") { Task { await model.launchProfile(service) } }
+                }
+            } else {
+                Text("Definition missing")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .buttonStyle(.borderless)
+        .padding(.vertical, 9)
     }
 
     @ViewBuilder
@@ -370,6 +422,31 @@ struct SessionsView: View {
 
     private func serviceName(_ id: UUID) -> String {
         profiles.first { $0.id == id }?.name ?? "Missing service"
+    }
+
+    private func serviceConfiguration(for id: UUID) -> ManagedServiceConfiguration? {
+        configurations.first { $0.id == id }
+    }
+
+    private var pendingObservedStopConfiguration: ManagedServiceConfiguration? {
+        guard let pendingObservedStopID else { return nil }
+        return serviceConfiguration(for: pendingObservedStopID)
+    }
+
+    private func currentActivityTitle(_ state: ManagedServiceActivityState) -> String {
+        switch state {
+        case .controlled: "Running"
+        case .observed: "Observed"
+        case .stopped: "Stopped"
+        }
+    }
+
+    private func currentActivitySymbol(_ state: ManagedServiceActivityState) -> String {
+        switch state {
+        case .controlled: "play.circle.fill"
+        case .observed: "eye.fill"
+        case .stopped: "stop.circle"
+        }
     }
 
     private func ports(_ values: Set<UInt16>) -> String {

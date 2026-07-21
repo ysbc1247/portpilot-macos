@@ -115,13 +115,17 @@ struct HistoryView: View {
         .task {
             refreshHistory()
         }
-        .confirmationDialog("Clear all DevBerth history?", isPresented: $confirmsClearAll, titleVisibility: .visible) {
-            Button("Clear All History", role: .destructive) {
+        .sheet(isPresented: $confirmsClearAll) {
+            ActionConfirmationSheet(
+                title: Text("Clear all DevBerth history?"),
+                message: Text("Projects and managed services will not be deleted. This history cannot be recovered."),
+                actionTitle: Text("Clear All History"),
+                actionRole: .destructive
+            ) {
                 clearAllHistory()
                 selection.removeAll()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: { Text("Projects and managed services will not be deleted. This history cannot be recovered.") }
+        }
         .alert(
             "History couldn’t be updated",
             isPresented: Binding(

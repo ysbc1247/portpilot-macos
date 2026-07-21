@@ -13,6 +13,7 @@ struct ActivePortsView: View {
     @State private var selection = Set<String>()
     @State private var protocolFilter: ListenerProtocol?
     @State private var sort = SortChoice.port
+    @State private var pendingGracefulStop: ObservedListener?
     @AppStorage("runtime.presentation") private var presentationRaw = RuntimePresentationMode.table.rawValue
     @AppStorage("runtime.savedView") private var savedViewRaw = RuntimeSavedView.all.rawValue
     @SceneStorage("activePorts.columnCustomization") private var columnCustomization: TableColumnCustomization<ObservedListener>
@@ -120,6 +121,16 @@ struct ActivePortsView: View {
             guard let listenerID else { return }
             selection = [listenerID]
         }
+        .sheet(item: $pendingGracefulStop) { listener in
+            ActionConfirmationSheet(
+                title: Text("Stop \(listener.process.name)?"),
+                message: Text("DevBerth will resolve the current owner and revalidate PID \(listener.process.fingerprint.pid), its full process identity, and port \(listener.port) immediately before stopping it. Protected or unverifiable owners will remain running."),
+                actionTitle: Text("Graceful Stop"),
+                actionRole: .destructive
+            ) {
+                Task { await model.terminate(listener, mode: .graceful(timeoutSeconds: 5)) }
+            }
+        }
     }
 
     private var selectedListener: ObservedListener? {
@@ -182,7 +193,9 @@ struct ActivePortsView: View {
                         RuntimeGroupedRow(
                             listener: listener,
                             ownership: ownershipTitle(for: listener),
-                            health: healthTitle(for: listener)
+                            health: healthTitle(for: listener),
+                            isBusy: model.processesBeingControlled.contains(listener.process.fingerprint.pid),
+                            stop: { pendingGracefulStop = listener }
                         )
                         .tag(listener.id)
                         .contextMenu { runtimeContextMenu(listener) }
@@ -207,6 +220,16 @@ struct ActivePortsView: View {
         if let path = listener.process.currentDirectory {
             Button("Open Working Directory") { NSWorkspace.shared.open(URL(fileURLWithPath: path)) }
         }
+        Divider()
+        Button("Inspect Runtime") {
+            selection = [listener.id]
+            model.selectedListenerID = listener.id
+        }
+        Button("Graceful Stop", role: .destructive) { pendingGracefulStop = listener }
+            .disabled(
+                listener.process.isSystemProcess
+                    || model.processesBeingControlled.contains(listener.process.fingerprint.pid)
+            )
     }
 
     private func copy(_ value: String) {
@@ -240,6 +263,28 @@ struct ActivePortsView: View {
         }
         .width(min: 130, ideal: 180)
         .customizationID("process")
+        TableColumn("Actions") { (listener: ObservedListener) in
+            HStack(spacing: DevBerthSpacing.small) {
+                Button("Inspect") {
+                    selection = [listener.id]
+                    model.selectedListenerID = listener.id
+                }
+                if model.processesBeingControlled.contains(listener.process.fingerprint.pid) {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("Stop", role: .destructive) { pendingGracefulStop = listener }
+                        .disabled(listener.process.isSystemProcess)
+                        .help(
+                            listener.process.isSystemProcess
+                                ? "Protected system processes cannot be stopped here."
+                                : "Resolve and revalidate the exact owner before a graceful stop."
+                        )
+                }
+            }
+            .buttonStyle(.borderless)
+        }
+        .width(min: 105, ideal: 125)
+        .customizationID("actions")
         TableColumn("Project") { (listener: ObservedListener) in
             Text(listener.process.project?.name ?? "—")
                 .foregroundStyle(listener.process.project == nil ? .secondary : .primary)
@@ -266,12 +311,6 @@ struct ActivePortsView: View {
         TableColumn("Runtime") { (listener: ObservedListener) in Text(listener.process.runtime.rawValue) }
             .width(min: 90, ideal: 120)
             .customizationID("runtime")
-        TableColumn("Uptime") { (listener: ObservedListener) in
-            Text(listener.process.fingerprint.startTime.map { $0.formatted(.relative(presentation: .numeric)) } ?? "Unknown")
-                .foregroundStyle(.secondary)
-        }
-        .width(min: 90, ideal: 105)
-        .customizationID("uptime")
         TableColumn("Resources") { (listener: ObservedListener) in
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.processResourceUsage[listener.process.fingerprint.pid].map { String(format: "%.1f%% CPU", $0.cpuPercent) } ?? "CPU —")
@@ -317,6 +356,8 @@ private struct RuntimeGroupedRow: View {
     let listener: ObservedListener
     let ownership: String
     let health: String
+    let isBusy: Bool
+    let stop: () -> Void
 
     var body: some View {
         HStack(spacing: DevBerthSpacing.medium) {
@@ -328,6 +369,13 @@ private struct RuntimeGroupedRow: View {
             Spacer()
             Text(health).font(.caption).foregroundStyle(.secondary)
             Text(listener.protocolKind.rawValue).font(.caption.monospaced()).foregroundStyle(.secondary)
+            if isBusy {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Stop", role: .destructive, action: stop)
+                    .buttonStyle(.borderless)
+                    .disabled(listener.process.isSystemProcess)
+            }
         }
         .padding(.vertical, 3)
         .accessibilityElement(children: .combine)
@@ -387,6 +435,7 @@ private struct ProcessInspectorView: View {
     @Query(sort: \LifecycleEventRecord.timestamp, order: .reverse) private var lifecycleEvents: [LifecycleEventRecord]
     @Query(sort: \RuntimeIncidentSummaryRecord.generatedAt, order: .reverse) private var incidentRecords: [RuntimeIncidentSummaryRecord]
     let listener: ObservedListener
+    @State private var showsGracefulConfirmation = false
     @State private var showsForceConfirmation = false
     @State private var showsProfileReview = false
 
@@ -539,7 +588,7 @@ private struct ProcessInspectorView: View {
                 GroupBox("Safe actions") {
                     VStack(spacing: DevBerthSpacing.small) {
                         Button {
-                            Task { await model.terminate(listener, mode: .graceful(timeoutSeconds: 5)) }
+                            showsGracefulConfirmation = true
                         } label: {
                             Label(gracefulStopTitle, systemImage: "stop.circle")
                                 .frame(maxWidth: .infinity)
@@ -570,17 +619,25 @@ private struct ProcessInspectorView: View {
             .padding(DevBerthSpacing.large)
         }
         .background(.background)
-        .confirmationDialog(
-            "Force stop \(listener.process.name)?",
-            isPresented: $showsForceConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Force Stop", role: .destructive) {
+        .sheet(isPresented: $showsGracefulConfirmation) {
+            ActionConfirmationSheet(
+                title: Text("Stop \(listener.process.name)?"),
+                message: Text("DevBerth will resolve the current owner and revalidate the complete process identity and listener edge immediately before stopping it. Protected or unverifiable owners will remain running."),
+                actionTitle: Text(gracefulStopTitle),
+                actionRole: .destructive
+            ) {
+                Task { await model.terminate(listener, mode: .graceful(timeoutSeconds: 5)) }
+            }
+        }
+        .sheet(isPresented: $showsForceConfirmation) {
+            ActionConfirmationSheet(
+                title: Text("Force stop \(listener.process.name)?"),
+                message: Text("DevBerth will send SIGKILL to PID \(listener.process.fingerprint.pid). Unsaved process state may be lost. The full process fingerprint and listener ownership will be verified again immediately before signaling."),
+                actionTitle: Text("Force Stop"),
+                actionRole: .destructive
+            ) {
                 Task { await model.terminate(listener, mode: .force(confirmed: true)) }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("DevBerth will send SIGKILL to PID \(listener.process.fingerprint.pid). Unsaved process state may be lost. The full process fingerprint and listener ownership will be verified again immediately before signaling.")
         }
         .sheet(isPresented: $showsProfileReview) {
             DiscoveredProfileReviewView(listener: listener)
