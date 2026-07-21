@@ -134,6 +134,8 @@ Generic port records accept caller `id` on create, `port_id` plus `revision` on 
 
 `operation_preview` supports: `stop_runtime`, `force_stop_runtime`, `stop_service`, `restart_service`, `stop_project`, `restart_project`, `stop_selected_project_services`, `restore_session`, `release_occupied_port`, `resolve_port_conflict`, `stop_docker_container`, `restart_docker_container`, `stop_compose_service`, `restart_compose_service`, `stop_compose_project`, `restart_compose_project`, `stop_homebrew_service`, `restart_homebrew_service`, `stop_kubernetes_port_forward`, `stop_ssh_tunnel`, `delete_project_with_dependencies`, `delete_managed_service_with_references`, `delete_session_with_history`, `clear_selected_history`, `clear_selected_logs`, `remove_local_aliases_bulk`, and `apply_destructive_change_set`.
 
+Generic runtime/service/project stops use the live ownership graph. Strong same-user processes may receive guarded instance Stop/Force Stop even when Homebrew, launchd, or supervisor ownership is only inferred; specialized manager actions still require exact manager context. Compose service proof may fall back only to Stop/Restart of the exact associated container ID, never Remove or a Docker host PID.
+
 | Tool | Inputs | `data` result | Approval |
 | --- | --- | --- | --- |
 | `operation_preview` | `operation_type`, nonempty stable `targets`, optional `options`; raw PID/process/command fields forbidden | `operation_id`, exact targets, revisions/fingerprints/listener edges/owners/evidence, affected ports/dependencies/sessions, risks, compensation, expiry | A (no mutation) |

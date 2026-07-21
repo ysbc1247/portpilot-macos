@@ -22,5 +22,4 @@ DevBerth does not provide a container engine/VM, image registry/browser, Kuberne
 
 ## Remaining limitations
 
-macOS can withhold other-user/system metadata. Homebrew, launchd, and supervisor resemblance remains inspection-only without exact controller proof. A validated managed service can still run faulty or malicious application code. Session restore covers managed intent, not arbitrary terminal state. Docker features depend on the configured CLI/daemon. Distribution is not yet Developer-ID signed, notarized, or auto-updating.
-
+macOS can withhold other-user/system metadata. Homebrew, launchd, and supervisor resemblance never authorizes a manager command; a strong same-user listener owner can receive only guarded instance Stop/Force Stop and may be recreated by its real controller. A validated managed service can still run faulty or malicious application code. Session restore covers managed intent, not arbitrary terminal state. Docker features depend on the configured CLI/daemon. Distribution is not yet Developer-ID signed, notarized, or auto-updating.

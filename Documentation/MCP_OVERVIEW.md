@@ -97,4 +97,4 @@ See [MCP_TOOL_REFERENCE.md](MCP_TOOL_REFERENCE.md), [MCP_SECURITY.md](MCP_SECURI
 - Production data reset and all development tools in Release.
 - Production Streamable HTTP.
 
-Kubernetes forwards, SSH tunnels, Homebrew services, launchd, containers, and Compose are inspectable. Mutation is offered only when the existing owner resolver supplies the exact supported controller context; otherwise DevBerth refuses.
+Kubernetes forwards, SSH tunnels, Homebrew/launchd-like processes, containers, and Compose are inspectable. Mutation is offered only when the existing owner resolver supplies a supported exact target: a verified manager/service scope, one full container ID, or one strong same-user process fingerprint plus listener edge. Inferred manager resemblance never authorizes `brew` or `launchctl`, external observations never receive restart authority, and root/protected processes remain refused.

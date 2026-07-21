@@ -18,7 +18,7 @@ DevBerth protects the user’s running processes and containers, project files, 
 
 Process signals require a strong fingerprint and exact listener-edge revalidation immediately before each signal, including force escalation. Protected/root/system processes are refused. Managed groups require a live registry and revalidated member. External observations never receive reconstructed restart authority.
 
-Docker standalone actions target one full container ID. Compose actions require canonical labels, non-symlink path identity, matching configuration hash, exact membership, explicit CLI scope, and fresh proof before mutation. They never fall back to a host PID.
+Docker standalone actions target one full container ID. Compose actions require canonical labels, non-symlink path identity, matching configuration hash, exact membership, explicit CLI scope, and fresh proof before mutation. When service-wide proof is unavailable, Stop/Restart may fall back only to the exact associated container ID; Remove, sibling expansion, and host-PID fallback remain forbidden.
 
 Command execution uses executable URLs and discrete arguments. Only explicitly reviewed shell definitions use a shell. Secret-like environment names are rejected outside Keychain; redaction occurs before logs or persistence. Diagnostics exclude commands, environment, Keychain values, and logs.
 

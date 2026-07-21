@@ -4,7 +4,7 @@ Decision date: 2026-07-21 (Asia/Seoul)
 
 ## Purpose
 
-DevBerth treats Docker Engine metadata as observation and a verified Compose scope as short-lived mutation authority. A host listener owned by Docker infrastructure must map to the actual published container port. A Compose project or service name by itself is never enough to run a service-wide command.
+DevBerth treats exact Docker Engine association as one-container authority and a verified Compose scope as short-lived service-wide authority. A host listener owned by Docker infrastructure must map to the actual published container port. A Compose project or service name by itself is never enough to run a service-wide command.
 
 ## Container observation
 
@@ -29,7 +29,7 @@ The context candidate requires these canonical labels:
 - `com.docker.compose.project.config_files`;
 - `com.docker.compose.project.environment_file` when environment files were used.
 
-The working directory and every file must be absolute and normalized. Symbolic links, missing paths, non-regular files, and paths whose device/inode cannot be read are refused. File size and modification time are captured with identity so in-place changes also invalidate cached evidence. Compose one-off containers remain inspection-only because a service-wide action could target a different scope than the selected one-off execution.
+The working directory and every file must be absolute and normalized. Symbolic links, missing paths, non-regular files, and paths whose device/inode cannot be read are refused. File size and modification time are captured with identity so in-place changes also invalidate cached evidence. Compose one-off containers never receive service-wide scope because that could target a different execution; their exact container ID may still receive the one-container Stop/Restart fallback.
 
 DevBerth reconstructs only this explicit command prefix:
 
@@ -50,21 +50,22 @@ Successful proof is cached for fifteen seconds while the captured path evidence 
 
 ## Mutation rules
 
-Every mutation captures the paths again and repeats both proofs immediately before sending a state-changing command. A mismatch, missing path, replaced file, changed hash, missing exact container, malformed response, unavailable CLI, or nonzero command result refuses the action without trying a less precise controller.
+Every Compose mutation captures the paths again and repeats both proofs immediately before sending a state-changing command. A mismatch, missing path, replaced file, changed hash, missing exact container, malformed response, unavailable CLI, or nonzero command result refuses the Compose action. If current Engine metadata still supplies one exact full container ID, DevBerth may instead offer container Stop/Restart; this is not Compose authority and cannot remove the container or expand to sibling/dependent services.
 
 Supported operations are deliberately distinct:
 
 - standalone stop: `docker stop CONTAINER_ID`;
 - standalone restart: `docker restart CONTAINER_ID`;
 - standalone remove: `docker rm --force CONTAINER_ID`;
+- unverified-Compose fallback stop/restart: the same one-container commands above, without Remove;
 - Compose stop: verified prefix plus `stop SERVICE`;
 - Compose restart: verified prefix plus `restart --no-deps SERVICE`;
 - Compose remove: verified prefix plus `rm --force --stop SERVICE`.
 
-The UI confirms every mutation, calls permanent removal out separately, and disables service controls for unverified Compose contexts. `--no-deps` prevents restart from expanding to dependencies, and exactly one verified service argument prevents changes to unrelated services.
+The UI confirms every mutation and calls permanent removal out separately. Unverified Compose rows expose only the exact-container Stop/Restart fallback. `--no-deps` prevents verified Compose restart from expanding to dependencies, and exactly one verified service argument prevents changes to unrelated services.
 
 ## Evidence and testing
 
-The Docker inspector exposes state, health, restart policy, port bindings, project/service, working directory, configuration files, environment files, hash, verification time, and the exact refusal reason for inspection-only contexts. Successful container stop/restart/remove and Compose changes write structured lifecycle events. Failed revalidation writes a redacted safety-refusal event.
+The Docker inspector exposes state, health, restart policy, port bindings, project/service, working directory, configuration files, environment files, hash, verification time, and the exact Compose-scope refusal reason. Successful container stop/restart/remove and Compose changes write structured lifecycle events. Failed revalidation writes a redacted safety-refusal event.
 
-Focused tests cover batched inspection, IPv4/IPv6 port bindings, short-lived proof caching, full scope argument reconstruction, configuration-hash mismatch, one-off refusal, exact Compose routing, and file replacement between inspection and action. Tests use a mock command runner and temporary harmless files; they do not require or mutate a real Docker daemon.
+Focused tests cover batched inspection, IPv4/IPv6 port bindings, short-lived proof caching, full scope argument reconstruction, configuration-hash mismatch, one-off refusal, exact Compose and container-fallback routing, case-only macOS path spelling, true symlink refusal, and file replacement between inspection and action. Tests use a mock command runner and harmless test-owned files; they do not require or mutate a real Docker daemon.
