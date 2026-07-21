@@ -296,6 +296,7 @@ extension ApplicationControlPlane {
                 ])
                 try require(preview["unrelated_processes_involved"] == .bool(false), "preview_targets_only_application_owned_fixture")
                 _ = try await acceptanceCall("operation_execute", ["operation_id": preview["operation_id"] ?? .null])
+                try await waitForDevelopmentListenerToDisappear(port: port)
                 let verified = try await acceptanceCall("service_verify", ["service_id": .string(serviceID.uuidString)])
                 try require(verified["verified_restartable"] == .bool(true), "backend_verified_after_resolution")
                 _ = try await acceptanceCall("service_start", ["service_id": .string(serviceID.uuidString)])
@@ -434,7 +435,7 @@ extension ApplicationControlPlane {
         }
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
-            .appendingPathComponent("DevBerth-Acceptance-(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("DevBerth-Acceptance-\(UUID().uuidString)", isDirectory: true)
         do {
             let frontend = root.appendingPathComponent("Fixtures/Acceptance/frontend", isDirectory: true)
             let backend = root.appendingPathComponent("Fixtures/Acceptance/backend", isDirectory: true)
@@ -446,7 +447,7 @@ extension ApplicationControlPlane {
             return root
         } catch {
             try? fileManager.removeItem(at: root)
-            throw ControlFailure(code: .internalError, message: "Could not prepare the disposable project-discovery fixtures: (error.localizedDescription)")
+            throw ControlFailure(code: .internalError, message: "Could not prepare the disposable project-discovery fixtures: \(error.localizedDescription)")
         }
     }
 
@@ -524,6 +525,16 @@ extension ApplicationControlPlane {
             try await Task.sleep(for: .milliseconds(100))
         }
         throw ControlFailure(code: .timeout, message: "Development listener on port \(port) was not observed before the deadline.")
+    }
+
+    private func waitForDevelopmentListenerToDisappear(port: UInt16) async throws {
+        model.refreshInterval = 0.1
+        model.refreshNow()
+        for _ in 0..<60 {
+            if !model.listeners.contains(where: { $0.port == port }) { return }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        throw ControlFailure(code: .timeout, message: "Development listener on port \(port) remained visible after its approved stop.")
     }
 
     private func cleanupDevelopmentAcceptanceRuntime() async {
