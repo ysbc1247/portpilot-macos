@@ -16,6 +16,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
 
     private let secrets: any SecretStoring
     private let logs: ServiceLogBuffer
+    private let logIngress: ServiceLogIngress
     private let resolver: ExecutableResolver
     private let spawner: any ControlledProcessSpawning
     private let processInspector: any ProcessInspecting
@@ -46,6 +47,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         let resolvedProcessInspector = processInspector ?? SystemProcessInspector(runner: runner)
         self.secrets = secrets
         self.logs = logs
+        logIngress = ServiceLogIngress(logs: logs)
         self.resolver = resolver
         self.spawner = spawner
         self.processInspector = resolvedProcessInspector
@@ -376,15 +378,15 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
     }
 
     private func installLogReaders(for profileID: UUID, process: SpawnedManagedProcess) {
-        process.standardOutput.readabilityHandler = { [logs] handle in
+        process.standardOutput.readabilityHandler = { [logIngress] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
-            Task { await logs.append(profileID: profileID, stream: .standardOutput, data: data) }
+            logIngress.enqueue(profileID: profileID, stream: .standardOutput, data: data)
         }
-        process.standardError.readabilityHandler = { [logs] handle in
+        process.standardError.readabilityHandler = { [logIngress] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
-            Task { await logs.append(profileID: profileID, stream: .standardError, data: data) }
+            logIngress.enqueue(profileID: profileID, stream: .standardError, data: data)
         }
     }
 
@@ -460,6 +462,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         if let managed = running.removeValue(forKey: profileID) {
             managed.standardOutput.readabilityHandler = nil
             managed.standardError.readabilityHandler = nil
+            await logIngress.flush(profileID: profileID)
             await logs.finalize(profileID: profileID)
             await runtimeRegistry.remove(serviceID: profileID, runtimeID: managed.runtime.id)
             return managed

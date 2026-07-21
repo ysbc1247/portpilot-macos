@@ -30,6 +30,7 @@ actor ServiceLogBuffer {
     private var redactionsByProfile: [UUID: [String]] = [:]
     private var pendingRedactionSuffixes: [StreamKey: String] = [:]
     private var pendingLines: [StreamKey: String] = [:]
+    private var revisionsByProfile: [UUID: UInt64] = [:]
     private let maximumEntries: Int
     private let maximumPersistedBytes: Int
     private let logDirectory: URL
@@ -102,11 +103,17 @@ actor ServiceLogBuffer {
             ServiceLogEntry(id: UUID(), profileID: profileID, timestamp: Date.distantPast, stream: .internalMessage, message: String($0))
         }
         entriesByProfile[profileID] = loaded
+        revisionsByProfile[profileID, default: 0] += 1
         return loaded
+    }
+
+    func revision(for profileID: UUID) -> UInt64 {
+        revisionsByProfile[profileID, default: 0]
     }
 
     func clear(profileID: UUID) {
         entriesByProfile[profileID] = []
+        revisionsByProfile[profileID, default: 0] += 1
         pendingRedactionSuffixes = pendingRedactionSuffixes.filter { $0.key.profileID != profileID }
         pendingLines = pendingLines.filter { $0.key.profileID != profileID }
         if persistsToDisk { try? Data().write(to: fileURL(profileID), options: .atomic) }
@@ -146,6 +153,7 @@ actor ServiceLogBuffer {
         }
         if entries.count > maximumEntries { entries.removeFirst(entries.count - maximumEntries) }
         entriesByProfile[key.profileID] = entries
+        revisionsByProfile[key.profileID, default: 0] += 1
         persist(profileID: key.profileID, text: nonEmpty.joined(separator: "\n") + "\n")
     }
 
@@ -191,5 +199,72 @@ actor ServiceLogBuffer {
             }
         }
         return longest
+    }
+}
+
+final class ServiceLogIngress: @unchecked Sendable {
+    private struct Key: Hashable {
+        let profileID: UUID
+        let stream: LogStream
+    }
+
+    private let logs: ServiceLogBuffer
+    private let flushDelay: Duration
+    private let lock = NSLock()
+    private var pending: [Key: Data] = [:]
+    private var flushScheduled = false
+    private var scheduledBatchCount = 0
+
+    init(logs: ServiceLogBuffer, flushDelay: Duration = .milliseconds(50)) {
+        self.logs = logs
+        self.flushDelay = flushDelay
+    }
+
+    func enqueue(profileID: UUID, stream: LogStream, data: Data) {
+        guard !data.isEmpty else { return }
+        let shouldSchedule = lock.withLock { () -> Bool in
+            let key = Key(profileID: profileID, stream: stream)
+            pending[key, default: Data()].append(data)
+            guard !flushScheduled else { return false }
+            flushScheduled = true
+            scheduledBatchCount += 1
+            return true
+        }
+        guard shouldSchedule else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: flushDelay)
+            await flushAll()
+        }
+    }
+
+    func flush(profileID: UUID) async {
+        let batches = lock.withLock { takePending(profileID: profileID) }
+        await append(batches)
+    }
+
+    func batchCount() -> Int {
+        lock.withLock { scheduledBatchCount }
+    }
+
+    private func flushAll() async {
+        let batches = lock.withLock { () -> [(Key, Data)] in
+            flushScheduled = false
+            return takePending(profileID: nil)
+        }
+        await append(batches)
+    }
+
+    private func takePending(profileID: UUID?) -> [(Key, Data)] {
+        let keys = pending.keys.filter { profileID == nil || $0.profileID == profileID }
+        return keys.compactMap { key in
+            pending.removeValue(forKey: key).map { (key, $0) }
+        }
+    }
+
+    private func append(_ batches: [(Key, Data)]) async {
+        for (key, data) in batches {
+            await logs.append(profileID: key.profileID, stream: key.stream, data: data)
+        }
     }
 }
