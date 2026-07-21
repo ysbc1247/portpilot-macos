@@ -31,6 +31,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var runtimeIncidents: [UUID: RuntimeIncidentSummary] = [:]
     @Published private(set) var processResourceUsage: [Int32: ProcessResourceUsage] = [:]
     @Published private(set) var projectOperations: [UUID: ProjectOperationStatus] = [:]
+    @Published private(set) var serviceOperations: [UUID: ServiceOperationStatus] = [:]
 
     private let monitor: PortMonitor
     private let lifecycleRouter: any OwnerAwareLifecycleRouting
@@ -436,6 +437,29 @@ final class AppModel: ObservableObject {
         requestedSection = .runtime
     }
 
+    func observedServiceStopTargets(
+        for profile: ManagedServiceConfiguration
+    ) -> [ObservedListener] {
+        let activity = managedServiceActivity(for: profile)
+        guard activity.state == .observed else { return [] }
+        let matches = listeners.filter { activity.matchingListenerIDs.contains($0.id) }
+        var processFingerprints = Set<ProcessFingerprint>()
+        var dockerTargets = Set<String>()
+        return matches.filter { listener in
+            if let docker = listener.process.docker {
+                let key = docker.composeContext.map {
+                    "compose:\($0.projectName):\($0.serviceName)"
+                } ?? "container:\(docker.containerID)"
+                return dockerTargets.insert(key).inserted
+            }
+            return processFingerprints.insert(listener.process.fingerprint).inserted
+        }
+        .sorted { lhs, rhs in
+            if lhs.port != rhs.port { return lhs.port < rhs.port }
+            return lhs.process.fingerprint.pid < rhs.process.fingerprint.pid
+        }
+    }
+
     private func persistOwnership(
         _ conclusion: OwnershipConclusion,
         reportsError: Bool
@@ -607,12 +631,30 @@ final class AppModel: ObservableObject {
 
     func launchProfile(_ profile: ManagedServiceConfiguration, bypassCachedConflict: Bool = false) async {
         let startedAt = Date()
+        guard serviceOperations[profile.id]?.isRunning != true else { return }
+        serviceOperations[profile.id] = ServiceOperationStatus(
+            serviceID: profile.id,
+            kind: .start,
+            phase: .running,
+            completedTargetCount: 0,
+            totalTargetCount: 1,
+            message: String(localized: "Starting \(profile.name)…"),
+            startedAt: startedAt,
+            finishedAt: nil
+        )
         profileFailures[profile.id] = nil
         do {
             try await requireVerifiedRestartTrust(for: profile)
         } catch let error as DevBerthError {
             profileFailures[profile.id] = error.localizedDescription
             presentedError = error
+            finishServiceOperation(
+                profile,
+                kind: .start,
+                phase: .failed,
+                message: error.localizedDescription,
+                startedAt: startedAt
+            )
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
                 processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
@@ -623,11 +665,25 @@ final class AppModel: ObservableObject {
             return
         } catch {
             presentedError = .unexpected(error.localizedDescription)
+            finishServiceOperation(
+                profile,
+                kind: .start,
+                phase: .failed,
+                message: error.localizedDescription,
+                startedAt: startedAt
+            )
             return
         }
         if !bypassCachedConflict,
            let conflict = PortConflictDetector.conflicts(for: profile, listeners: listeners).first {
             pendingLaunchConflict = PendingLaunchConflict(profile: profile, conflict: conflict)
+            finishServiceOperation(
+                profile,
+                kind: .start,
+                phase: .failed,
+                message: String(localized: "Start paused because port \(conflict.expectedPort.port) is occupied."),
+                startedAt: startedAt
+            )
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: conflict.expectedPort.port,
                 processFingerprint: conflict.listener.process.fingerprint, processName: conflict.listener.process.name,
@@ -639,6 +695,13 @@ final class AppModel: ObservableObject {
         do {
             try await launchService.launch(profile)
             runningProfileIDs.insert(profile.id)
+            finishServiceOperation(
+                profile,
+                kind: .start,
+                phase: .succeeded,
+                message: String(localized: "Started \(profile.name)."),
+                startedAt: startedAt
+            )
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
                 processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
@@ -649,6 +712,13 @@ final class AppModel: ObservableObject {
         } catch let error as DevBerthError {
             profileFailures[profile.id] = error.localizedDescription
             presentedError = error
+            finishServiceOperation(
+                profile,
+                kind: .start,
+                phase: .failed,
+                message: error.localizedDescription,
+                startedAt: startedAt
+            )
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
                 processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
@@ -658,6 +728,13 @@ final class AppModel: ObservableObject {
         } catch {
             profileFailures[profile.id] = error.localizedDescription
             presentedError = .unexpected(error.localizedDescription)
+            finishServiceOperation(
+                profile,
+                kind: .start,
+                phase: .failed,
+                message: error.localizedDescription,
+                startedAt: startedAt
+            )
         }
     }
 
@@ -709,23 +786,193 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func stopProfile(_ profile: ManagedServiceConfiguration) async {
+    func stopProfile(
+        _ profile: ManagedServiceConfiguration,
+        confirmsObservedProcess: Bool = false
+    ) async {
+        guard serviceOperations[profile.id]?.isRunning != true else { return }
         let startedAt = Date()
+        let activity = managedServiceActivity(for: profile)
+        let targets = activity.state == .observed ? observedServiceStopTargets(for: profile) : []
+        let totalTargetCount = activity.state == .observed ? max(1, targets.count) : 1
+        serviceOperations[profile.id] = ServiceOperationStatus(
+            serviceID: profile.id,
+            kind: .stop,
+            phase: .running,
+            completedTargetCount: 0,
+            totalTargetCount: totalTargetCount,
+            message: activity.state == .observed
+                ? String(localized: "Revalidating the observed owner of \(profile.name)…")
+                : String(localized: "Stopping \(profile.name)…"),
+            startedAt: startedAt,
+            finishedAt: nil
+        )
         do {
-            try await launchService.stop(profileID: profile.id, timeoutSeconds: profile.shutdownTimeoutSeconds)
-            runningProfileIDs.remove(profile.id)
-            await record(HistoryEvent(
-                id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
-                processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
-                profileID: profile.id, type: .processStopped, result: .succeeded,
-                errorDetails: nil, durationSeconds: Date().timeIntervalSince(startedAt)
-            ))
+            let stoppedTargets = try await performServiceStop(
+                profile,
+                activity: activity,
+                observedTargets: targets,
+                confirmsObservedProcess: confirmsObservedProcess
+            )
+            finishServiceOperation(
+                profile,
+                kind: .stop,
+                phase: .succeeded,
+                completedTargetCount: stoppedTargets,
+                totalTargetCount: max(stoppedTargets, totalTargetCount),
+                message: activity.state == .stopped
+                    ? String(localized: "\(profile.name) is already stopped.")
+                    : String(localized: "Stopped \(profile.name). Refreshing runtime evidence…"),
+                startedAt: startedAt
+            )
             refreshNow()
         } catch let error as DevBerthError {
             presentedError = error
+            finishServiceOperation(
+                profile,
+                kind: .stop,
+                phase: .failed,
+                message: error.localizedDescription,
+                startedAt: startedAt
+            )
         } catch {
             presentedError = .unexpected(error.localizedDescription)
+            finishServiceOperation(
+                profile,
+                kind: .stop,
+                phase: .failed,
+                message: error.localizedDescription,
+                startedAt: startedAt
+            )
         }
+    }
+
+    func dismissServiceOperation(_ serviceID: UUID) {
+        guard serviceOperations[serviceID]?.isRunning != true else { return }
+        serviceOperations.removeValue(forKey: serviceID)
+    }
+
+    private func performServiceStop(
+        _ profile: ManagedServiceConfiguration,
+        activity: ManagedServiceActivityEvidence,
+        observedTargets: [ObservedListener],
+        confirmsObservedProcess: Bool
+    ) async throws -> Int {
+        switch activity.state {
+        case .controlled:
+            try await launchService.stop(
+                profileID: profile.id,
+                timeoutSeconds: profile.shutdownTimeoutSeconds
+            )
+            runningProfileIDs.remove(profile.id)
+            await record(HistoryEvent(
+                id: UUID(), timestamp: Date(), port: profile.expectedPorts.first?.port,
+                processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
+                profileID: profile.id, type: .processStopped, result: .succeeded,
+                errorDetails: nil, durationSeconds: nil
+            ))
+            return 1
+        case .observed:
+            guard confirmsObservedProcess else {
+                throw DevBerthError.unexpected(
+                    "Stopping \(profile.name) will terminate process or container activity that DevBerth did not launch. Confirm the observed-runtime stop before continuing."
+                )
+            }
+            guard !observedTargets.isEmpty else {
+                throw DevBerthError.unexpected(
+                    "The observed runtime for \(profile.name) changed before the stop. Refresh and try again."
+                )
+            }
+            var completed = 0
+            for listener in observedTargets {
+                serviceOperations[profile.id] = ServiceOperationStatus(
+                    serviceID: profile.id,
+                    kind: .stop,
+                    phase: .running,
+                    completedTargetCount: completed,
+                    totalTargetCount: observedTargets.count,
+                    message: String(localized: "Stopping observed owner \(completed + 1) of \(observedTargets.count) for \(profile.name)…"),
+                    startedAt: serviceOperations[profile.id]?.startedAt ?? Date(),
+                    finishedAt: nil
+                )
+                try await stopObservedServiceTarget(listener, profile: profile)
+                completed += 1
+            }
+            return completed
+        case .stopped:
+            runningProfileIDs.remove(profile.id)
+            return 0
+        }
+    }
+
+    private func stopObservedServiceTarget(
+        _ listener: ObservedListener,
+        profile: ManagedServiceConfiguration
+    ) async throws {
+        let pid = listener.process.fingerprint.pid
+        guard !processesBeingControlled.contains(pid) else {
+            throw DevBerthError.unexpected("A lifecycle action is already in progress for PID \(pid).")
+        }
+        processesBeingControlled.insert(pid)
+        defer { processesBeingControlled.remove(pid) }
+        let startedAt = Date()
+        let graph = await ownershipResolver.resolve(listener: listener)
+        ownershipGraphs[listener.id] = graph
+        await persistOwnership(graph.primaryConclusion, reportsError: false)
+        do {
+            let outcome = try await lifecycleRouter.perform(
+                .gracefulStop,
+                on: graph,
+                forceConfirmed: false
+            )
+            guard outcome.didStop else { throw DevBerthError.unexpected(outcome.summary) }
+            await record(HistoryEvent(
+                id: UUID(), timestamp: startedAt, port: listener.port,
+                processFingerprint: listener.process.fingerprint,
+                processName: listener.process.name,
+                projectID: profile.projectID,
+                profileID: profile.id,
+                type: .gracefulStopRequested,
+                result: .succeeded,
+                errorDetails: outcome.summary,
+                durationSeconds: outcome.durationSeconds
+            ))
+        } catch {
+            await record(HistoryEvent(
+                id: UUID(), timestamp: startedAt, port: listener.port,
+                processFingerprint: listener.process.fingerprint,
+                processName: listener.process.name,
+                projectID: profile.projectID,
+                profileID: profile.id,
+                type: .gracefulStopRequested,
+                result: .failed,
+                errorDetails: error.localizedDescription,
+                durationSeconds: Date().timeIntervalSince(startedAt)
+            ))
+            throw error
+        }
+    }
+
+    private func finishServiceOperation(
+        _ profile: ManagedServiceConfiguration,
+        kind: ProjectOperationKind,
+        phase: ProjectOperationPhase,
+        completedTargetCount: Int? = nil,
+        totalTargetCount: Int? = nil,
+        message: String,
+        startedAt: Date
+    ) {
+        let current = serviceOperations[profile.id]
+        serviceOperations[profile.id] = ServiceOperationStatus(
+            serviceID: profile.id,
+            kind: kind,
+            phase: phase,
+            completedTargetCount: completedTargetCount ?? current?.completedTargetCount ?? 0,
+            totalTargetCount: totalTargetCount ?? current?.totalTargetCount ?? 1,
+            message: message,
+            startedAt: startedAt,
+            finishedAt: Date()
+        )
     }
 
     func startProject(_ profiles: [ManagedServiceConfiguration]) async {
@@ -873,14 +1120,20 @@ final class AppModel: ObservableObject {
         try await restartTrustStore.record(assessment)
     }
 
-    func stopProject(_ profiles: [ManagedServiceConfiguration]) async {
+    func stopProject(
+        _ profiles: [ManagedServiceConfiguration],
+        confirmsObservedProcesses: Bool = false
+    ) async {
         guard let projectID = exactProjectID(for: profiles) else {
             presentedError = .unexpected(String(localized: "Project shutdown requires one non-empty project definition."))
             return
         }
         guard projectOperations[projectID]?.isRunning != true else { return }
 
-        let targets = profiles.filter { managedServiceActivity(for: $0).state == .controlled }
+        let activities = profiles.reduce(into: [UUID: ManagedServiceActivityEvidence]()) {
+            $0[$1.id] = managedServiceActivity(for: $1)
+        }
+        let targets = profiles.filter { activities[$0.id]?.state != .stopped }
         let targetIDs = Set(targets.map(\.id))
         let skippedIDs = Set(profiles.map(\.id)).subtracting(targetIDs)
         let startedAt = Date()
@@ -891,7 +1144,7 @@ final class AppModel: ObservableObject {
                 phase: .succeeded,
                 completedServiceCount: 0,
                 totalServiceCount: 0,
-                message: String(localized: "No DevBerth-controlled project services are running."),
+                message: String(localized: "All project services are already stopped."),
                 startedAt: startedAt,
                 finishedAt: Date()
             )
@@ -903,31 +1156,78 @@ final class AppModel: ObservableObject {
             phase: .running,
             completedServiceCount: 0,
             totalServiceCount: targets.count,
-            message: String(localized: "Stopping \(targets.count) controlled service(s) in reverse dependency order…"),
+            message: String(localized: "Stopping \(targets.count) service(s) in reverse dependency order…"),
             startedAt: startedAt,
             finishedAt: nil
         )
         do {
-            try await projectOrchestrator.stop(
-                profiles: profiles,
-                skippingProfileIDs: skippedIDs
-            ) { [weak self] completed, total in
-                await self?.updateProjectOperation(
-                    projectID: projectID,
-                    kind: .stop,
-                    completed: completed,
-                    total: total,
-                    message: completed == 0
-                        ? String(localized: "Stopping the first reverse dependency layer…")
-                        : String(localized: "Stopped \(completed) of \(total) service(s)…"),
-                    startedAt: startedAt
+            let observedTargets = targets.filter { activities[$0.id]?.state == .observed }
+            guard observedTargets.isEmpty || confirmsObservedProcesses else {
+                throw DevBerthError.unexpected(
+                    "Stopping this project includes \(observedTargets.count) service(s) that DevBerth did not launch. Confirm the observed-runtime stop before continuing."
                 )
+            }
+            let layers = try DependencyPlanner.orderedLayers(for: profiles)
+            var completed = 0
+            for layer in layers.reversed() {
+                for profile in layer where targetIDs.contains(profile.id) {
+                    guard let activity = activities[profile.id] else { continue }
+                    let serviceStartedAt = Date()
+                    let observed = activity.state == .observed
+                        ? observedServiceStopTargets(for: profile)
+                        : []
+                    serviceOperations[profile.id] = ServiceOperationStatus(
+                        serviceID: profile.id,
+                        kind: .stop,
+                        phase: .running,
+                        completedTargetCount: 0,
+                        totalTargetCount: max(1, observed.count),
+                        message: String(localized: "Stopping \(profile.name)…"),
+                        startedAt: serviceStartedAt,
+                        finishedAt: nil
+                    )
+                    do {
+                        let stoppedTargets = try await performServiceStop(
+                            profile,
+                            activity: activity,
+                            observedTargets: observed,
+                            confirmsObservedProcess: confirmsObservedProcesses
+                        )
+                        finishServiceOperation(
+                            profile,
+                            kind: .stop,
+                            phase: .succeeded,
+                            completedTargetCount: stoppedTargets,
+                            totalTargetCount: max(stoppedTargets, 1),
+                            message: String(localized: "Stopped \(profile.name)."),
+                            startedAt: serviceStartedAt
+                        )
+                    } catch {
+                        finishServiceOperation(
+                            profile,
+                            kind: .stop,
+                            phase: .failed,
+                            message: error.localizedDescription,
+                            startedAt: serviceStartedAt
+                        )
+                        throw error
+                    }
+                    completed += 1
+                    updateProjectOperation(
+                        projectID: projectID,
+                        kind: .stop,
+                        completed: completed,
+                        total: targets.count,
+                        message: String(localized: "Stopped \(completed) of \(targets.count) service(s)…"),
+                        startedAt: startedAt
+                    )
+                }
             }
             runningProfileIDs.subtract(targetIDs)
             let duration = Date().timeIntervalSince(startedAt)
             let skippedMessage = skippedIDs.isEmpty
                 ? ""
-                : String(localized: " \(skippedIDs.count) stopped or observed service(s) were left unchanged.")
+                : String(localized: " \(skippedIDs.count) already-stopped service(s) were left unchanged.")
             projectOperations[projectID] = ProjectOperationStatus(
                 projectID: projectID,
                 kind: .stop,

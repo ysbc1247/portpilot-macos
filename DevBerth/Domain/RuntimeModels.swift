@@ -97,6 +97,20 @@ struct ProjectOperationStatus: Hashable, Sendable, Identifiable {
     }
 }
 
+struct ServiceOperationStatus: Hashable, Sendable, Identifiable {
+    var id: UUID { serviceID }
+    let serviceID: UUID
+    let kind: ProjectOperationKind
+    let phase: ProjectOperationPhase
+    let completedTargetCount: Int
+    let totalTargetCount: Int
+    let message: String
+    let startedAt: Date
+    let finishedAt: Date?
+
+    var isRunning: Bool { phase == .running }
+}
+
 enum RestartPolicyEvaluator {
     static func shouldRestart(
         policy: RestartPolicy,
