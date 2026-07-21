@@ -52,11 +52,12 @@ final class PerformanceSoakTests: XCTestCase {
         var previous: [ObservedListener] = []
 
         for cycle in 0..<iterations {
-            let listeners = (0..<25).map { offset in
-                makeListener(
-                    port: UInt16(45_000 + offset),
-                    pid: Int32(20_000 + ((cycle + offset) % 40))
-                )
+            var listeners: [ObservedListener] = []
+            listeners.reserveCapacity(25)
+            for offset in 0..<25 {
+                let port = UInt16(45_000 + offset)
+                let pid = Int32(20_000 + ((cycle + offset) % 40))
+                listeners.append(makeListener(port: port, pid: pid))
             }
             let diff = RuntimeDiffer.diff(previous: previous, current: listeners)
             previous = listeners
