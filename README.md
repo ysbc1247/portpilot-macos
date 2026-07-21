@@ -53,9 +53,17 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 
 Open `DevBerth.xcodeproj` in Xcode to run the signed development app. The committed project is generated from `project.yml`; install [XcodeGen](https://github.com/yonaskolb/XcodeGen) and run `xcodegen generate` after changing project structure.
 
+For the stable local Release app used day to day, run:
+
+```bash
+Scripts/build-and-install-app
+```
+
+This builds once, validates the signed bundle, atomically refreshes `/Applications/DevBerth.app`, and installs the matching MCP helper at `~/Library/Application Support/DevBerth/bin/devberth-mcp`. Add `--open-full-disk-access` to open the correct System Settings pane after installation; macOS still requires the user to add or enable DevBerth.
+
 ## Codex and MCP
 
-Open **DevBerth → Settings → Integrations → Codex & MCP**, install or repair the bundled helper, preview the global or project-scoped configuration, then apply it. The stable helper path is:
+Open **DevBerth → Settings → Integrations → Codex & MCP** and choose **Set Up / Repair Codex MCP** for the one-step helper installation, safe global TOML update, and connection check. The individual install, preview, global/project configuration, and validation controls remain available for explicit workflows. The stable helper path is:
 
 ```text
 ~/Library/Application Support/DevBerth/bin/devberth-mcp
@@ -71,7 +79,7 @@ startup_timeout_sec = 10
 tool_timeout_sec = 120
 ```
 
-The Settings flow preserves unrelated TOML, rejects duplicate DevBerth tables and symlinks, previews the exact change, writes atomically, and keeps a timestamped backup. See [MCP overview](Documentation/MCP_OVERVIEW.md), [tool reference](Documentation/MCP_TOOL_REFERENCE.md), and [development mode](Documentation/MCP_DEVELOPMENT.md).
+The Settings flow preserves unrelated TOML, rejects duplicate DevBerth tables and symlinks, previews the exact change, writes atomically, and keeps a timestamped backup. The `manage_local_development` prompt tells compatible clients to use DevBerth resources and tools proactively and to report concrete MCP gaps instead of silently bypassing the control plane. See [MCP overview](Documentation/MCP_OVERVIEW.md), [tool reference](Documentation/MCP_TOOL_REFERENCE.md), and [development mode](Documentation/MCP_DEVELOPMENT.md).
 
 ## Test
 

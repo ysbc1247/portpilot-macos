@@ -1,5 +1,142 @@
 # DevBerth engineering rules
 
+## Working Method
+
+### Think Before Coding
+
+- Don't assume. Don't hide confusion. Surface tradeoffs.
+- Before implementing:
+  - State your assumptions explicitly. If uncertain, ask.
+  - If multiple interpretations exist, present them; don't pick silently.
+  - If a simpler approach exists, say so. Push back when warranted.
+  - If something is unclear, stop. Name what's confusing. Ask.
+
+### Simplicity First
+
+- Use the minimum code that solves the problem. Nothing speculative.
+- Do not add features beyond what was asked.
+- Do not add abstractions for single-use code.
+- Do not add flexibility or configurability that wasn't requested.
+- Do not add error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+- Ask: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### Surgical Changes
+
+- Touch only what you must. Clean up only your own mess.
+- When editing existing code:
+  - Don't improve adjacent code, comments, or formatting.
+  - Don't refactor things that aren't broken.
+  - Match existing style, even if you'd do it differently.
+  - If you notice unrelated dead code, mention it; don't delete it.
+- When your changes create orphans:
+  - Remove imports, variables, and functions that your changes made unused.
+  - Don't remove pre-existing dead code unless asked.
+- Every changed line must trace directly to the user's request.
+
+### Goal-Driven Execution
+
+- Define success criteria and loop until verified.
+- Transform tasks into verifiable goals:
+  - "Add validation" → write tests for invalid inputs, then make them pass.
+  - "Fix the bug" → write a test that reproduces it, then make it pass.
+  - "Refactor X" → ensure tests pass before and after.
+- For multi-step tasks, state a brief plan:
+  - [Step] → verify: [check]
+  - [Step] → verify: [check]
+  - [Step] → verify: [check]
+- Strong success criteria should support independent execution. If criteria remain weak or ambiguous, stop and clarify.
+
+## Git Workflow
+
+- Every repository-changing task must start on a new task branch.
+- Create task branches from an up-to-date `main` branch unless the user names a different base.
+- When the user asks for follow-on work after a branch or PR already contains the previous finished work, create the next task branch from that finished branch unless the user explicitly asks to restart from `main`.
+- Use a gitflow-style branch prefix that matches the task type. Choose the narrowest accurate prefix:
+  - `feat/<short-task-name>` for user-facing features or strategy capabilities.
+  - `fix/<short-task-name>` for bug fixes.
+  - `docs/<short-task-name>` for documentation, research notes, protocol changes, and agent-rule updates.
+  - `data/<short-task-name>` for data layout, metadata, manifests, and mirrored data-root README work.
+  - `model/<short-task-name>` for modeling, ML, feature, labeling, training, or evaluation changes.
+  - `test/<short-task-name>` for test-only work.
+  - `chore/<short-task-name>` for maintenance that does not fit the categories above.
+- Do not use `codex/` as a branch prefix in this repository.
+- Do not include personal names, usernames, or agent names in branch names, including `theo`; use task-purpose descriptors instead.
+- Do not place task commits directly on `main`.
+- Git commits should be grouped by coherent reviewable change, not strictly by file count.
+- A same-family bulk update may be one commit even when it touches many files. Examples: updating every blog post for a writing-style pass, regenerating paired bilingual post metadata, or changing one content schema across all entries.
+- Different implementation layers must still be split into separate commits. For example, JavaScript/TypeScript/Astro/React behavior changes and CSS styling changes should be two commits even when they serve the same user request.
+- If one task involves multiple layers, shard the commits by layer or review milestone. Typical layers include content/data, component or application code, styling, tests, documentation, config, and generated artifacts.
+- Stage only the files that belong to the current logical commit group.
+- Each commit message must clearly name the layer or artifact family and the purpose of the change.
+- Git operations do not require additional user permission. Commit, push, branch, and related Git operations may be performed without asking first.
+- If a Git operation produces unwanted behavior, the user will revert it manually.
+- Never mix unrelated files or unrelated layers in the same commit, even when changes were made during the same task.
+- When a simple non-stacked task is finished, push the task branch to the configured private GitHub remote and open a pull request targeting `main`.
+- When a task is sharded into a stack, do not apply the simple-task target rule to child shards; each child PR must target its immediate parent branch.
+- Do not merge the pull request just because the task is finished. Wait for the user to invoke the merge command.
+- Preserve the logical commit-group history when merging. Do not squash unless the user explicitly asks for a squash merge.
+
+## Stacked Pull Request Protocol
+
+- Use stacked pull requests when a task is large enough to split into dependent implementation jobs. The agent must decide whether sharding is appropriate automatically.
+- Before editing files on a multi-step task, classify the task as simple or multi-step.
+- If the task spans multiple implementation layers, phases, or reviewable milestones, shard it proactively.
+- Treat these as mandatory stack triggers:
+  - The task changes strategy code, tests, documentation, and generated data mirrors in the same request.
+  - The task creates or changes more than one diagnostic, gate family, report family, data contract, or artifact directory.
+  - The task includes both implementation and large local artifact generation.
+  - The task asks for broad or deep research plus implementation plus documentation.
+  - The task is expected to produce more than one coherent review milestone.
+- These triggers are binding. Do not treat them as suggestions, and do not continue editing files until the shard plan is reflected in branches and PR targets.
+- Cross-layer feature separation is mandatory:
+  - Backend DB/data contract, backend API/application code, frontend API types/client wiring, frontend UI, tests, and documentation are separate review milestones when more than one of them is non-trivial.
+  - Create stacked branches in dependency order instead of one broad branch.
+- Before file edits on any mandatory-stack task, state the shard plan in a brief progress update, including branch name, PR target, and success criteria for each shard.
+- Do not create artificial stacks for tiny tasks where one branch and one PR is clearer.
+
+## Stack Branch and PR Convention
+
+- Create the first shard branch from up-to-date `main`, for example `docs/stacked-pr-rules`.
+- Open the first shard PR against `main`.
+- Create the second shard branch from the first shard branch, not from `main`.
+- Open the second shard PR against the first shard branch.
+- Continue in dependency order: branch C starts from branch B and PR C targets branch B.
+- The branch parent and the GitHub PR base must match the same immediate predecessor.
+- Never flatten a stack by branching every shard from `main` or by opening every stacked PR against `main`.
+- Before opening or updating a stacked PR, verify its `headRefName` and `baseRefName` preserve the chain.
+- If a child PR points at the wrong base, retarget it to the immediate parent branch before continuing.
+- Use the same gitflow-style prefixes for stacked branches, choosing the prefix by shard type.
+- Preserve logical commit grouping inside every stack branch.
+- When a lower stack branch changes, update higher stack branches by rebasing or merging the parent branch into the child branch, resolving only mechanical conflicts without asking.
+- Protect the stack dependency graph.
+- A branch that is the base of another open pull request must not be deleted, pruned, or auto-deleted after merge until every child pull request has been retargeted away from that branch or merged.
+- Before merging or deleting any stacked branch, inspect open pull requests for `baseRefName` and `headRefName` relationships so dependent pull requests are known explicitly.
+- If GitHub branch deletion would close or orphan a dependent pull request, disable branch deletion for that merge and keep the parent branch alive until the child pull request is safely retargeted.
+
+## Merge Command Protocol
+
+- When the user says `merge`, treat it as a request to merge all pull requests for the current task into `main` sequentially and gracefully.
+- Identify every relevant pull request.
+- Prefer the PR or PR stack associated with the current branch.
+- If there are multiple plausible unrelated PRs, ask the user which task or stack to merge.
+- If the task uses a stack, identify the full stack order before merging.
+- Merge stacked PRs from the base of the stack toward the tip.
+- Merge the PR whose base is `main` first, then update or retarget the next PR so it can merge into `main`, and continue upward until every PR in the stack has been merged or a blocker requires user input.
+- Inspect PR status, branch names, and outstanding checks before each PR merge.
+- During stacked merges, do not use branch auto-deletion for any merged PR while another open PR still targets that branch as its base.
+- Retarget the child PR first, or keep the merged branch alive until the whole stack is merged.
+- After a lower stacked PR is merged into `main`, update local `main` from `origin/main`, retarget the next child PR to `main`, verify that GitHub still shows it open and mergeable, then continue.
+- Delete or prune stacked branches only after confirming no open pull request uses the branch as either `baseRefName` or `headRefName`.
+- If each PR can merge cleanly, merge it into `main` while preserving the logical task history.
+- After each successful merge, update local `main` from `origin/main`, then continue to the next PR in the sequence.
+- After the full sequence succeeds, switch back to `main`, update it from `origin/main`, and report every merged PR, branch, and commit range.
+- If GitHub or Git reports conflicts, resolve them locally when the resolution is mechanical and low-risk.
+- If a conflict requires a product, strategy, data, or research judgment, stop and ask the user what to keep instead of guessing.
+- If checks are failing or required review is missing on any PR in the sequence, report the blocker, leave the remaining PRs unmerged, and do not force-merge unless the user explicitly instructs that exact action.
+
+## DevBerth Engineering Rules
+
 - Target macOS 14 or newer with SwiftUI and Swift Concurrency. Use AppKit only when a native SwiftUI API cannot provide the required behavior.
 - Keep sources compilable with the repository's Xcode 16.4 CI baseline. Do not reference newer-SDK declarations merely behind `#available`; use a baseline declaration or a narrowly reviewed runtime symbol boundary when the underlying macOS 14 capability exists.
 - Keep transient runtime models in `DevBerth/Domain` and SwiftData records in `DevBerth/Persistence`; never persist live `Process` objects.
@@ -40,6 +177,9 @@
 - MCP mutations must use stable entity IDs and optimistic revisions. Runtime mutations must use stable listener IDs plus fresh fingerprint/ownership evidence. Destructive actions require an unexpired, single-use `operation_preview`; coordinated changes require an unexpired, single-use `change_set_preview`.
 - Keep development MCP mode Debug-only, in-memory, and scoped to application-owned fixtures. Release tool discovery and argument parsing must exclude every `dev_*` capability and reject `--development`.
 - Treat `DevBerthControlContracts/CapabilityRegistry.swift` as the executable MCP parity contract. Any GUI/control capability, schema, annotation, approval, resource, prompt, error, or build-availability change must update registry tests and the corresponding `Documentation/MCP_*.md` reference.
+- Prefer the installed DevBerth MCP resources and tools for runtime, project, service, session, port, Docker, history, and safe-settings work. If a needed MCP capability is absent, unreliable, or awkward, record the exact friction and improve the shared registry/control-plane/helper/docs/tests instead of silently bypassing it with a parallel implementation.
 - Regenerate `DevBerth.xcodeproj` with `xcodegen generate` after changing `project.yml`.
 - Validate locally with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project DevBerth.xcodeproj -scheme DevBerth -destination 'platform=macOS' test`.
+- After every code modification and proportionate validation, run `Scripts/build-and-install-app` before handoff. It must refresh the stable `/Applications/DevBerth.app` and `~/Library/Application Support/DevBerth/bin/devberth-mcp` locations from the same Release build; never leave the user pointing at a stale DerivedData bundle.
+- Full Disk Access is always user-controlled: DevBerth may open System Settings directly to the Full Disk Access pane, but it must never claim to grant or verify that permission automatically. Use `Scripts/build-and-install-app --open-full-disk-access` when the task explicitly includes the permission handoff.
 - Architectural boundary or contract changes require matching updates to this file and `Documentation/ARCHITECTURE.md` (or the relevant `docs/implementations/*/README.md`).
