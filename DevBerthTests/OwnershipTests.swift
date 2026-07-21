@@ -33,7 +33,7 @@ final class OwnershipTests: XCTestCase {
         let listener = ownershipListener(command: "node server.js", executable: "/opt/homebrew/bin/node")
         let cases: [([String], OwnershipCategory, LifecycleControllerKind)] = [
             (["Codex"], .codingAgentLaunchedProcess, .guardedExternalProcess),
-            (["nodemon"], .supervisorManagedProcess, .unavailable),
+            (["nodemon"], .supervisorManagedProcess, .guardedExternalProcess),
             (["Xcode"], .ideLaunchedProcess, .guardedExternalProcess),
             (["iTerm2"], .terminalLaunchedProcess, .guardedExternalProcess),
             (["zsh"], .shellLaunchedProcess, .guardedExternalProcess)
@@ -67,9 +67,17 @@ final class OwnershipTests: XCTestCase {
 
         XCTAssertEqual(classification(homebrew).category, .homebrewService)
         XCTAssertEqual(classification(homebrew).confidence, .stronglyInferred)
+        XCTAssertEqual(classification(homebrew).recommendation.controllerKind, .guardedExternalProcess)
+        XCTAssertEqual(
+            classification(homebrew).recommendation.supportedActions,
+            [.inspect, .gracefulStop, .forceStop]
+        )
         XCTAssertEqual(classification(agent).category, .launchAgent)
+        XCTAssertEqual(classification(agent).recommendation.controllerKind, .guardedExternalProcess)
+        XCTAssertTrue(classification(agent).recommendation.reason.contains("does not prove"))
         XCTAssertEqual(classification(daemon).category, .launchDaemon)
-        XCTAssertTrue(classification(agent).recommendation.reason.contains("may trigger"))
+        XCTAssertEqual(classification(daemon).recommendation.controllerKind, .launchdService)
+        XCTAssertEqual(classification(daemon).recommendation.supportedActions, [.inspect])
     }
 
     func testStrongUnrecognizedProcessIsOnlyWeaklyInferredStandalone() {
@@ -207,9 +215,9 @@ final class OwnershipTests: XCTestCase {
         XCTAssertEqual(graph.primaryConclusion.category, .dockerComposeService)
         XCTAssertEqual(graph.primaryConclusion.value, "demo/api")
         XCTAssertEqual(graph.primaryConclusion.detectionMethod, .composeMetadata)
-        XCTAssertEqual(graph.recommendation.controllerKind, .dockerComposeService)
-        XCTAssertEqual(graph.recommendation.supportedActions, [.inspect])
-        XCTAssertTrue(graph.recommendation.reason.contains("host-side process"))
+        XCTAssertEqual(graph.recommendation.controllerKind, .dockerContainer)
+        XCTAssertEqual(graph.recommendation.supportedActions, [.inspect, .gracefulStop, .restart])
+        XCTAssertTrue(graph.recommendation.reason.contains("exact Engine ID"))
     }
 
     func testLineageProviderBoundsCyclesAndPreservesObservedRoot() async {

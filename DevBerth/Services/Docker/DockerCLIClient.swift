@@ -504,10 +504,21 @@ private extension DockerContextPath {
         guard let safePath = path.strictDockerPath else {
             throw DevBerthError.ownerActionUnavailable(owner: path, reason: "The Compose path is not a safe absolute path.")
         }
-        let url = URL(fileURLWithPath: safePath)
-        let canonicalURL = url.standardizedFileURL.resolvingSymlinksInPath()
-        guard canonicalURL.path == url.standardizedFileURL.path else {
-            throw DevBerthError.ownerActionUnavailable(owner: safePath, reason: "Compose context paths containing symbolic links are not trusted for mutation.")
+        var checkedPath = "/"
+        for component in URL(fileURLWithPath: safePath).pathComponents.dropFirst() {
+            checkedPath = URL(fileURLWithPath: checkedPath, isDirectory: true)
+                .appendingPathComponent(component)
+                .path
+            var componentMetadata = stat()
+            guard Darwin.lstat(checkedPath, &componentMetadata) == 0 else {
+                throw DevBerthError.ownerActionUnavailable(
+                    owner: safePath,
+                    reason: expectsDirectory ? "The Compose working directory is unavailable." : "A Compose context file is unavailable or not a regular file."
+                )
+            }
+            guard componentMetadata.st_mode & mode_t(S_IFMT) != mode_t(S_IFLNK) else {
+                throw DevBerthError.ownerActionUnavailable(owner: safePath, reason: "Compose context paths containing symbolic links are not trusted for mutation.")
+            }
         }
         var metadata = stat()
         guard Darwin.lstat(safePath, &metadata) == 0 else {

@@ -217,26 +217,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
 
         let deadline = Date().addingTimeInterval(max(0.2, timeoutSeconds))
         while Date() < deadline {
-            let stopped: Bool
-            switch managed.runtime.processPolicy.terminationScope {
-            case .controlledProcessGroup:
-                if !groupOperator.processGroupExists(managed.runtime.processGroupID) {
-                    stopped = true
-                } else {
-                    let remaining = try await groupInspector.snapshot(
-                        for: managed.runtime,
-                        listenerOwnerPIDs: []
-                    )
-                    stopped = !remaining.liveControlledMembers.contains { $0.fingerprint.isStrong }
-                }
-            case .rootProcessOnly:
-                let verification = try await fingerprintVerifier.verify(managed.runtime.leaderFingerprint)
-                stopped = verification == .notFound || {
-                    if case .mismatched = verification { return true }
-                    return false
-                }()
-            }
-            if stopped {
+            if try await managedScopeHasStopped(managed) {
                 if let removed = await remove(profileID: profileID) {
                     await lifecycle.transition(.stopped(
                         serviceID: profileID,
@@ -248,8 +229,53 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
             }
             try await Task.sleep(for: .milliseconds(100))
         }
+
+        let forceListenerOwnerPIDs = await currentListenerOwnerPIDs(for: managed)
+        let forceSnapshot = try await groupInspector.snapshot(
+            for: managed.runtime,
+            listenerOwnerPIDs: forceListenerOwnerPIDs
+        )
+        guard !forceSnapshot.liveControlledMembers.isEmpty else {
+            if let removed = await remove(profileID: profileID) {
+                await lifecycle.transition(.stopped(
+                    serviceID: profileID,
+                    runtimeID: removed.runtime.id,
+                    reason: "Managed process scope stopped after its graceful timeout."
+                ))
+            }
+            return
+        }
+        try await validateOwnership(of: managed, current: forceSnapshot)
+        for member in forceSnapshot.liveControlledMembers where member.fingerprint.isStrong {
+            managed.knownFingerprints[member.fingerprint.pid] = member.fingerprint
+        }
+        managed.latestSnapshot = forceSnapshot
+        running[profileID] = managed
+        await runtimeRegistry.update(snapshot: forceSnapshot, forServiceID: profileID)
+
+        switch managed.runtime.processPolicy.terminationScope {
+        case .controlledProcessGroup:
+            try groupOperator.send(signal: SIGKILL, toProcessGroup: managed.runtime.processGroupID)
+        case .rootProcessOnly:
+            try groupOperator.send(signal: SIGKILL, toProcess: managed.runtime.leaderFingerprint.pid)
+        }
+
+        let forceDeadline = Date().addingTimeInterval(2)
+        while Date() < forceDeadline {
+            if try await managedScopeHasStopped(managed) {
+                if let removed = await remove(profileID: profileID) {
+                    await lifecycle.transition(.stopped(
+                        serviceID: profileID,
+                        runtimeID: removed.runtime.id,
+                        reason: "Managed process scope required force escalation after a revalidated graceful timeout."
+                    ))
+                }
+                return
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
         throw DevBerthError.unexpected(
-            "The managed \(managed.runtime.processPolicy.terminationScope == .controlledProcessGroup ? "process group" : "root process") did not stop before its graceful shutdown timeout. Review its current ownership before force stopping it."
+            "The managed \(managed.runtime.processPolicy.terminationScope == .controlledProcessGroup ? "process group" : "root process") remained active after revalidated graceful and force stop attempts."
         )
     }
 
@@ -330,6 +356,23 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
                 ? listener.process.fingerprint.pid
                 : nil
         })
+    }
+
+    private func managedScopeHasStopped(_ managed: ManagedProcess) async throws -> Bool {
+        switch managed.runtime.processPolicy.terminationScope {
+        case .controlledProcessGroup:
+            guard groupOperator.processGroupExists(managed.runtime.processGroupID) else { return true }
+            let remaining = try await groupInspector.snapshot(
+                for: managed.runtime,
+                listenerOwnerPIDs: []
+            )
+            return !remaining.liveControlledMembers.contains { $0.fingerprint.isStrong }
+        case .rootProcessOnly:
+            let verification = try await fingerprintVerifier.verify(managed.runtime.leaderFingerprint)
+            if verification == .notFound { return true }
+            if case .mismatched = verification { return true }
+            return false
+        }
     }
 
     private func installLogReaders(for profileID: UUID, process: SpawnedManagedProcess) {
