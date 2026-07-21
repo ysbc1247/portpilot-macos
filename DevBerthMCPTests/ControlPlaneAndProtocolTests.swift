@@ -30,6 +30,39 @@ final class CapabilityParityTests: XCTestCase {
         XCTAssertTrue(ControlErrorCode.allCases.contains(.productionDataProtected))
         XCTAssertLessThanOrEqual(ControlProtocolConstants.maximumFrameBytes, 4 * 1_024 * 1_024)
     }
+
+    func testResponseEncodingMatchesPublishedSnakeCaseEnvelope() throws {
+        let response = ControlResponse(
+            requestID: "request-1",
+            snapshotVersion: 42,
+            data: .object(["ok": .bool(true)]),
+            nextCursor: "cursor-2"
+        )
+        let encoded = try JSONEncoder.devBerth.encode(response)
+        let object = try XCTUnwrap(try JSONDecoder.devBerth.decode(JSONValue.self, from: encoded).objectValue)
+        let required = try XCTUnwrap(
+            ControlCapabilityRegistry.productionTools.first?.outputSchema["required"]?.arrayValue?.compactMap(\.stringValue)
+        )
+        XCTAssertTrue(required.allSatisfy { object[$0] != nil })
+        XCTAssertEqual(object["schema_version"], .string("1"))
+        XCTAssertEqual(object["request_id"], .string("request-1"))
+        XCTAssertEqual(object["snapshot_version"], .number(42))
+        XCTAssertEqual(object["next_cursor"], .string("cursor-2"))
+        XCTAssertNil(object["schemaVersion"])
+        XCTAssertNil(object["snapshotVersion"])
+
+        let failure = ControlResponse(
+            requestID: "request-2",
+            snapshotVersion: 43,
+            failure: .init(code: .entityChanged, message: "Changed.", recoverySuggestion: "Inspect again.")
+        )
+        let failureObject = try XCTUnwrap(
+            try JSONDecoder.devBerth.decode(JSONValue.self, from: JSONEncoder.devBerth.encode(failure)).objectValue
+        )
+        XCTAssertEqual(failureObject["error"]?["code"], .string("entity_changed"))
+        XCTAssertEqual(failureObject["error"]?["recovery_suggestion"], .string("Inspect again."))
+        XCTAssertNotNil(ControlCapabilityRegistry.productionTools.first?.outputSchema["properties"]?["error"])
+    }
 }
 
 final class ApplicationControlPlaneTests: XCTestCase {
@@ -471,7 +504,7 @@ final class MCPStdioProtocolTests: XCTestCase {
         XCTAssertEqual((progress.last?["params"] as? [String: Any])?["progress"] as? NSNumber, 1)
         let callResult = try result(id: 5, messages: messages)
         let structured = try XCTUnwrap(callResult["structuredContent"] as? [String: Any])
-        XCTAssertEqual(structured["snapshotVersion"] as? NSNumber, 42)
+        XCTAssertEqual(structured["snapshot_version"] as? NSNumber, 42)
         XCTAssertEqual(((structured["data"] as? [String: Any])?["stubbed"] as? NSNumber)?.boolValue, true)
     }
 

@@ -4,7 +4,7 @@ Date: 2026-07-21 (Asia/Seoul)
 
 ## Automated MCP checkpoint
 
-The final `DevBerthMCPTests` target passed 18/18 tests. The complete non-UI application matrix passed 163/163 tests across `DevBerthTests`, `DevBerthIntegrationTests`, and `DevBerthMCPTests`.
+The final `DevBerthMCPTests` target passed 19/19 tests. The complete non-UI application matrix passed 164/164 tests across `DevBerthTests`, `DevBerthIntegrationTests`, and `DevBerthMCPTests`.
 
 The real development acceptance runner passed all nine scenarios through `ApplicationControlPlane.dispatch` with an in-memory V7 store and application-owned fixtures:
 
@@ -49,9 +49,9 @@ No live Docker daemon with a disposable canonical Compose project was available 
 - Debug application build: passed.
 - Universal Release application build: passed with warnings treated as errors.
 - Debug and Release `DevBerthMCP` scheme builds: passed.
-- `DevBerthMCPTests`: 18 passed, 0 failed, 0 skipped.
-- `DevBerthTests` + `DevBerthIntegrationTests` + `DevBerthMCPTests`: 163 passed, 0 failed, 0 skipped.
-- Exact full `DevBerth` scheme, including four UI tests: 167 passed, 0 failed, 0 skipped. An earlier attempt timed out while enabling Xcode automation mode; the final retry completed successfully.
+- `DevBerthMCPTests`: 19 passed, 0 failed, 0 skipped.
+- `DevBerthTests` + `DevBerthIntegrationTests` + `DevBerthMCPTests`: 164 passed, 0 failed, 0 skipped.
+- Exact full `DevBerth` scheme, including four UI tests: 168 passed, 0 failed, 0 skipped. An earlier attempt timed out while enabling Xcode automation mode; the final retry completed successfully.
 - Release helper development-mode gate: exited 64, wrote zero bytes to stdout, and reported that development mode is absent.
 - Visual QA: the real Settings → Integrations · Codex & MCP interface was exercised with Computer Use and captured at [Screenshots/mcp-codex-settings.png](Screenshots/mcp-codex-settings.png). This pass also found and fixed a missing `ControlHostStatusModel` injection on the in-app Settings navigation route.
 - GitHub repository visibility: `PRIVATE`.

@@ -354,7 +354,13 @@ public enum ControlCapabilityRegistry {
         "data": objectSchema(properties: [:], required: [], allowsAdditional: true),
         "warnings": arraySchema(items: objectSchema(properties: [:], required: [], allowsAdditional: true)),
         "truncated": boolSchema(description: "Whether the result was bounded."),
-        "next_cursor": stringSchema(description: "Continuation cursor when truncated.")
+        "next_cursor": stringSchema(description: "Continuation cursor when truncated."),
+        "error": objectSchema(properties: [
+            "code": stringSchema(description: "Stable DevBerth error code."),
+            "message": stringSchema(description: "Actionable non-secret error message."),
+            "recovery_suggestion": stringSchema(description: "Optional safe recovery guidance."),
+            "details": objectSchema(properties: [:], required: [], allowsAdditional: true)
+        ], required: ["code", "message"])
     ], required: ["schema_version", "request_id", "snapshot_version", "generated_at", "warnings", "truncated"])
 
     private static func objectSchema(

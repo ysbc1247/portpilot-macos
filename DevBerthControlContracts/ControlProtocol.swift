@@ -130,6 +130,13 @@ public struct ControlFailure: Codable, Sendable, Equatable, Error {
         self.recoverySuggestion = recoverySuggestion
         self.details = details
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case code
+        case message
+        case recoverySuggestion = "recovery_suggestion"
+        case details
+    }
 }
 
 public struct ControlResponse: Codable, Sendable, Equatable {
@@ -173,6 +180,18 @@ public struct ControlResponse: Codable, Sendable, Equatable {
         nextCursor = nil
         error = failure
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case snapshotVersion = "snapshot_version"
+        case generatedAt = "generated_at"
+        case data
+        case warnings
+        case truncated
+        case nextCursor = "next_cursor"
+        case error
+    }
 }
 
 public struct ControlHostStatus: Codable, Sendable, Equatable {
@@ -200,4 +219,3 @@ public struct ControlHostStatus: Codable, Sendable, Equatable {
         self.connectedClientCount = connectedClientCount
     }
 }
-
