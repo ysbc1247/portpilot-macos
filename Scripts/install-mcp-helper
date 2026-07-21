@@ -24,12 +24,12 @@ if [[ ! -x "${source_helper}" ]]; then
 fi
 
 /bin/mkdir -p -- "${install_directory}"
-/bin/chmod 700 -- "${install_directory}"
+/bin/chmod 700 "${install_directory}"
 temporary="$(mktemp "${install_directory}/.devberth-mcp.XXXXXX")"
 cleanup() { /bin/rm -f -- "${temporary}"; }
 trap cleanup EXIT INT TERM
 /bin/cp -- "${source_helper}" "${temporary}"
-/bin/chmod 700 -- "${temporary}"
+/bin/chmod 700 "${temporary}"
 /bin/mv -f -- "${temporary}" "${destination}"
 trap - EXIT INT TERM
 
