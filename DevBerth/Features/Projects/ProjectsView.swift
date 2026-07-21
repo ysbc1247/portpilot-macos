@@ -450,7 +450,7 @@ private struct ProjectObservedStopRequest: Identifiable {
         let scope = isProject
             ? "This includes \(observedServiceCount) service(s) running outside DevBerth."
             : "This service is running outside DevBerth."
-        return "\(scope) DevBerth will revalidate each exact process, container, or Compose owner immediately before stopping it. Protected or unverifiable owners will remain running."
+        return "\(scope) DevBerth will revalidate each exact process, container, or Compose owner immediately before stopping it. A user-owned process that ignores graceful shutdown will be revalidated again before force stop. Protected or unverifiable owners will remain running."
     }
 }
 
