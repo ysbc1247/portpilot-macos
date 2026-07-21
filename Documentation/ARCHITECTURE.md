@@ -2,7 +2,7 @@
 
 ## Boundaries
 
-DevBerth is one native app target with explicit source-level boundaries. SwiftUI features consume `AppModel` and injected protocols; no view directly invokes `Process`, `lsof`, `ps`, `kill`, Docker, or a shell.
+DevBerth is one native app plus a protocol-only MCP helper with explicit source-level boundaries. SwiftUI features consume `AppModel` and injected protocols; no view or MCP handler directly invokes `Process`, `lsof`, `ps`, `kill`, Docker, or a shell.
 
 | Boundary | Responsibility | Production implementation |
 | --- | --- | --- |
@@ -25,6 +25,29 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 | Logs | stdout/stderr capture, redaction, bounds, persistence | `ServiceLogBuffer` |
 | Persistence | Durable user configuration and audit trail | SwiftData records and `SwiftDataStore` model actor |
 | Presentation | Native navigation, tables, inspectors, sheets, settings, menu bar | SwiftUI under `DevBerth/Features` |
+| Control contracts | Stable tool/resource/prompt registry, IPC envelopes, structured errors, bounded framing | `DevBerthControlContracts` |
+| Application control plane | Shared command/query facade, revisions, operation/change-set leases, audit | `ApplicationControlPlane`, `ControlPlaneStore` |
+| Local control host | Current-user app-owned request dispatch | `DevBerthControlHost`, `UnixControlServer` |
+| MCP adapter | MCP 2025-11-25 STDIO, schema/annotation adaptation, host activation and IPC | `devberth-mcp`, official Swift MCP SDK 0.12.1 |
+
+## MCP control-plane flow
+
+```text
+SwiftUI / menu bar ───────────────┐
+                                 ▼
+                         ApplicationControlPlane
+                                 │
+                     existing services + SwiftData V7
+                                 ▲
+                                 │ 4 MiB bounded UDS frames
+Codex ─ MCP STDIO ─ devberth-mcp ─ current-UID app control host
+```
+
+The app remains the only runtime monitor, Docker inspector, persistent writer, lifecycle authority, log owner, and Keychain broker. The MCP executable owns only STDIO protocol adaptation. The socket parent is `0700`, the socket is `0600`, `getpeereid` must match the effective UID, production/development handshakes cannot cross, and no TCP listener exists.
+
+`DevBerthControlContracts/CapabilityRegistry.swift` defines all schemas, annotations, permission metadata, GUI/menu mappings, resources, prompts, and test references. Every MCP call reaches `ApplicationControlPlane.dispatch`; stable IDs and entity revisions prevent silent overwrite. Destructive operations capture exact revisions, fingerprints, ownership routes, affected ports/dependencies/sessions, risks, and compensation in a five-minute single-use lease. Change sets similarly capture ordering, revisions, dependency validation, compensation, and a single-use five-minute token.
+
+Development mode is a separate Debug-only host with an in-memory V7 container and application-owned fixtures. Its discoverer scopes `lsof` to fixture/managed PIDs before enrichment. Release argument parsing rejects `--development` and Release discovery contains no `dev_*` tools.
 
 ## Runtime state flow
 
@@ -152,7 +175,7 @@ The first-run guide is local and account-free. It states visibility limits, obse
 
 SwiftData schema V1 contains `ProjectRecord`, `LaunchProfileRecord`, `ProfileDependencyRecord`, `ExpectedPortRecord`, `ProcessHistoryEventRecord`, `PortObservationRecord`, `UserPreferenceRecord`, `FavoriteItemRecord`, and `StoredLogMetadataRecord`. Domain values are converted explicitly; live listeners and `Process` instances are never modeled.
 
-`DevBerthMigrationPlan` contains frozen V1 through V6 schemas. V2 adds separate runtime-instance, ownership-evidence, restart-trust, workspace-session, restore-result, project-discovery, and lifecycle-event records. V3 adds field-addressable full process fingerprints, managed-service process policies, and process-group snapshots. V4 adds the latest exact managed-service validation result. V5 adds lifecycle context and incident-summary sidecars without mutating the frozen V2 lifecycle entity. V6 adds reviewed managed-service check sidecars. Every transition is lightweight and additive; genuine V2, V3, V4, and V5 fixtures prove their next transition while the product migration fixture proves V1→current. Future changes must add a new `VersionedSchema` and explicit migration stage rather than editing any shipped schema identifier.
+`DevBerthMigrationPlan` contains frozen V1 through V7 schemas. V2 adds separate runtime-instance, ownership-evidence, restart-trust, workspace-session, restore-result, project-discovery, and lifecycle-event records. V3 adds field-addressable full process fingerprints, managed-service process policies, and process-group snapshots. V4 adds the latest exact managed-service validation result. V5 adds lifecycle context and incident-summary sidecars without mutating the frozen V2 lifecycle entity. V6 adds reviewed managed-service check sidecars. V7 adds entity revisions, generic organization/control-plane records, and bounded MCP audit metadata. V6→V7 is additive and covered by a genuine V6 fixture. Operation and change-set tokens are intentionally transient and never persisted as authority. Future changes must add a new `VersionedSchema` and explicit migration stage rather than editing any shipped schema identifier.
 
 Lifecycle context stores severity, source, trigger, fingerprint, listener, duration, and related-event IDs beside the frozen V2 base event. Listener-change bursts are recorded as one lifecycle batch and one compatibility-history batch, with one save per batch. The store retains at most 5,000 lifecycle events by pruning base/context pairs with 100-row headroom whenever its write countdown crosses zero; a large batch reserves at least its own size. Incident summaries retain at most 250 rows. Runtime instances are upserted by runtime ID. V4 validation digests remain byte-compatible for profiles with no V6 service checks; adding or changing a reviewed check extends the digest and requires revalidation.
 

@@ -80,14 +80,15 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(persisted.detectionMethodRawValue, OwnershipDetectionMethod.dockerMetadata.rawValue)
     }
 
-    func testMigrationPlanContainsFrozenSchemasThroughCurrentV6() {
-        XCTAssertEqual(DevBerthMigrationPlan.schemas.count, 6)
-        XCTAssertEqual(DevBerthMigrationPlan.stages.count, 5)
+    func testMigrationPlanContainsFrozenSchemasThroughCurrentV7() {
+        XCTAssertEqual(DevBerthMigrationPlan.schemas.count, 7)
+        XCTAssertEqual(DevBerthMigrationPlan.stages.count, 6)
         XCTAssertEqual(DevBerthSchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(DevBerthSchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
         XCTAssertEqual(DevBerthSchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
         XCTAssertEqual(DevBerthSchemaV4.versionIdentifier, Schema.Version(4, 0, 0))
         XCTAssertEqual(DevBerthSchemaV5.versionIdentifier, Schema.Version(5, 0, 0))
         XCTAssertEqual(DevBerthSchemaV6.versionIdentifier, Schema.Version(6, 0, 0))
+        XCTAssertEqual(DevBerthSchemaV7.versionIdentifier, Schema.Version(7, 0, 0))
     }
 }

@@ -19,3 +19,9 @@ History retention is configurable. Lifecycle, ownership, incident, and log store
 ## Network behavior
 
 DevBerth may perform user-configured HTTP health checks against reviewed URLs and communicates with a local Docker daemon through the Docker CLI when the user opens or uses Docker functionality. It does not send observed runtime or project data to DevBerth-operated servers because no such service exists.
+
+## MCP access
+
+The optional `devberth-mcp` helper exchanges bounded JSON with the DevBerth app over a same-user Unix-domain socket and speaks MCP over the launching client's standard input/output. It does not open a network listener, scan runtime state, access SwiftData directly, or read Keychain values. MCP responses may contain the same non-secret runtime, project, service, session, Docker, history, log, and settings data visible in the app. Every MCP action is local and recorded with bounded, secret-safe audit metadata.
+
+Codex configuration is changed only after a user previews and applies it in Settings. The editor preserves unrelated TOML, writes atomically, and keeps a local backup. No configuration or runtime data is uploaded by DevBerth.

@@ -1,0 +1,37 @@
+#!/bin/zsh
+set -euo pipefail
+
+script_directory="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+repository_root="$(CDPATH= cd -- "${script_directory}/.." && pwd)"
+derived_data="${repository_root}/.build/mcp-release"
+install_directory="${HOME}/Library/Application Support/DevBerth/bin"
+destination="${install_directory}/devberth-mcp"
+
+DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}" \
+    /usr/bin/xcodebuild \
+    -quiet \
+    -project "${repository_root}/DevBerth.xcodeproj" \
+    -scheme DevBerth \
+    -configuration Release \
+    -destination 'platform=macOS' \
+    -derivedDataPath "${derived_data}" \
+    build >&2
+
+source_helper="${derived_data}/Build/Products/Release/DevBerth.app/Contents/Resources/devberth-mcp"
+if [[ ! -x "${source_helper}" ]]; then
+    print -u2 -- "The Release application does not contain devberth-mcp."
+    exit 70
+fi
+
+/bin/mkdir -p -- "${install_directory}"
+/bin/chmod 700 -- "${install_directory}"
+temporary="$(mktemp "${install_directory}/.devberth-mcp.XXXXXX")"
+cleanup() { /bin/rm -f -- "${temporary}"; }
+trap cleanup EXIT INT TERM
+/bin/cp -- "${source_helper}" "${temporary}"
+/bin/chmod 700 -- "${temporary}"
+/bin/mv -f -- "${temporary}" "${destination}"
+trap - EXIT INT TERM
+
+"${destination}" --version 1>/dev/null
+print -u2 -- "Installed ${destination}"

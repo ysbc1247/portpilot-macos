@@ -896,71 +896,7 @@ private struct LaunchProfileEditor: View {
 
     @MainActor
     private func persist(_ candidate: ManagedServiceConfiguration) throws {
-        let encoder = JSONEncoder()
-        let target = record ?? LaunchProfileRecord(
-            id: candidate.id,
-            name: candidate.name,
-            command: candidate.command,
-            workingDirectory: candidate.workingDirectory
-        )
-        target.projectID = candidate.projectID
-        target.name = candidate.name
-        target.kindRawValue = candidate.launchMechanism.rawValue
-        target.command = candidate.command
-        target.argumentsData = try encoder.encode(candidate.arguments)
-        target.workingDirectory = candidate.workingDirectory
-        target.shellData = try encoder.encode(candidate.shell)
-        target.environmentData = try encoder.encode(candidate.environment)
-        target.secretReferencesData = try encoder.encode(candidate.secretReferences)
-        target.startupTimeoutSeconds = candidate.startupTimeoutSeconds
-        target.shutdownTimeoutSeconds = candidate.shutdownTimeoutSeconds
-        target.restartPolicyRawValue = candidate.restartPolicy.rawValue
-        target.healthCheckData = try candidate.healthCheck.map(encoder.encode)
-        target.logFile = candidate.logFile
-        target.tagsData = try encoder.encode(candidate.tags)
-        target.icon = candidate.icon
-        target.isFavorite = candidate.isFavorite
-        target.launchesAutomatically = candidate.launchesAutomatically
-        target.isReviewed = candidate.isReviewed
-        target.updatedAt = Date()
-        if record == nil { context.insert(target) }
-
-        expectedPorts.filter { $0.profileID == candidate.id }.forEach(context.delete)
-        for port in candidate.expectedPorts {
-            context.insert(ExpectedPortRecord(
-                id: port.id,
-                profileID: candidate.id,
-                port: port.port,
-                protocolKind: port.protocolKind,
-                required: port.required
-            ))
-        }
-        dependencies.filter { $0.profileID == candidate.id }.forEach(context.delete)
-        for dependencyID in candidate.dependencyServiceIDs {
-            context.insert(ProfileDependencyRecord(
-                profileID: candidate.id,
-                dependencyProfileID: dependencyID
-            ))
-        }
-        if let storedPolicy = processPolicies.first(where: { $0.managedServiceID == candidate.id }) {
-            storedPolicy.createsDedicatedProcessGroup = candidate.processPolicy.createsDedicatedProcessGroup
-            storedPolicy.terminationScopeRawValue = candidate.processPolicy.terminationScope.rawValue
-            storedPolicy.updatedAt = Date()
-        } else {
-            context.insert(ManagedServiceProcessPolicyRecord(
-                managedServiceID: candidate.id,
-                policy: candidate.processPolicy
-            ))
-        }
-        if let storedChecks = serviceChecks.first(where: { $0.managedServiceID == candidate.id }) {
-            try storedChecks.apply(candidate.serviceChecks)
-        } else if !candidate.serviceChecks.isEmpty {
-            context.insert(try ManagedServiceCheckRecord(
-                managedServiceID: candidate.id,
-                checks: candidate.serviceChecks
-            ))
-        }
-        try context.save()
+        try ManagedServicePersistence.save(candidate, in: context)
     }
 
     private func makeServiceChecks(

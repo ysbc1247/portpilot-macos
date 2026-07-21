@@ -22,13 +22,21 @@ actor LocalPortDiscovery: PortDiscovering {
     }
 
     func discover() async throws -> [ObservedListener] {
+        try await discover(allowedProcessIDs: nil)
+    }
+
+    func discover(allowedProcessIDs: Set<Int32>?) async throws -> [ObservedListener] {
+        if let allowedProcessIDs, allowedProcessIDs.isEmpty { return [] }
+        let processSelection = allowedProcessIDs.map { processIDs in
+            ["-a", "-p", processIDs.sorted().map(String.init).joined(separator: ",")]
+        } ?? []
         async let tcpResult = runner.run(
             executable: URL(fileURLWithPath: "/usr/sbin/lsof"),
-            arguments: ["-nP", "-a", "-iTCP", "-sTCP:LISTEN", "-F0pcLftPnT", "+c", "0"]
+            arguments: ["-nP"] + processSelection + ["-a", "-iTCP", "-sTCP:LISTEN", "-F0pcLftPnT", "+c", "0"]
         )
         async let udpResult = runner.run(
             executable: URL(fileURLWithPath: "/usr/sbin/lsof"),
-            arguments: ["-nP", "-iUDP", "-F0pcLftPnT", "+c", "0"]
+            arguments: ["-nP"] + processSelection + ["-iUDP", "-F0pcLftPnT", "+c", "0"]
         )
         let (tcp, udp) = try await (tcpResult, udpResult)
         guard tcp.exitCode == 0 || tcp.exitCode == 1 else {
@@ -38,8 +46,10 @@ actor LocalPortDiscovery: PortDiscovering {
             throw DevBerthError.commandFailed(command: "lsof UDP discovery", status: udp.exitCode, details: udp.stderrString)
         }
 
-        let raw = LsofFieldParser.parse(tcp.stdout, defaultProtocol: .tcp)
-            + LsofFieldParser.parse(udp.stdout, defaultProtocol: .udp)
+        let raw = (
+            LsofFieldParser.parse(tcp.stdout, defaultProtocol: .tcp)
+                + LsofFieldParser.parse(udp.stdout, defaultProtocol: .udp)
+        ).filter { allowedProcessIDs?.contains($0.pid) ?? true }
         let grouped = Dictionary(grouping: raw, by: \.pid)
         var metadata: [Int32: ObservedProcess] = [:]
         let now = Date()

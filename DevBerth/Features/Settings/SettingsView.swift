@@ -1,8 +1,12 @@
+import AppKit
+import DevBerthControlContracts
 import ServiceManagement
 import SwiftUI
 
+@MainActor
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var controlHost: ControlHostStatusModel
     @AppStorage("refreshInterval") private var refreshInterval = 2.0
     @AppStorage("historyRetentionDays") private var historyRetentionDays = 30
     @AppStorage("notifyConfiguredPorts") private var notifyConfiguredPorts = false
@@ -10,6 +14,21 @@ struct SettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginItemError: String?
     @State private var diagnosticsDocument: LogTextDocument?
+    @State private var copiedCodexConfiguration = false
+    @State private var integrationSnapshot: MCPIntegrationSnapshot?
+    @State private var integrationPreview: CodexConfigurationPreview?
+    @State private var integrationMessage: String?
+    @State private var projectConfigurationRoot = ""
+    @State private var pendingIntegrationAction: PendingIntegrationAction?
+    private let integrationManager: any MCPIntegrationManaging
+
+    init() {
+        integrationManager = MCPIntegrationManager()
+    }
+
+    init(integrationManager: any MCPIntegrationManaging) {
+        self.integrationManager = integrationManager
+    }
 
     var body: some View {
         Form {
@@ -46,6 +65,98 @@ struct SettingsView: View {
                 Text("DevBerth never silently requests administrator privileges and never uploads process information.")
                     .font(.callout).foregroundStyle(.secondary)
             }
+            Section("Integrations · Codex & MCP") {
+                LabeledContent("MCP status", value: controlHost.state)
+                LabeledContent("Control host", value: controlHost.developmentMode ? "Isolated development store" : "Production application store")
+                LabeledContent("Protocol", value: "v\(ControlProtocolConstants.version) · schema v\(ControlProtocolConstants.toolSchemaVersion)")
+                LabeledContent("Helper", value: integrationSnapshot?.installedHelperURL?.path ?? "Not installed")
+                LabeledContent("Helper version", value: integrationSnapshot?.installedVersion ?? "Unavailable")
+                LabeledContent("Production tools", value: String(ControlCapabilityRegistry.productionTools.count))
+                LabeledContent("Development tools", value: String(ControlCapabilityRegistry.developmentTools.count))
+                HStack {
+                    Button("Test Connection", systemImage: "network") {
+                        Task { await controlHost.testConnection() }
+                    }
+                    Button(copiedCodexConfiguration ? "Copied" : "Copy Codex Configuration", systemImage: "doc.on.doc") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(codexConfiguration, forType: .string)
+                        copiedCodexConfiguration = true
+                    }
+                }
+                HStack {
+                    Button(helperActionTitle, systemImage: "shippingbox") {
+                        pendingIntegrationAction = .install
+                    }
+                    .disabled(integrationSnapshot?.canInstall != true)
+                    Button("Uninstall", systemImage: "trash") {
+                        pendingIntegrationAction = .uninstall
+                    }
+                    .disabled(integrationSnapshot?.installedHelperURL == nil)
+                    Button("Run MCP Validation", systemImage: "checkmark.shield") {
+                        Task {
+                            integrationSnapshot = await integrationManager.inspect()
+                            await controlHost.testConnection()
+                            integrationMessage = integrationSnapshot?.installedVersion == nil
+                                ? "Validation failed: install the stable helper."
+                                : "Helper and local control-host checks completed."
+                        }
+                    }
+                }
+                HStack {
+                    Button("Preview Global Configuration", systemImage: "doc.text.magnifyingglass") {
+                        previewConfiguration(scope: .global)
+                    }
+                    Button("Configure Codex Globally", systemImage: "gearshape.2") {
+                        pendingIntegrationAction = .configureGlobal
+                    }
+                    Button("Open Configuration", systemImage: "folder") {
+                        do { try integrationManager.openCodexConfiguration(scope: .global) }
+                        catch { integrationMessage = error.localizedDescription }
+                    }
+                }
+                TextField("Project root for .codex/config.toml", text: $projectConfigurationRoot)
+                    .textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("Preview Project Configuration", systemImage: "doc.badge.gearshape") {
+                        guard let scope = projectScope else {
+                            integrationMessage = "Enter an existing absolute project directory."
+                            return
+                        }
+                        previewConfiguration(scope: scope)
+                    }
+                    Button("Configure Current Project", systemImage: "folder.badge.gearshape") {
+                        guard projectScope != nil else {
+                            integrationMessage = "Enter an existing absolute project directory."
+                            return
+                        }
+                        pendingIntegrationAction = .configureProject
+                    }
+                }
+                if let test = controlHost.lastConnectionTest {
+                    Text(test).font(.callout).foregroundStyle(test.hasPrefix("Connected") ? .green : .secondary)
+                }
+                if let error = controlHost.lastError {
+                    Text(error).font(.callout).foregroundStyle(.secondary)
+                }
+                if let integrationMessage {
+                    Text(integrationMessage).font(.callout).foregroundStyle(.secondary)
+                }
+                Text("The helper speaks MCP over stdio and forwards typed requests to this same-user local control host. Destructive actions always use preview → approval → execute.")
+                    .font(.callout).foregroundStyle(.secondary)
+                if let integrationPreview {
+                    DisclosureGroup("Configuration Diff Preview") {
+                        Text(integrationPreview.summary)
+                        Text(integrationPreview.proposedText)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+                DisclosureGroup("Codex config.toml") {
+                    Text(codexConfiguration)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+            }
             Section("Getting Started") {
                 Button("Show Welcome Guide Again", systemImage: "sparkles") {
                     hasCompletedOnboarding = false
@@ -74,9 +185,18 @@ struct SettingsView: View {
             model.refreshInterval = value
             if model.isMonitoring { model.startMonitoring() }
         }
+        .task { integrationSnapshot = await integrationManager.inspect() }
         .alert("Login item could not be changed", isPresented: .constant(loginItemError != nil)) {
             Button("OK") { loginItemError = nil }
         } message: { Text(loginItemError ?? "") }
+        .alert(item: $pendingIntegrationAction) { action in
+            Alert(
+                title: Text(action.title),
+                message: Text(action.message),
+                primaryButton: .default(Text(action.confirmTitle)) { performIntegrationAction(action) },
+                secondaryButton: .cancel()
+            )
+        }
         .fileExporter(
             isPresented: Binding(get: { diagnosticsDocument != nil }, set: { if !$0 { diagnosticsDocument = nil } }),
             document: diagnosticsDocument,
@@ -91,6 +211,99 @@ struct SettingsView: View {
         } catch {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             loginItemError = error.localizedDescription
+        }
+    }
+
+    private var helperActionTitle: String {
+        guard integrationSnapshot?.installedHelperURL != nil else { return "Install" }
+        return integrationSnapshot?.needsUpdate == true ? "Update" : "Repair"
+    }
+
+    private var codexConfiguration: String {
+        let command = MCPIntegrationManager.stableHelperURL.path
+        return """
+        [mcp_servers.devberth]
+        command = "\(command)"
+        args = ["serve", "--stdio"]
+        startup_timeout_sec = 10
+        tool_timeout_sec = 120
+        """
+    }
+
+    private var projectScope: CodexConfigurationScope? {
+        let url = URL(fileURLWithPath: projectConfigurationRoot, isDirectory: true).standardizedFileURL
+        var isDirectory: ObjCBool = false
+        guard projectConfigurationRoot.hasPrefix("/"),
+              FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return nil }
+        return .project(url)
+    }
+
+    private func previewConfiguration(scope: CodexConfigurationScope) {
+        do {
+            integrationPreview = try integrationManager.previewCodexConfiguration(scope: scope)
+            integrationMessage = integrationPreview?.summary
+        } catch {
+            integrationMessage = error.localizedDescription
+        }
+    }
+
+    private func performIntegrationAction(_ action: PendingIntegrationAction) {
+        Task {
+            do {
+                switch action {
+                case .install:
+                    integrationSnapshot = try await integrationManager.installOrRepair()
+                    integrationMessage = "The stable helper was installed and version-validated."
+                case .uninstall:
+                    integrationSnapshot = try await integrationManager.uninstall()
+                    integrationMessage = "The helper was moved to Trash. Codex configuration was left unchanged."
+                case .configureGlobal:
+                    let preview = try integrationManager.previewCodexConfiguration(scope: .global)
+                    try integrationManager.applyCodexConfiguration(preview)
+                    integrationPreview = preview
+                    integrationMessage = "Global Codex configuration was backed up, updated atomically, and validated."
+                case .configureProject:
+                    guard let projectScope else { throw DevBerthError.unexpected("Enter an existing absolute project directory.") }
+                    let preview = try integrationManager.previewCodexConfiguration(scope: projectScope)
+                    try integrationManager.applyCodexConfiguration(preview)
+                    integrationPreview = preview
+                    integrationMessage = "Project Codex configuration was backed up, updated atomically, and validated."
+                }
+            } catch {
+                integrationMessage = error.localizedDescription
+            }
+        }
+    }
+}
+
+private enum PendingIntegrationAction: String, Identifiable {
+    case install
+    case uninstall
+    case configureGlobal
+    case configureProject
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .install: "Install or repair helper?"
+        case .uninstall: "Uninstall helper?"
+        case .configureGlobal: "Update global Codex configuration?"
+        case .configureProject: "Update project Codex configuration?"
+        }
+    }
+    var message: String {
+        switch self {
+        case .install: "DevBerth will atomically replace only its user-scoped helper and validate the installed version."
+        case .uninstall: "DevBerth will move only its stable helper to Trash. Existing Codex configuration will be preserved."
+        case .configureGlobal, .configureProject: "DevBerth will preserve unrelated TOML, create a backup, write atomically, and roll back if validation fails."
+        }
+    }
+    var confirmTitle: String {
+        switch self {
+        case .install: "Install"
+        case .uninstall: "Move to Trash"
+        case .configureGlobal, .configureProject: "Apply"
         }
     }
 }

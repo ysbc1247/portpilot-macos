@@ -10,6 +10,8 @@ DevBerth does not upload process, command, project, port, Docker, log, history, 
 
 The only application-initiated network requests beyond local discovery are optional health-check URLs explicitly configured in managed services. Docker actions follow the Docker context already configured by the user.
 
+When enabled, `devberth-mcp` communicates locally with the DevBerth app over a same-user Unix-domain socket and with its launching MCP client over STDIO. It opens no network listener, owns no second database or monitor, and cannot return Keychain secret values. MCP audit metadata is bounded and secret-safe.
+
 Diagnostics export is user-initiated and excludes full commands, environment values, logs, and Keychain content. The resulting file stays where the user saves it.
 
 Uninstalling DevBerth does not automatically delete user data. Local SwiftData and service-log files can be removed from the user’s Application Support directory, and secret entries can be removed from Keychain.

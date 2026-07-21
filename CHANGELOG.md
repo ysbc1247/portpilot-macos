@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-07-21
+
+- Added a complete MCP control plane with 82 production tools, 12 Debug-only development tools, 11 resources/templates, and 10 prompts through the official Swift MCP SDK 0.12.1 and MCP protocol 2025-11-25.
+- Added an app-owned `ApplicationControlPlane`, current-user Unix-domain IPC, structured response/error envelopes, stable revisions, bounded audit records, expiring single-use operation/change-set previews, and optimistic concurrency.
+- Added additive SwiftData schema V7 for control-plane revisions, organization/settings records, and MCP audit metadata, with a tested V6→V7 migration.
+- Added project, managed-service, runtime/ownership, session, port, Docker/Compose, history/log, settings, favorites/tag/filter, destructive-operation, and coordinated-change-set parity.
+- Added the protocol-only `devberth-mcp` executable, stable helper installation, atomic Codex TOML configuration, and Settings → Integrations → Codex & MCP.
+- Added an isolated Debug development host, application-owned fixture catalog, real nine-scenario acceptance runner, parity/migration/performance diagnostics, and disposable reset. Release builds reject development mode and expose no `dev_*` tools.
+- Hardened all hosted tests to use in-memory data, no control socket, and empty or test-owned discovery; scoped development discovery before metadata enrichment and moved blocking Unix-socket I/O off Swift’s cooperative executor.
+
 ## 0.2.0 — 2026-07-21
 
 - Renamed the product from PortPilot to DevBerth while preserving legacy stores, defaults, service logs, bundle compatibility, and Keychain references through a tested one-way copy migration.

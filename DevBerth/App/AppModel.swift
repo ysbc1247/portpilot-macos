@@ -37,6 +37,7 @@ final class AppModel: ObservableObject {
     private let ownershipRecorder: (any OwnershipRecording)?
     private let ownershipResolver: any RuntimeOwnershipResolving
     private let validationService: any ManagedServiceValidating
+    private let secretStore: any SecretStoring
     private let restartTrustStore: (any RestartTrustStoring)?
     private let runtimeLifecycle: any RuntimeLifecycleObserving
     private let exitHub: ManagedProcessExitHub
@@ -71,12 +72,13 @@ final class AppModel: ObservableObject {
         projectDiscovery: (any ProjectDiscoveryServing)? = nil,
         projectManifest: (any ProjectManifestServing)? = nil,
         workspaceSessionRecorder: (any WorkspaceSessionRecording)? = nil,
-        processResourceReader: (any ProcessResourceUsageReading)? = nil
+        processResourceReader: (any ProcessResourceUsageReading)? = nil,
+        runtimeRegistry: ManagedRuntimeRegistry? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
         let logs = ServiceLogBuffer()
-        let runtimeRegistry = ManagedRuntimeRegistry()
+        let runtimeRegistry = runtimeRegistry ?? ManagedRuntimeRegistry()
         let lifecycleRecorder = historyRecorder as? any RuntimeLifecycleRecording
         let resolvedRuntimeLifecycle = runtimeLifecycle ?? RuntimeLifecycleTracker(
             recorder: lifecycleRecorder
@@ -91,6 +93,7 @@ final class AppModel: ObservableObject {
                 ?? RuntimeLifecycleTracker()
         )
         let resolvedSecrets = KeychainSecretStore()
+        self.secretStore = resolvedSecrets
         let managedLauncher = ManagedProcessLauncher(
             secrets: resolvedSecrets,
             logs: logs,
@@ -390,6 +393,23 @@ final class AppModel: ObservableObject {
         ownershipGraphs[listener.id] = graph
         await persistOwnership(graph.primaryConclusion, reportsError: true)
     }
+
+    func resolveOwnership(of listener: ObservedListener) async -> RuntimeOwnershipGraph {
+        let graph = await ownershipResolver.resolve(listener: listener)
+        ownershipGraphs[listener.id] = graph
+        await persistOwnership(graph.primaryConclusion, reportsError: false)
+        return graph
+    }
+
+    func secretReferenceResolution(for references: [String: UUID]) async -> [String: Bool] {
+        var result: [String: Bool] = [:]
+        for (name, reference) in references {
+            result[name] = (try? await secretStore.value(for: reference)) != nil
+        }
+        return result
+    }
+
+    var managedRunningServiceIDs: Set<UUID> { currentRunningServiceIDs }
 
     private func persistOwnership(
         _ conclusion: OwnershipConclusion,

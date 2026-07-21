@@ -228,7 +228,8 @@ enum DevBerthMigrationPlan: SchemaMigrationPlan {
             DevBerthSchemaV3.self,
             DevBerthSchemaV4.self,
             DevBerthSchemaV5.self,
-            DevBerthSchemaV6.self
+            DevBerthSchemaV6.self,
+            DevBerthSchemaV7.self
         ]
     }
     static var stages: [MigrationStage] {
@@ -237,7 +238,8 @@ enum DevBerthMigrationPlan: SchemaMigrationPlan {
             .lightweight(fromVersion: DevBerthSchemaV2.self, toVersion: DevBerthSchemaV3.self),
             .lightweight(fromVersion: DevBerthSchemaV3.self, toVersion: DevBerthSchemaV4.self),
             .lightweight(fromVersion: DevBerthSchemaV4.self, toVersion: DevBerthSchemaV5.self),
-            .lightweight(fromVersion: DevBerthSchemaV5.self, toVersion: DevBerthSchemaV6.self)
+            .lightweight(fromVersion: DevBerthSchemaV5.self, toVersion: DevBerthSchemaV6.self),
+            .lightweight(fromVersion: DevBerthSchemaV6.self, toVersion: DevBerthSchemaV7.self)
         ]
     }
 }

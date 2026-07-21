@@ -1,5 +1,20 @@
 # DevBerth documentation
 
+## MCP control plane
+
+- [MCP implementation audit](MCP_IMPLEMENTATION_AUDIT.md)
+- [MCP implementation plan](MCP_IMPLEMENTATION_PLAN.md)
+- [Control-plane parity](CONTROL_PLANE_PARITY.md)
+- [MCP overview](MCP_OVERVIEW.md)
+- [MCP tool reference](MCP_TOOL_REFERENCE.md)
+- [MCP resources](MCP_RESOURCES.md)
+- [MCP prompts](MCP_PROMPTS.md)
+- [MCP security](MCP_SECURITY.md)
+- [MCP development mode](MCP_DEVELOPMENT.md)
+- [MCP troubleshooting](MCP_TROUBLESHOOTING.md)
+- [MCP performance](MCP_PERFORMANCE.md)
+- [MCP acceptance results](MCP_ACCEPTANCE_RESULTS.md)
+
 Durable engineering and product decisions live in this directory. Temporary branch state and resume instructions do not.
 
 - `ARCHITECTURE.md` — runtime boundaries, safety, persistence, concurrency, and verification design.

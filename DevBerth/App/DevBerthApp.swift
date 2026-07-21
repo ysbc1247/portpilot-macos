@@ -1,18 +1,32 @@
 import SwiftData
 import SwiftUI
+import DevBerthControlContracts
 
 @main
+@MainActor
 struct DevBerthApp: App {
     @StateObject private var model: AppModel
+    @StateObject private var controlHostStatus: ControlHostStatusModel
     private let container: ModelContainer
+    private let controlHost: DevBerthControlHost?
 
     init() {
         do {
-            let schema = Schema(DevBerthSchemaV6.models)
+            let schema = Schema(DevBerthSchemaV7.models)
             let isUITesting = ProcessInfo.processInfo.environment["DEVBERTH_UI_TESTING"] == "1"
+            let isHostedTesting = ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
+#if DEBUG
+            let isDevelopmentHost = ProcessInfo.processInfo.arguments.contains("--development-control-host")
+                && ProcessInfo.processInfo.environment["DEVBERTH_DEVELOPMENT_CONTROL"] == "1"
+#else
+            let isDevelopmentHost = false
+#endif
             let configuration: ModelConfiguration
-            if isUITesting {
-                configuration = ModelConfiguration("DevBerthUITests", schema: schema, isStoredInMemoryOnly: true)
+            if isUITesting || isHostedTesting || isDevelopmentHost {
+                configuration = ModelConfiguration(
+                    isUITesting ? "DevBerthUITests" : (isHostedTesting ? "DevBerthHostedTests" : "DevBerthDevelopmentControl"),
+                    schema: schema, isStoredInMemoryOnly: true
+                )
             } else {
                 let migration = try ProductDataMigrator().migrateForCurrentUser()
                 configuration = ModelConfiguration("DevBerth", schema: schema, url: migration.storeURL)
@@ -24,16 +38,55 @@ struct DevBerthApp: App {
             )
             container = createdContainer
             let store = SwiftDataStore(modelContainer: createdContainer)
-            let discoverer: (any PortDiscovering)? = isUITesting ? UITestPortDiscoverer() : nil
-            let resourceReader: (any ProcessResourceUsageReading)? = isUITesting ? UITestResourceReader() : nil
-            _model = StateObject(wrappedValue: AppModel(
+#if DEBUG
+            let developmentFixtures = isDevelopmentHost ? DevelopmentFixtureController() : nil
+            let developmentRuntimeRegistry = isDevelopmentHost ? ManagedRuntimeRegistry() : nil
+            let developmentDiscoverer: (any PortDiscovering)? = developmentFixtures.flatMap { fixtures in
+                developmentRuntimeRegistry.map { DevelopmentScopedPortDiscoverer(fixtures: fixtures, runtimeRegistry: $0) }
+            }
+#else
+            let developmentFixtures: DevelopmentFixtureController? = nil
+            let developmentRuntimeRegistry: ManagedRuntimeRegistry? = nil
+            let developmentDiscoverer: (any PortDiscovering)? = nil
+#endif
+            let discoverer: (any PortDiscovering)?
+            if isUITesting {
+                discoverer = UITestPortDiscoverer()
+            } else if isHostedTesting {
+                discoverer = EmptyPortDiscoverer()
+            } else {
+                discoverer = developmentDiscoverer
+            }
+            let resourceReader: (any ProcessResourceUsageReading)? = isUITesting || isHostedTesting || isDevelopmentHost
+                ? UITestResourceReader()
+                : nil
+            let createdModel = AppModel(
                 discoverer: discoverer,
                 historyRecorder: store,
                 ownershipRecorder: store,
                 restartTrustStore: store,
                 workspaceSessionRecorder: store,
-                processResourceReader: resourceReader
-            ))
+                processResourceReader: resourceReader,
+                runtimeRegistry: developmentRuntimeRegistry
+            )
+            _model = StateObject(wrappedValue: createdModel)
+            let socketURL = ControlSocketPath.socketURL(developmentMode: isDevelopmentHost)
+            let status = ControlHostStatusModel(socketURL: socketURL, developmentMode: isDevelopmentHost)
+            _controlHostStatus = StateObject(wrappedValue: status)
+            if isUITesting || isHostedTesting {
+                status.markDisabled("Tests never expose a control socket.")
+                controlHost = nil
+            } else {
+                let host = DevBerthControlHost(
+                    model: createdModel,
+                    container: createdContainer,
+                    developmentMode: isDevelopmentHost,
+                    status: status,
+                    fixtureController: developmentFixtures ?? DevelopmentFixtureController()
+                )
+                controlHost = host
+                host.start()
+            }
         } catch {
             fatalError("Unable to initialize DevBerth's local database: \(error.localizedDescription)")
         }
@@ -43,6 +96,7 @@ struct DevBerthApp: App {
         WindowGroup("DevBerth", id: "main") {
             RootView()
                 .environmentObject(model)
+                .environmentObject(controlHostStatus)
                 .frame(minWidth: 980, minHeight: 620)
                 .task { model.startMonitoring() }
         }
@@ -60,9 +114,14 @@ struct DevBerthApp: App {
         Settings {
             SettingsView()
                 .environmentObject(model)
+                .environmentObject(controlHostStatus)
                 .modelContainer(container)
         }
     }
+}
+
+private struct EmptyPortDiscoverer: PortDiscovering {
+    func discover() async throws -> [ObservedListener] { [] }
 }
 
 private struct UITestPortDiscoverer: PortDiscovering {

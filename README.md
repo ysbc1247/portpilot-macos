@@ -6,6 +6,8 @@ DevBerth is a native macOS runtime explainer and guarded service controller for 
 
 ![DevBerth Runtime with isolated local fixture](Documentation/Screenshots/runtime-phase-2.jpeg)
 
+DevBerth also exposes the same application-owned control plane to Codex and compatible MCP clients through the protocol-clean `devberth-mcp` STDIO helper. The helper connects to the running app over a current-user Unix socket; it does not scan processes, poll Docker, open the database, or read Keychain values itself.
+
 ## Highlights
 
 - Discovers TCP listeners and meaningful UDP endpoints across IPv4, IPv6, loopback, local-network, and wildcard addresses.
@@ -51,6 +53,26 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 
 Open `DevBerth.xcodeproj` in Xcode to run the signed development app. The committed project is generated from `project.yml`; install [XcodeGen](https://github.com/yonaskolb/XcodeGen) and run `xcodegen generate` after changing project structure.
 
+## Codex and MCP
+
+Open **DevBerth → Settings → Integrations → Codex & MCP**, install or repair the bundled helper, preview the global or project-scoped configuration, then apply it. The stable helper path is:
+
+```text
+~/Library/Application Support/DevBerth/bin/devberth-mcp
+```
+
+Equivalent Codex configuration:
+
+```toml
+[mcp_servers.devberth]
+command = "/Users/YOU/Library/Application Support/DevBerth/bin/devberth-mcp"
+args = ["serve", "--stdio"]
+startup_timeout_sec = 10
+tool_timeout_sec = 120
+```
+
+The Settings flow preserves unrelated TOML, rejects duplicate DevBerth tables and symlinks, previews the exact change, writes atomically, and keeps a timestamped backup. See [MCP overview](Documentation/MCP_OVERVIEW.md), [tool reference](Documentation/MCP_TOOL_REFERENCE.md), and [development mode](Documentation/MCP_DEVELOPMENT.md).
+
 ## Test
 
 ```bash
@@ -60,7 +82,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   test
 ```
 
-The full scheme uses Xcode’s local signing so the native UI-test runner can launch. For unit/integration-only CI, skip `DevBerthUITests` and set `CODE_SIGNING_ALLOWED=NO`. The suite uses mocks and parser fixtures for unit tests. Integration tests start only repository-owned Python listeners on temporary high ports and always terminate them in cleanup. UI tests use an in-memory store and one static loopback-only runtime fixture; they never inspect or control the host runtime. No test sends a signal to an unrelated process.
+The full scheme uses Xcode’s local signing so the native UI-test runner can launch. For unit/integration-only CI, skip `DevBerthUITests` and set `CODE_SIGNING_ALLOWED=NO`. Every hosted test app uses an in-memory store, no production control socket, and empty or test-owned discovery. Integration and MCP acceptance tests start only bundled application-owned Python listeners on kernel-assigned ports and always terminate them in cleanup. UI tests use one static loopback-only runtime fixture. No test sends a signal to an unrelated process.
 
 For repeated batching, retention, logging, Docker-transition, and harmless integration coverage, run `Scripts/run_soak_tests.sh`. See [Documentation/PERFORMANCE_AND_SOAK_TEST.md](Documentation/PERFORMANCE_AND_SOAK_TEST.md) for measured results and the extended-run release gate.
 

@@ -19,12 +19,34 @@ settings:
 configs:
   Debug: debug
   Release: release
+packages:
+  MCP:
+    url: https://github.com/modelcontextprotocol/swift-sdk.git
+    exactVersion: 0.12.1
 targets:
+  DevBerthControlContracts:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: DevBerthControlContracts
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.control-contracts
+        PRODUCT_NAME: DevBerthControlContracts
+        # Xcode's generated static-library header copy phase writes through a
+        # temporary directory that is not declared to the user-script sandbox.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
   DevBerth:
     type: application
     platform: macOS
     sources:
       - path: DevBerth
+      - path: Fixtures
+        buildPhase: resources
+    dependencies:
+      - target: DevBerthControlContracts
+      - target: DevBerthMCP
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth
@@ -38,6 +60,18 @@ targets:
         CODE_SIGN_ENTITLEMENTS: DevBerth/Resources/DevBerth.entitlements
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: YES
+  DevBerthMCP:
+    type: tool
+    platform: macOS
+    sources:
+      - path: DevBerthMCP
+    dependencies:
+      - target: DevBerthControlContracts
+      - package: MCP
+    settings:
+      base:
+        PRODUCT_NAME: devberth-mcp
+        SWIFT_VERSION: "6.0"
   DevBerthTests:
     type: bundle.unit-test
     platform: macOS
@@ -62,6 +96,17 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.integration-tests
         GENERATE_INFOPLIST_FILE: YES
+  DevBerthMCPTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: DevBerthMCPTests
+    dependencies:
+      - target: DevBerth
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.mcp-tests
+        GENERATE_INFOPLIST_FILE: YES
   DevBerthUITests:
     type: bundle.ui-testing
     platform: macOS
@@ -74,6 +119,14 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.ui-tests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
+  DevBerthMCP:
+    build:
+      targets:
+        DevBerthMCP: all
+    run:
+      config: Debug
+    archive:
+      config: Release
   DevBerth:
     build:
       targets:
@@ -87,6 +140,8 @@ schemes:
           parallelizable: true
           randomExecutionOrder: true
         - name: DevBerthIntegrationTests
+          parallelizable: false
+        - name: DevBerthMCPTests
           parallelizable: false
         - name: DevBerthUITests
           parallelizable: false

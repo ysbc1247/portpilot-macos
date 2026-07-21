@@ -11,13 +11,18 @@
 		026E832E6BCC5A340778A8FC /* DockerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FB87E39B521ED6937502C4 /* DockerView.swift */; };
 		034069E8F2B5CC3D901D1908 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB21B3FF04B33BCDD5670E9 /* SessionsView.swift */; };
 		0559D9705B06C4EF7C854629 /* ListenerOwnershipVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DD386F472477BD78D82493 /* ListenerOwnershipVerifier.swift */; };
+		07815CD4903B9A7A773C234D /* Procfile in Resources */ = {isa = PBXBuildFile; fileRef = E2322C7C87ABC5DCF1D4FED2 /* Procfile */; };
 		08691F5DFD6AE692E9B90F55 /* ProcessResourceUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007377831937A09CF15689B6 /* ProcessResourceUsageProvider.swift */; };
+		087599F30598319F84B03C9C /* Procfile in Resources */ = {isa = PBXBuildFile; fileRef = E2322C7C87ABC5DCF1D4FED2 /* Procfile */; };
+		092116DE5A153F31EA091834 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 88A636E5B0ACD828E53BFEE7 /* MCP */; };
 		1021593A3D5B735651B52737 /* ProjectDiscoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7D2E66350D93F603131063B /* ProjectDiscoveryCoordinator.swift */; };
 		10C3ACE1EDBCBB2DC7692DCC /* lsof_udp.fields in Resources */ = {isa = PBXBuildFile; fileRef = FB6E64683074F3FCCC37A19F /* lsof_udp.fields */; };
+		10FC132C7AA641E0294F59CA /* ApplicationControlPlane+DockerHistorySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEEBA82D3FC0BCD508F6069 /* ApplicationControlPlane+DockerHistorySettings.swift */; };
 		14C750B212F0A1BDD7323551 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 172D267BDF4FFC28F247C9BC /* DesignSystem.swift */; };
 		14DAEE1DD2443A28A8825CC4 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996099AC5AF505DEBBF80B04 /* AppModel.swift */; };
 		1521DC6E81A147409FA3431D /* ProjectDiscoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A90382D36276B90A2C3838 /* ProjectDiscoveryTests.swift */; };
 		17CECB9ABAC202EC703D955D /* ProcessLineageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA4D7F7DD715D29CC596A3B6 /* ProcessLineageProvider.swift */; };
+		1985ED4EC007832FDB468123 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8874536D6F42BE575663D244 /* JSONValue.swift */; };
 		1AF40EE5F31D28AEADAB43BC /* RuntimeAndClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA688D4DBA71F83FD6A72BB /* RuntimeAndClassificationTests.swift */; };
 		1B0D10E3DEB2DB4F900AE56D /* DockerCLIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D97877AC906205957A6C8A9 /* DockerCLIClient.swift */; };
 		1BBA41136D7DCA322B8A38F1 /* WorkspaceSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2A28A11672F0AAC5C8E2872 /* WorkspaceSessionCoordinator.swift */; };
@@ -25,8 +30,10 @@
 		1E1E7B144FBB68F5AC9D1950 /* ControlledProcessSpawner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E0ACCB5AC75BA5A7CCA1086 /* ControlledProcessSpawner.swift */; };
 		214764D8A5B1FC50CB99C307 /* ServiceCheckRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0866C14195E5E324D6537B0D /* ServiceCheckRunner.swift */; };
 		253D073B0A48BFFD46CC12DC /* KeychainMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D064E5E26BFD836A5F824A5 /* KeychainMigrationTests.swift */; };
+		25D03D47DE5134875269AC00 /* DevelopmentFixtureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB66FDE2399575F0E8B7A29 /* DevelopmentFixtureController.swift */; };
 		29987D5F90E4E2F18D7645CA /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8555175F66B159987858E32E /* AppError.swift */; };
 		2E4074B873FD43D7D0C3ABF3 /* RuntimeLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F581F15724589845F8CFC2D /* RuntimeLifecycleTests.swift */; };
+		2E6C1B028D446E5793F30B17 /* ApplicationControlPlane+Operations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8652E83CCF95443975FD6B05 /* ApplicationControlPlane+Operations.swift */; };
 		2F6149F28827459B44F86A4C /* HarmlessListenerIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F467C90F276E40C4550FAC /* HarmlessListenerIntegrationTests.swift */; };
 		307995E1C52D9BED607CBE41 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E915152771EBB18742462365 /* SettingsView.swift */; };
 		337D4EBBF3BCD7A396E04B81 /* ProductDataMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA59E3C9BBCAFC3EBC27FB06 /* ProductDataMigrationTests.swift */; };
@@ -35,52 +42,69 @@
 		381783E9FC7AA375C496168B /* ProductDataMigrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BBACA958931EDE98D0E04D2 /* ProductDataMigrator.swift */; };
 		38BA45343523D2D6EE0AA325 /* ProcessResourceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142A7F72CC5FD22348BD5328 /* ProcessResourceModels.swift */; };
 		39322320848A511B859B3725 /* LsofFieldParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D96434C1697DBD20EDEFBE12 /* LsofFieldParserTests.swift */; };
+		3A2E337B8D26966FA162ED09 /* DevBerthMCP in Resources */ = {isa = PBXBuildFile; fileRef = E785FA01656131F5DC9B2C34 /* DevBerthMCP */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3CA5BA103744C4F94C520C7E /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09908791980E99623C212B2E /* MenuBarView.swift */; };
 		438E73B6BB64889704C8B2C6 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF5D6D125D6194F1977461E /* TestSupport.swift */; };
 		47DC40AD3384AF54307CC183 /* WorkspaceSessionRecord+Domain.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A832E88CCA5C3741EE72DC /* WorkspaceSessionRecord+Domain.swift */; };
 		4858F56C3C193BA2C67ECFBF /* ManagedServiceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD129DF980FA6E6998E15197 /* ManagedServiceModels.swift */; };
 		4983C1F94559B66461CA2AD1 /* RuntimeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095103FBC28B05553E66EB5D /* RuntimeModels.swift */; };
 		4A2B46BA7AE3180B4A110A8E /* FoundationCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78CEF95783200B823B75E8C5 /* FoundationCommandRunner.swift */; };
+		4B0B6434A296C97DF84B897A /* CapabilityRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D8BF217638A90253F3E8F1 /* CapabilityRegistry.swift */; };
 		4CCD1FDE800A04261436CEEF /* ProcessGroupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 487CE6FA2C45A49533547743 /* ProcessGroupTests.swift */; };
+		4D1A3224BB77B27EEA7210C4 /* ControlHostBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C9794BBEB8FCEB2DFB04782 /* ControlHostBridge.swift */; };
+		4DCBC25DC0A84832C7789D41 /* ManagedServicePersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29DEEB99B5DA7438BBA95317 /* ManagedServicePersistence.swift */; };
 		4E27607B4D04718489029189 /* ManagedProcessLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B63A7B6CB927DB17C1D18AE /* ManagedProcessLauncher.swift */; };
 		4E86E3AD38E70C0B786D39BE /* ManagedRuntimeRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ABB944533C44F3F1BBFFB /* ManagedRuntimeRegistry.swift */; };
+		4F67F8A96149A18E2B6880CF /* network_fixture.py in Resources */ = {isa = PBXBuildFile; fileRef = EC3E4664221C06B8C4930024 /* network_fixture.py */; };
 		5023DB32245FF535307408E3 /* ProjectOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6E50D20A0E7D0617C12698C /* ProjectOrchestrator.swift */; };
 		502C31FD8921E689E4B3293A /* OwnerAwareLifecycleRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E740BFFFA33887B21DACC0F4 /* OwnerAwareLifecycleRouter.swift */; };
 		52C70CCBCDEA5D0F794A9007 /* ProcessGroupModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 542A05FC8CEFF0E176B42AAE /* ProcessGroupModels.swift */; };
 		556BFBC5B83E11831861B419 /* RuntimePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D93CEE681463E6E322349F /* RuntimePresentationTests.swift */; };
+		56AC525E2F5042D083C5B20D /* UnixControlSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CFDC4065A2C392DB3FE7D37 /* UnixControlSocket.swift */; };
 		5721B9802FF853D329CF34A6 /* RestartTrustEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07EC1019B4D71DF08F1B1758 /* RestartTrustEvaluator.swift */; };
 		577A711A20F1C9279E500AA9 /* ManagedProcessGroupIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 906CDC837022779864CE2530 /* ManagedProcessGroupIntegrationTests.swift */; };
 		5A0128E0565D237AF00EC95E /* ProjectInfererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE18BA5698BF0E0B1A10DCD4 /* ProjectInfererTests.swift */; };
 		5CA54D85C793D6376AC580D7 /* DockerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A78D7D1A2732D94FE7AC87EC /* DockerModels.swift */; };
 		5CA584680BEBC6522E33F25D /* SecretLifecycleCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020BC6BFAA3F8BDD35FD5028 /* SecretLifecycleCoordinator.swift */; };
+		5E371561D3243B236EE52B2E /* DevBerthControlHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73022367E5BAF978C47AC7D1 /* DevBerthControlHost.swift */; };
 		5F82FA0113C00B2ABCA70582 /* ManagedServiceValidationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000DF0E396F9F36839ECD09F /* ManagedServiceValidationRunner.swift */; };
+		5F96559418483B3AA04FC030 /* ControlProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98727B3B1F8FD9DA0F29B999 /* ControlProtocol.swift */; };
+		638A92B69B0F49B9B65695D0 /* ApplicationControlPlane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C79CF73863DFB1C47B276DC /* ApplicationControlPlane.swift */; };
 		666C6613FEA0B64F5CB88A2D /* DevBerthManifestCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D651CBD3D2012E40BC8C5A /* DevBerthManifestCodec.swift */; };
 		66DE3EA6286B21F8B1CE07E3 /* LaunchProfilesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E5D53E26ADAEA01A8BFA8C /* LaunchProfilesView.swift */; };
 		68AAE3743CB1E56AA4E2234F /* HistoryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E611672C5ABD4799462FA7C /* HistoryModels.swift */; };
 		6BE31D64294D563492D46FEC /* LaunchCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DDE94D262FE7E5F2AB087A /* LaunchCoordinatorTests.swift */; };
 		6CD6AE2C3269DFB2FD1F291F /* multi_port_fixture.py in Resources */ = {isa = PBXBuildFile; fileRef = A526150CBE5099F1EF0D7DE0 /* multi_port_fixture.py */; };
 		6F8B9DCD943AEB354409FFD1 /* SessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A098D081B90C4B4A84DC0A /* SessionModels.swift */; };
+		70CC66397A4F0C7E528C1B40 /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = A173F411D343751772EA1451 /* package.json */; };
 		728C0000E4349F26D6B50B70 /* process_tree_fixture.py in Resources */ = {isa = PBXBuildFile; fileRef = 40D30E88D1836AD929D2580E /* process_tree_fixture.py */; };
 		729A31CFE8CE61E9D7E1A102 /* OwnershipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942F9F67C08A5214843D32DD /* OwnershipTests.swift */; };
 		72A65DCD4A342322B71C0FD2 /* LifecycleRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D90E144E58AB81FA15AB365 /* LifecycleRouterTests.swift */; };
 		747A056DC4B87FCE61F5E540 /* SecurityAndLoggingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5DA8EEED2AE44D300F3389 /* SecurityAndLoggingTests.swift */; };
+		76F61747105A110B1685A273 /* multi_port_fixture.py in Resources */ = {isa = PBXBuildFile; fileRef = A526150CBE5099F1EF0D7DE0 /* multi_port_fixture.py */; };
+		776CC798BA2CED854475D376 /* http_fixture.py in Resources */ = {isa = PBXBuildFile; fileRef = B64CE41FDCF28EF30CF8764A /* http_fixture.py */; };
 		789CD2AAB2E699FE7398DAC7 /* PersistentModelsV5.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FD2B6A6958ABA2BA0CD622C /* PersistentModelsV5.swift */; };
 		7ABAD9286F615E38292C9AA9 /* PersistentModelsV6.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014C2BB49E53B9DFC86C0291 /* PersistentModelsV6.swift */; };
+		7D0C2D28FEBDF856E0367125 /* process_tree_fixture.py in Resources */ = {isa = PBXBuildFile; fileRef = 40D30E88D1836AD929D2580E /* process_tree_fixture.py */; };
 		7D279B5AE37D77024EA387F3 /* PerformanceSoakTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676732238A5B4AD14BCC6AB2 /* PerformanceSoakTests.swift */; };
 		7ECFF41AF02D51CC2B09C5DE /* HealthCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC785A7D1CE69D53A040B082 /* HealthCheckTests.swift */; };
 		7FC22B2A01C124E7BE5D0F2B /* HTTPHealthChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106925A3C19AA914FD8A6C8E /* HTTPHealthChecker.swift */; };
 		8126BBFD7328CB533EC01E5F /* PersistentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7DE9AFA59A86FDD0E83BF82 /* PersistentModels.swift */; };
+		81B277CCF1F68097A67F6710 /* DevBerthMCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F899E14182EAB3C68EAA0C /* DevBerthMCPServer.swift */; };
 		84F3036AD0E07B9C45F81CA5 /* RuntimePresentationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E6A95965FAA2FCB0362A2C5 /* RuntimePresentationModels.swift */; };
 		8659A0813729058D915BFF4A /* NativeProjectDiscoveryAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6210B1073193C6748D99FD3F /* NativeProjectDiscoveryAdapters.swift */; };
 		87086294CA840C789FD855FA /* ProjectInferer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163E0483F03524B1EBF291C2 /* ProjectInferer.swift */; };
 		881C131EDDDABAD4642698B5 /* ProjectDiscoveryImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78C3237108F6497654E5462E /* ProjectDiscoveryImport.swift */; };
+		88F427C09153E9F0E96F9258 /* ControlPlaneAndProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11976A2DC74E81E3CDC6DC21 /* ControlPlaneAndProtocolTests.swift */; };
 		8981D7C9462A3A00F971679B /* SafeProcessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACCDD763B36B6FC4D4CECC4 /* SafeProcessController.swift */; };
 		8B6E683467E88FA2D1606141 /* LocalPortDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1F87145BEAF4FCCD45701C /* LocalPortDiscovery.swift */; };
 		902896C5F64C78F6B584CEEA /* SwiftDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C3F23F2B99866A79E60F74 /* SwiftDataStore.swift */; };
+		9164701DE5F5DB134B19AD5E /* ApplicationControlPlane+Development.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBE9210B1CDAFB21A3F0FF8 /* ApplicationControlPlane+Development.swift */; };
 		9568FA44490CD68B2C0C6D12 /* ServiceCheckModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCDB57B3DFADF0C802227F80 /* ServiceCheckModels.swift */; };
 		95A54C730701C8270F02C2BC /* ShellEscaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDAF0A189722036850B2DD4 /* ShellEscaper.swift */; };
 		966EB287D49A434179F0C2EB /* DevBerthApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C85578D426577657D7953F3 /* DevBerthApp.swift */; };
 		96B417891DCF0D7B100C98C6 /* ProjectDiscoveryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB37034A78AFCE64BAEA1D84 /* ProjectDiscoveryModels.swift */; };
+		9F492DC2B136492C424D25BB /* network_fixture.py in Resources */ = {isa = PBXBuildFile; fileRef = EC3E4664221C06B8C4930024 /* network_fixture.py */; };
 		A076E3489901D7B7159CC7BC /* DockerAssociationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150E72F36AB6C2577A8C22A9 /* DockerAssociationProvider.swift */; };
 		A09979F851CD90DF4CD9B14F /* ActivePortsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8725BE07E983E6E7233CCB1D /* ActivePortsView.swift */; };
 		A3916D1FF2F74D6FEBDCA8F8 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403A40D3191E8EE9A71BCCF8 /* CommandPaletteView.swift */; };
@@ -89,15 +113,20 @@
 		AC40AE512EFD07C7D460505F /* RestartTrustTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBA808FCE0E930EB200C357 /* RestartTrustTests.swift */; };
 		ACAD6B504C1B9CA19A20F64E /* LsofFieldParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86686FD53004C1D8AECD25E2 /* LsofFieldParser.swift */; };
 		AF98D409ED0760A5F7DBE69B /* KeychainSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A4E35A45E34E86F62603B27 /* KeychainSecretStore.swift */; };
+		B262B7CBE855B2B55D628113 /* libDevBerthControlContracts.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 180E999ED9D79F6622D5A267 /* libDevBerthControlContracts.a */; };
 		B318FEE0CA02452EB0F2D640 /* LifecycleModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D787963156C51A4B2FE2F2 /* LifecycleModels.swift */; };
 		B82FA5BFCA917D72ACC3DED6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 854B52FA18C6757B9E2F6F4A /* Assets.xcassets */; };
 		BB4C241AD329B1AA3C131728 /* ServiceProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60293B6FA7E9809C5E36248 /* ServiceProtocols.swift */; };
 		BBC0CB99DAC609967629F47B /* PersistentModelsV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8ABD88DC29F2A1E8D26EDD2 /* PersistentModelsV2.swift */; };
+		BCD469FFC502F7A348433112 /* DevBerthMCPMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1E7C261EF2C17A66E0ACDD /* DevBerthMCPMain.swift */; };
 		BD4519287C0A3B915A935E97 /* PortMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4987E53746BE874B98C793B2 /* PortMonitor.swift */; };
+		BEC9C958355B84A4EA636EC9 /* ControlPlaneStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CCBE5C17C7E67A53C6438EC /* ControlPlaneStore.swift */; };
 		BF6BAF31F6191695D8DC28A4 /* Phase2PersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F148689F29AC7554CCD97C85 /* Phase2PersistenceTests.swift */; };
 		C32AE5AD6EFAB7B982ED649E /* OwnershipModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD2065FE3FBAE1F295D1E1C /* OwnershipModels.swift */; };
+		C3A284C291EAEC387B6CCEC2 /* ApplicationControlPlane+SessionsPorts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73DDB0D2F2422263FDD167FC /* ApplicationControlPlane+SessionsPorts.swift */; };
 		C63424BC10A501694197D5FB /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10870D7174BC5CB440461B4C /* OnboardingView.swift */; };
 		CA990933C54365E663D73657 /* ProcessClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECEC00B35D17D8881C2DF46C /* ProcessClassifier.swift */; };
+		CE47AF8A8FED7314ADEA3B18 /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = A173F411D343751772EA1451 /* package.json */; };
 		CEE2116FFFEDC64EAAB5ACF5 /* RestartTrustModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7B40447F86160175D976AE /* RestartTrustModels.swift */; };
 		CF4DE583570D9851188A527A /* EventBatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755560AA16F59AB997751A21 /* EventBatchingTests.swift */; };
 		D09B61B1CF5E8F8FA30734F5 /* LaunchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3960E28AF5CD1076F1FC187 /* LaunchCoordinator.swift */; };
@@ -106,18 +135,22 @@
 		D5477F4A53E31883C265C524 /* RuntimeOwnershipResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8038EA1F61659D1F7CC39CA3 /* RuntimeOwnershipResolver.swift */; };
 		D5C73660AAFA10EBCBA2EA29 /* ProcessGroupPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73D9CAFF25383ADFDCF7D74 /* ProcessGroupPersistenceTests.swift */; };
 		D79FAF020192B0010BDA2D0D /* ProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED4125EB37C4ED8228B07FD1 /* ProjectsView.swift */; };
+		D98778F03EF1C9DB413BF2A6 /* PersistentModelsV7.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBF16866FA6F6C9CC1B06B6F /* PersistentModelsV7.swift */; };
 		DAA7CCDB0C84018EDB75962A /* DiagnosticsReportBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F2B73EBEA11C532AEF63A0 /* DiagnosticsReportBuilder.swift */; };
 		DB303049EE00F34FCE1273C6 /* ProfileLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0EAB8131C3E48474673FA74 /* ProfileLogsView.swift */; };
 		DF2B75278BA00F4012C527A4 /* LaunchProfileRecord+Domain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E0E81383A1A22046B843794 /* LaunchProfileRecord+Domain.swift */; };
 		DF5459D6A226D335E1FE5744 /* PersistentModelsV3.swift in Sources */ = {isa = PBXBuildFile; fileRef = F99F9D9E74CA35D432182161 /* PersistentModelsV3.swift */; };
+		E1176C3CA2145175E5F5110C /* libDevBerthControlContracts.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 180E999ED9D79F6622D5A267 /* libDevBerthControlContracts.a */; };
 		E475F13CE2E6DCFCEFDEBA8E /* ProcessSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2836D26D412DF4A5D6C435CE /* ProcessSafetyTests.swift */; };
 		EA10F0597CF288E155FF13B3 /* ManagedServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD92C1B0DE5DD2B05A6EE25 /* ManagedServiceTests.swift */; };
+		EB21DCCBB2B41920582327EA /* MCPIntegrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8CDEE1C161A5A02A7E6CF5 /* MCPIntegrationManager.swift */; };
 		EBC532BE0B28337BA147A07E /* ObservationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129DDEA3EB33CDF29BE2D394 /* ObservationModels.swift */; };
 		EDC756077B5E7EA5F847D670 /* ProcessResourceUsageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B126D50749CFA407863F48 /* ProcessResourceUsageTests.swift */; };
 		F06E797CC421F9CC852940D7 /* ProcessDefinitionDiscoveryAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81DCEC453BAB3D9596CD6598 /* ProcessDefinitionDiscoveryAdapters.swift */; };
 		F14884E8E2A2ABD4C0B29DA2 /* LocalNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8107B48A7BB4AA5F8A2F9AAD /* LocalNotificationService.swift */; };
 		F27870D401CA9EAE27A41137 /* ProcessFingerprintVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62D8B0F6300A539B14980E7 /* ProcessFingerprintVerifier.swift */; };
 		F4B152F0DB8342D397E86EF8 /* ProcessGroupInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BCCA578D89A9174C6F971CE /* ProcessGroupInspector.swift */; };
+		F4DB5ABCDDE1C216CAC83B58 /* ApplicationControlPlane+RuntimeProjectsServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F9F38137081987DCF19942 /* ApplicationControlPlane+RuntimeProjectsServices.swift */; };
 		F4E5FE5BF85B5DFEF5D893EE /* DockerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9AC72B7125A6F0F3BF2329 /* DockerTests.swift */; };
 		F76E0F5CC8017D06A8FF96A6 /* SecretLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BA0A32DD7B638630BF0822A /* SecretLifecycleTests.swift */; };
 		F7A3452DD487E67357A98017 /* ProductIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B43A2EDCF87B1FCBE5C128 /* ProductIdentity.swift */; };
@@ -130,6 +163,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		2A1FC3FD3069E0B0D2E43023 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9A130C13C933A691EE61D7D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E54B86C98FE41DD23F973F86;
+			remoteInfo = DevBerthControlContracts;
+		};
 		3EF6D76B8726F5471AEC4837 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 9A130C13C933A691EE61D7D1 /* Project object */;
@@ -137,12 +177,33 @@
 			remoteGlobalIDString = 5BE5A6A0C4D8DFCF850AC215;
 			remoteInfo = DevBerth;
 		};
+		68FA96141175706570789AE8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9A130C13C933A691EE61D7D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AFC0A1490C6DB4BFDC82BFD3;
+			remoteInfo = DevBerthMCP;
+		};
 		746020176D0914B60F7DA6FE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 9A130C13C933A691EE61D7D1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 5BE5A6A0C4D8DFCF850AC215;
 			remoteInfo = DevBerth;
+		};
+		78223EA608411AB788773CF4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9A130C13C933A691EE61D7D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5BE5A6A0C4D8DFCF850AC215;
+			remoteInfo = DevBerth;
+		};
+		C2860BE186BF8D7B69133B39 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9A130C13C933A691EE61D7D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E54B86C98FE41DD23F973F86;
+			remoteInfo = DevBerthControlContracts;
 		};
 		C7878DFE5A36F8DC7BC59CD5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -166,24 +227,31 @@
 		09908791980E99623C212B2E /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		0A209B418CF83125E3636072 /* ObservedProcessProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservedProcessProvider.swift; sourceTree = "<group>"; };
 		0BCCA578D89A9174C6F971CE /* ProcessGroupInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessGroupInspector.swift; sourceTree = "<group>"; };
+		0C79CF73863DFB1C47B276DC /* ApplicationControlPlane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationControlPlane.swift; sourceTree = "<group>"; };
+		0CCBE5C17C7E67A53C6438EC /* ControlPlaneStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPlaneStore.swift; sourceTree = "<group>"; };
 		0E0ACCB5AC75BA5A7CCA1086 /* ControlledProcessSpawner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlledProcessSpawner.swift; sourceTree = "<group>"; };
 		0E611672C5ABD4799462FA7C /* HistoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryModels.swift; sourceTree = "<group>"; };
 		1067AA0481A27FE05023A947 /* DevBerthLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevBerthLogger.swift; sourceTree = "<group>"; };
 		106925A3C19AA914FD8A6C8E /* HTTPHealthChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPHealthChecker.swift; sourceTree = "<group>"; };
 		10870D7174BC5CB440461B4C /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		11976A2DC74E81E3CDC6DC21 /* ControlPlaneAndProtocolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPlaneAndProtocolTests.swift; sourceTree = "<group>"; };
 		129DDEA3EB33CDF29BE2D394 /* ObservationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservationModels.swift; sourceTree = "<group>"; };
 		12FB87E39B521ED6937502C4 /* DockerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerView.swift; sourceTree = "<group>"; };
+		13BF1F6963DC15608FC608A5 /* DevBerthMCPTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DevBerthMCPTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		142A7F72CC5FD22348BD5328 /* ProcessResourceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessResourceModels.swift; sourceTree = "<group>"; };
 		150E72F36AB6C2577A8C22A9 /* DockerAssociationProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerAssociationProvider.swift; sourceTree = "<group>"; };
 		163E0483F03524B1EBF291C2 /* ProjectInferer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectInferer.swift; sourceTree = "<group>"; };
 		172D267BDF4FFC28F247C9BC /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		180E999ED9D79F6622D5A267 /* libDevBerthControlContracts.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libDevBerthControlContracts.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		1817AFDC3300D91000276616 /* TerminationStateMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminationStateMachine.swift; sourceTree = "<group>"; };
 		1A4E35A45E34E86F62603B27 /* KeychainSecretStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainSecretStore.swift; sourceTree = "<group>"; };
 		1B1F87145BEAF4FCCD45701C /* LocalPortDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPortDiscovery.swift; sourceTree = "<group>"; };
 		1CAC55806EDB0182F79707CC /* lsof_tcp.fields */ = {isa = PBXFileReference; path = lsof_tcp.fields; sourceTree = "<group>"; };
+		1CFDC4065A2C392DB3FE7D37 /* UnixControlSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnixControlSocket.swift; sourceTree = "<group>"; };
 		1DF0296774E7BC2CCB70D6B1 /* RuntimeLifecycleTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeLifecycleTracker.swift; sourceTree = "<group>"; };
 		25F467C90F276E40C4550FAC /* HarmlessListenerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarmlessListenerIntegrationTests.swift; sourceTree = "<group>"; };
 		2836D26D412DF4A5D6C435CE /* ProcessSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSafetyTests.swift; sourceTree = "<group>"; };
+		29DEEB99B5DA7438BBA95317 /* ManagedServicePersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedServicePersistence.swift; sourceTree = "<group>"; };
 		2BBACA958931EDE98D0E04D2 /* ProductDataMigrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductDataMigrator.swift; sourceTree = "<group>"; };
 		2DA2F74734CDFBB518F472E5 /* DevBerth.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DevBerth.entitlements; sourceTree = "<group>"; };
 		2E352C022C8CAD79AC00B247 /* ServiceCheckRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceCheckRunnerTests.swift; sourceTree = "<group>"; };
@@ -198,6 +266,7 @@
 		487CE6FA2C45A49533547743 /* ProcessGroupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessGroupTests.swift; sourceTree = "<group>"; };
 		4987E53746BE874B98C793B2 /* PortMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortMonitor.swift; sourceTree = "<group>"; };
 		4AA688D4DBA71F83FD6A72BB /* RuntimeAndClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAndClassificationTests.swift; sourceTree = "<group>"; };
+		4BBE9210B1CDAFB21A3F0FF8 /* ApplicationControlPlane+Development.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ApplicationControlPlane+Development.swift"; sourceTree = "<group>"; };
 		4E6A95965FAA2FCB0362A2C5 /* RuntimePresentationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePresentationModels.swift; sourceTree = "<group>"; };
 		52D651CBD3D2012E40BC8C5A /* DevBerthManifestCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevBerthManifestCodec.swift; sourceTree = "<group>"; };
 		542A05FC8CEFF0E176B42AAE /* ProcessGroupModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessGroupModels.swift; sourceTree = "<group>"; };
@@ -210,8 +279,11 @@
 		676732238A5B4AD14BCC6AB2 /* PerformanceSoakTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceSoakTests.swift; sourceTree = "<group>"; };
 		685AE2D075F6DC31E9CAAB54 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
 		68E1BA2C55AA0BC809AF56E4 /* JavaScriptProjectDiscoveryAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScriptProjectDiscoveryAdapter.swift; sourceTree = "<group>"; };
+		69F9F38137081987DCF19942 /* ApplicationControlPlane+RuntimeProjectsServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ApplicationControlPlane+RuntimeProjectsServices.swift"; sourceTree = "<group>"; };
 		6D064E5E26BFD836A5F824A5 /* KeychainMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainMigrationTests.swift; sourceTree = "<group>"; };
 		6D97877AC906205957A6C8A9 /* DockerCLIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerCLIClient.swift; sourceTree = "<group>"; };
+		73022367E5BAF978C47AC7D1 /* DevBerthControlHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevBerthControlHost.swift; sourceTree = "<group>"; };
+		73DDB0D2F2422263FDD167FC /* ApplicationControlPlane+SessionsPorts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ApplicationControlPlane+SessionsPorts.swift"; sourceTree = "<group>"; };
 		755560AA16F59AB997751A21 /* EventBatchingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventBatchingTests.swift; sourceTree = "<group>"; };
 		78B34E56EB01276150B038E2 /* DevBerthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DevBerthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		78C3237108F6497654E5462E /* ProjectDiscoveryImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDiscoveryImport.swift; sourceTree = "<group>"; };
@@ -224,16 +296,23 @@
 		83F2B73EBEA11C532AEF63A0 /* DiagnosticsReportBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsReportBuilder.swift; sourceTree = "<group>"; };
 		854B52FA18C6757B9E2F6F4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8555175F66B159987858E32E /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
+		8652E83CCF95443975FD6B05 /* ApplicationControlPlane+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ApplicationControlPlane+Operations.swift"; sourceTree = "<group>"; };
 		86686FD53004C1D8AECD25E2 /* LsofFieldParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LsofFieldParser.swift; sourceTree = "<group>"; };
 		8725BE07E983E6E7233CCB1D /* ActivePortsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivePortsView.swift; sourceTree = "<group>"; };
+		8874536D6F42BE575663D244 /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
 		8B63A7B6CB927DB17C1D18AE /* ManagedProcessLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedProcessLauncher.swift; sourceTree = "<group>"; };
 		906CDC837022779864CE2530 /* ManagedProcessGroupIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedProcessGroupIntegrationTests.swift; sourceTree = "<group>"; };
 		90A90382D36276B90A2C3838 /* ProjectDiscoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDiscoveryTests.swift; sourceTree = "<group>"; };
 		92D93CEE681463E6E322349F /* RuntimePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePresentationTests.swift; sourceTree = "<group>"; };
 		942F9F67C08A5214843D32DD /* OwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnershipTests.swift; sourceTree = "<group>"; };
+		98727B3B1F8FD9DA0F29B999 /* ControlProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlProtocol.swift; sourceTree = "<group>"; };
 		996099AC5AF505DEBBF80B04 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		9B8CDEE1C161A5A02A7E6CF5 /* MCPIntegrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPIntegrationManager.swift; sourceTree = "<group>"; };
 		9B9AC72B7125A6F0F3BF2329 /* DockerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerTests.swift; sourceTree = "<group>"; };
+		9C9794BBEB8FCEB2DFB04782 /* ControlHostBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlHostBridge.swift; sourceTree = "<group>"; };
 		A0EAB8131C3E48474673FA74 /* ProfileLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileLogsView.swift; sourceTree = "<group>"; };
+		A173F411D343751772EA1451 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
+		A1D8BF217638A90253F3E8F1 /* CapabilityRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapabilityRegistry.swift; sourceTree = "<group>"; };
 		A2A28A11672F0AAC5C8E2872 /* WorkspaceSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceSessionCoordinator.swift; sourceTree = "<group>"; };
 		A3960E28AF5CD1076F1FC187 /* LaunchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchCoordinator.swift; sourceTree = "<group>"; };
 		A526150CBE5099F1EF0D7DE0 /* multi_port_fixture.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = multi_port_fixture.py; sourceTree = "<group>"; };
@@ -242,9 +321,12 @@
 		A78D7D1A2732D94FE7AC87EC /* DockerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerModels.swift; sourceTree = "<group>"; };
 		AACCDD763B36B6FC4D4CECC4 /* SafeProcessController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeProcessController.swift; sourceTree = "<group>"; };
 		AE18BA5698BF0E0B1A10DCD4 /* ProjectInfererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectInfererTests.swift; sourceTree = "<group>"; };
+		AF1E7C261EF2C17A66E0ACDD /* DevBerthMCPMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevBerthMCPMain.swift; sourceTree = "<group>"; };
+		AFEEBA82D3FC0BCD508F6069 /* ApplicationControlPlane+DockerHistorySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ApplicationControlPlane+DockerHistorySettings.swift"; sourceTree = "<group>"; };
 		B60293B6FA7E9809C5E36248 /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
 		B64CE41FDCF28EF30CF8764A /* http_fixture.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = http_fixture.py; sourceTree = "<group>"; };
 		B8ABD88DC29F2A1E8D26EDD2 /* PersistentModelsV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModelsV2.swift; sourceTree = "<group>"; };
+		BDB66FDE2399575F0E8B7A29 /* DevelopmentFixtureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopmentFixtureController.swift; sourceTree = "<group>"; };
 		BDED0BCA6B0E4D5386ED27FB /* DevBerth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DevBerth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3DDE94D262FE7E5F2AB087A /* LaunchCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchCoordinatorTests.swift; sourceTree = "<group>"; };
 		C4C3F23F2B99866A79E60F74 /* SwiftDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataStore.swift; sourceTree = "<group>"; };
@@ -259,16 +341,21 @@
 		D96434C1697DBD20EDEFBE12 /* LsofFieldParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LsofFieldParserTests.swift; sourceTree = "<group>"; };
 		DA59E3C9BBCAFC3EBC27FB06 /* ProductDataMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductDataMigrationTests.swift; sourceTree = "<group>"; };
 		DB37034A78AFCE64BAEA1D84 /* ProjectDiscoveryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDiscoveryModels.swift; sourceTree = "<group>"; };
+		DBF16866FA6F6C9CC1B06B6F /* PersistentModelsV7.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModelsV7.swift; sourceTree = "<group>"; };
 		DDA2CD0E2906908AD73FE85E /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		DDBA808FCE0E930EB200C357 /* RestartTrustTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestartTrustTests.swift; sourceTree = "<group>"; };
 		DFD2065FE3FBAE1F295D1E1C /* OwnershipModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnershipModels.swift; sourceTree = "<group>"; };
+		E0F899E14182EAB3C68EAA0C /* DevBerthMCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevBerthMCPServer.swift; sourceTree = "<group>"; };
+		E2322C7C87ABC5DCF1D4FED2 /* Procfile */ = {isa = PBXFileReference; path = Procfile; sourceTree = "<group>"; };
 		E3A23902BF2D1BF8C8C4E288 /* PersistentModelsV4.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModelsV4.swift; sourceTree = "<group>"; };
 		E5D787963156C51A4B2FE2F2 /* LifecycleModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifecycleModels.swift; sourceTree = "<group>"; };
 		E6E50D20A0E7D0617C12698C /* ProjectOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOrchestrator.swift; sourceTree = "<group>"; };
 		E740BFFFA33887B21DACC0F4 /* OwnerAwareLifecycleRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerAwareLifecycleRouter.swift; sourceTree = "<group>"; };
+		E785FA01656131F5DC9B2C34 /* DevBerthMCP */ = {isa = PBXFileReference; includeInIndex = 0; path = DevBerthMCP; sourceTree = BUILT_PRODUCTS_DIR; };
 		E7DE9AFA59A86FDD0E83BF82 /* PersistentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModels.swift; sourceTree = "<group>"; };
 		E915152771EBB18742462365 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		EA4D7F7DD715D29CC596A3B6 /* ProcessLineageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessLineageProvider.swift; sourceTree = "<group>"; };
+		EC3E4664221C06B8C4930024 /* network_fixture.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = network_fixture.py; sourceTree = "<group>"; };
 		ECEC00B35D17D8881C2DF46C /* ProcessClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessClassifier.swift; sourceTree = "<group>"; };
 		ED4125EB37C4ED8228B07FD1 /* ProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectsView.swift; sourceTree = "<group>"; };
 		F148689F29AC7554CCD97C85 /* Phase2PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase2PersistenceTests.swift; sourceTree = "<group>"; };
@@ -280,6 +367,26 @@
 		FD129DF980FA6E6998E15197 /* ManagedServiceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedServiceModels.swift; sourceTree = "<group>"; };
 		FE5DA8EEED2AE44D300F3389 /* SecurityAndLoggingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityAndLoggingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		9D6A8A42537381154684EF5A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B262B7CBE855B2B55D628113 /* libDevBerthControlContracts.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E6032361A0166B3AB589D500 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E1176C3CA2145175E5F5110C /* libDevBerthControlContracts.a in Frameworks */,
+				092116DE5A153F31EA091834 /* MCP in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		02B017522EAEDC46B2C73BFF /* Features */ = {
@@ -305,6 +412,22 @@
 				2DA2F74734CDFBB518F472E5 /* DevBerth.entitlements */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		060DE389F0EEBA106417B2D1 /* ControlPlane */ = {
+			isa = PBXGroup;
+			children = (
+				0C79CF73863DFB1C47B276DC /* ApplicationControlPlane.swift */,
+				4BBE9210B1CDAFB21A3F0FF8 /* ApplicationControlPlane+Development.swift */,
+				AFEEBA82D3FC0BCD508F6069 /* ApplicationControlPlane+DockerHistorySettings.swift */,
+				8652E83CCF95443975FD6B05 /* ApplicationControlPlane+Operations.swift */,
+				69F9F38137081987DCF19942 /* ApplicationControlPlane+RuntimeProjectsServices.swift */,
+				73DDB0D2F2422263FDD167FC /* ApplicationControlPlane+SessionsPorts.swift */,
+				0CCBE5C17C7E67A53C6438EC /* ControlPlaneStore.swift */,
+				73022367E5BAF978C47AC7D1 /* DevBerthControlHost.swift */,
+				BDB66FDE2399575F0E8B7A29 /* DevelopmentFixtureController.swift */,
+			);
+			path = ControlPlane;
 			sourceTree = "<group>";
 		};
 		06E9C354C1E736C38FCD9854 /* Onboarding */ = {
@@ -363,6 +486,7 @@
 				F00FE5653E730B41C7C4A8D7 /* CommandExecution */,
 				8DD15D7EC27B7B5EB2FC5EEB /* Docker */,
 				1C64F62E9781C7139AE3F84C /* HealthChecks */,
+				FA7923F851C91877E5664B8A /* Integrations */,
 				3715B5E68DCCB98B4EED61D1 /* Launching */,
 				B7B581921803B8B861A33F14 /* Lifecycle */,
 				585A262E7A7165B8B6032B34 /* Logging */,
@@ -376,6 +500,15 @@
 				6770D5A74BD27433A8CD0E46 /* Trust */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		3679767521A72C044E0B9EB9 /* Acceptance */ = {
+			isa = PBXGroup;
+			children = (
+				BD89881AB8D1ECC51E9997CA /* backend */,
+				5CB6C22946BD77F34FF55013 /* frontend */,
+			);
+			path = Acceptance;
 			sourceTree = "<group>";
 		};
 		3715B5E68DCCB98B4EED61D1 /* Launching */ = {
@@ -411,12 +544,25 @@
 			isa = PBXGroup;
 			children = (
 				F5645346276381F254213CC8 /* DevBerth */,
+				A872E81DC73E0936EC1B3B53 /* DevBerthControlContracts */,
 				D0E0D13D0CD1670AA14A4124 /* DevBerthIntegrationTests */,
+				56F1A6524F1789443A83CD52 /* DevBerthMCP */,
+				B339B56753EF85BB649DD782 /* DevBerthMCPTests */,
 				BA7A3A65BABB63328E06CF88 /* DevBerthTests */,
 				B96FF7C90B6D9C08C11E1FBF /* DevBerthUITests */,
 				6031F30AF373476ECAFEC79E /* Fixtures */,
 				63837065E0CF890A9FA2988B /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		56F1A6524F1789443A83CD52 /* DevBerthMCP */ = {
+			isa = PBXGroup;
+			children = (
+				9C9794BBEB8FCEB2DFB04782 /* ControlHostBridge.swift */,
+				AF1E7C261EF2C17A66E0ACDD /* DevBerthMCPMain.swift */,
+				E0F899E14182EAB3C68EAA0C /* DevBerthMCPServer.swift */,
+			);
+			path = DevBerthMCP;
 			sourceTree = "<group>";
 		};
 		585A262E7A7165B8B6032B34 /* Logging */ = {
@@ -426,6 +572,14 @@
 				83F2B73EBEA11C532AEF63A0 /* DiagnosticsReportBuilder.swift */,
 			);
 			path = Logging;
+			sourceTree = "<group>";
+		};
+		5CB6C22946BD77F34FF55013 /* frontend */ = {
+			isa = PBXGroup;
+			children = (
+				A173F411D343751772EA1451 /* package.json */,
+			);
+			path = frontend;
 			sourceTree = "<group>";
 		};
 		5EFA6C96476B4EB8630F0847 /* History */ = {
@@ -441,7 +595,9 @@
 			children = (
 				B64CE41FDCF28EF30CF8764A /* http_fixture.py */,
 				A526150CBE5099F1EF0D7DE0 /* multi_port_fixture.py */,
+				EC3E4664221C06B8C4930024 /* network_fixture.py */,
 				40D30E88D1836AD929D2580E /* process_tree_fixture.py */,
+				3679767521A72C044E0B9EB9 /* Acceptance */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -463,8 +619,11 @@
 			children = (
 				BDED0BCA6B0E4D5386ED27FB /* DevBerth.app */,
 				3F77E2A153CA50C2C8A5EAA6 /* DevBerthIntegrationTests.xctest */,
+				E785FA01656131F5DC9B2C34 /* DevBerthMCP */,
+				13BF1F6963DC15608FC608A5 /* DevBerthMCPTests.xctest */,
 				78B34E56EB01276150B038E2 /* DevBerthTests.xctest */,
 				63BDAADE66C99BF5CE84E5DE /* DevBerthUITests.xctest */,
+				180E999ED9D79F6622D5A267 /* libDevBerthControlContracts.a */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -552,6 +711,25 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		A872E81DC73E0936EC1B3B53 /* DevBerthControlContracts */ = {
+			isa = PBXGroup;
+			children = (
+				A1D8BF217638A90253F3E8F1 /* CapabilityRegistry.swift */,
+				98727B3B1F8FD9DA0F29B999 /* ControlProtocol.swift */,
+				8874536D6F42BE575663D244 /* JSONValue.swift */,
+				1CFDC4065A2C392DB3FE7D37 /* UnixControlSocket.swift */,
+			);
+			path = DevBerthControlContracts;
+			sourceTree = "<group>";
+		};
+		B339B56753EF85BB649DD782 /* DevBerthMCPTests */ = {
+			isa = PBXGroup;
+			children = (
+				11976A2DC74E81E3CDC6DC21 /* ControlPlaneAndProtocolTests.swift */,
+			);
+			path = DevBerthMCPTests;
+			sourceTree = "<group>";
+		};
 		B7B581921803B8B861A33F14 /* Lifecycle */ = {
 			isa = PBXGroup;
 			children = (
@@ -602,6 +780,14 @@
 				1D59AAA82D95AFDC45EEFDF2 /* Fixtures */,
 			);
 			path = DevBerthTests;
+			sourceTree = "<group>";
+		};
+		BD89881AB8D1ECC51E9997CA /* backend */ = {
+			isa = PBXGroup;
+			children = (
+				E2322C7C87ABC5DCF1D4FED2 /* Procfile */,
+			);
+			path = backend;
 			sourceTree = "<group>";
 		};
 		CD425E14D04B8F644A842EDE /* Monitoring */ = {
@@ -679,12 +865,14 @@
 			isa = PBXGroup;
 			children = (
 				3E0E81383A1A22046B843794 /* LaunchProfileRecord+Domain.swift */,
+				29DEEB99B5DA7438BBA95317 /* ManagedServicePersistence.swift */,
 				E7DE9AFA59A86FDD0E83BF82 /* PersistentModels.swift */,
 				B8ABD88DC29F2A1E8D26EDD2 /* PersistentModelsV2.swift */,
 				F99F9D9E74CA35D432182161 /* PersistentModelsV3.swift */,
 				E3A23902BF2D1BF8C8C4E288 /* PersistentModelsV4.swift */,
 				5FD2B6A6958ABA2BA0CD622C /* PersistentModelsV5.swift */,
 				014C2BB49E53B9DFC86C0291 /* PersistentModelsV6.swift */,
+				DBF16866FA6F6C9CC1B06B6F /* PersistentModelsV7.swift */,
 				2BBACA958931EDE98D0E04D2 /* ProductDataMigrator.swift */,
 				78C3237108F6497654E5462E /* ProjectDiscoveryImport.swift */,
 				C4C3F23F2B99866A79E60F74 /* SwiftDataStore.swift */,
@@ -697,6 +885,7 @@
 			isa = PBXGroup;
 			children = (
 				A84A08CBF1960C9AFC0FF88F /* App */,
+				060DE389F0EEBA106417B2D1 /* ControlPlane */,
 				2190B4AA8E51E842924C5C1A /* Domain */,
 				02B017522EAEDC46B2C73BFF /* Features */,
 				F3CD4C6BBA3C7E3E10285F8C /* Persistence */,
@@ -706,6 +895,14 @@
 				D95C4FD22389B175283BDB6C /* Utilities */,
 			);
 			path = DevBerth;
+			sourceTree = "<group>";
+		};
+		FA7923F851C91877E5664B8A /* Integrations */ = {
+			isa = PBXGroup;
+			children = (
+				9B8CDEE1C161A5A02A7E6CF5 /* MCPIntegrationManager.swift */,
+			);
+			path = Integrations;
 			sourceTree = "<group>";
 		};
 		FF59C3210679EBCEEB6CF12B /* Security */ = {
@@ -720,16 +917,37 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		48A528B35336A79848026B03 /* DevBerthMCPTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B3C6481F922C12EFF5813173 /* Build configuration list for PBXNativeTarget "DevBerthMCPTests" */;
+			buildPhases = (
+				FB615FF49C0FE1F0BD86DFF4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				66EADCA625B0B45470BB1689 /* PBXTargetDependency */,
+			);
+			name = DevBerthMCPTests;
+			packageProductDependencies = (
+			);
+			productName = DevBerthMCPTests;
+			productReference = 13BF1F6963DC15608FC608A5 /* DevBerthMCPTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		5BE5A6A0C4D8DFCF850AC215 /* DevBerth */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 87C5CB343E95031C8B4131EF /* Build configuration list for PBXNativeTarget "DevBerth" */;
 			buildPhases = (
 				828F66B257D012237524CB5A /* Sources */,
 				FE40FFBF77D152A80253583F /* Resources */,
+				9D6A8A42537381154684EF5A /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				583272E480EFE4836212B05B /* PBXTargetDependency */,
+				31D217605BB15F9ED1C96485 /* PBXTargetDependency */,
 			);
 			name = DevBerth;
 			packageProductDependencies = (
@@ -775,6 +993,44 @@
 			productReference = 63BDAADE66C99BF5CE84E5DE /* DevBerthUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		AFC0A1490C6DB4BFDC82BFD3 /* DevBerthMCP */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DA9031828A7596DE8C2E8649 /* Build configuration list for PBXNativeTarget "DevBerthMCP" */;
+			buildPhases = (
+				5DED65E1307F88E92A39664E /* Sources */,
+				E6032361A0166B3AB589D500 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EA36497B3C585481BB0C48D4 /* PBXTargetDependency */,
+			);
+			name = DevBerthMCP;
+			packageProductDependencies = (
+				88A636E5B0ACD828E53BFEE7 /* MCP */,
+			);
+			productName = DevBerthMCP;
+			productReference = E785FA01656131F5DC9B2C34 /* DevBerthMCP */;
+			productType = "com.apple.product-type.tool";
+		};
+		E54B86C98FE41DD23F973F86 /* DevBerthControlContracts */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DD42937A5AECA36CD3013326 /* Build configuration list for PBXNativeTarget "DevBerthControlContracts" */;
+			buildPhases = (
+				EB28C21D97E818D7991A9EB0 /* Sources */,
+				78495CC9A28FB2F03BABF5A5 /* Copy Swift Objective-C Interface Header */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DevBerthControlContracts;
+			packageProductDependencies = (
+			);
+			productName = DevBerthControlContracts;
+			productReference = 180E999ED9D79F6622D5A267 /* libDevBerthControlContracts.a */;
+			productType = "com.apple.product-type.library.static";
+		};
 		F34A79B9329B13F565F41860 /* DevBerthTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C0AD6A6652D2319E3ACD2344 /* Build configuration list for PBXNativeTarget "DevBerthTests" */;
@@ -803,6 +1059,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					48A528B35336A79848026B03 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
 					5BE5A6A0C4D8DFCF850AC215 = {
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
@@ -815,6 +1075,14 @@
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 						TestTargetID = 5BE5A6A0C4D8DFCF850AC215;
+					};
+					AFC0A1490C6DB4BFDC82BFD3 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					E54B86C98FE41DD23F973F86 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
 					};
 					F34A79B9329B13F565F41860 = {
 						DevelopmentTeam = "";
@@ -831,14 +1099,20 @@
 			);
 			mainGroup = 53C025280A0BF50605DECD45;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				42BB5150BCED0FE61530F686 /* XCRemoteSwiftPackageReference "swift-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 63837065E0CF890A9FA2988B /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				E54B86C98FE41DD23F973F86 /* DevBerthControlContracts */,
 				5BE5A6A0C4D8DFCF850AC215 /* DevBerth */,
+				AFC0A1490C6DB4BFDC82BFD3 /* DevBerthMCP */,
 				F34A79B9329B13F565F41860 /* DevBerthTests */,
 				789F8FA403B4E5E519312A0A /* DevBerthIntegrationTests */,
+				48A528B35336A79848026B03 /* DevBerthMCPTests */,
 				7A3F437B88ED110E87C0954F /* DevBerthUITests */,
 			);
 		};
@@ -849,8 +1123,11 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				07815CD4903B9A7A773C234D /* Procfile in Resources */,
 				339E36B428832E182159D439 /* http_fixture.py in Resources */,
 				6CD6AE2C3269DFB2FD1F291F /* multi_port_fixture.py in Resources */,
+				9F492DC2B136492C424D25BB /* network_fixture.py in Resources */,
+				CE47AF8A8FED7314ADEA3B18 /* package.json in Resources */,
 				728C0000E4349F26D6B50B70 /* process_tree_fixture.py in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -869,12 +1146,48 @@
 			buildActionMask = 2147483647;
 			files = (
 				B82FA5BFCA917D72ACC3DED6 /* Assets.xcassets in Resources */,
+				087599F30598319F84B03C9C /* Procfile in Resources */,
+				776CC798BA2CED854475D376 /* http_fixture.py in Resources */,
+				76F61747105A110B1685A273 /* multi_port_fixture.py in Resources */,
+				4F67F8A96149A18E2B6880CF /* network_fixture.py in Resources */,
+				70CC66397A4F0C7E528C1B40 /* package.json in Resources */,
+				7D0C2D28FEBDF856E0367125 /* process_tree_fixture.py in Resources */,
+				3A2E337B8D26966FA162ED09 /* DevBerthMCP in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		78495CC9A28FB2F03BABF5A5 /* Copy Swift Objective-C Interface Header */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(DERIVED_SOURCES_DIR)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			name = "Copy Swift Objective-C Interface Header";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/include/$(PRODUCT_MODULE_NAME)/$(SWIFT_OBJC_INTERFACE_HEADER_NAME)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "ditto \"${SCRIPT_INPUT_FILE_0}\" \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
+		5DED65E1307F88E92A39664E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D1A3224BB77B27EEA7210C4 /* ControlHostBridge.swift in Sources */,
+				BCD469FFC502F7A348433112 /* DevBerthMCPMain.swift in Sources */,
+				81B277CCF1F68097A67F6710 /* DevBerthMCPServer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		74EC869D16185440A101E277 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -891,12 +1204,21 @@
 				A09979F851CD90DF4CD9B14F /* ActivePortsView.swift in Sources */,
 				29987D5F90E4E2F18D7645CA /* AppError.swift in Sources */,
 				14DAEE1DD2443A28A8825CC4 /* AppModel.swift in Sources */,
+				9164701DE5F5DB134B19AD5E /* ApplicationControlPlane+Development.swift in Sources */,
+				10FC132C7AA641E0294F59CA /* ApplicationControlPlane+DockerHistorySettings.swift in Sources */,
+				2E6C1B028D446E5793F30B17 /* ApplicationControlPlane+Operations.swift in Sources */,
+				F4DB5ABCDDE1C216CAC83B58 /* ApplicationControlPlane+RuntimeProjectsServices.swift in Sources */,
+				C3A284C291EAEC387B6CCEC2 /* ApplicationControlPlane+SessionsPorts.swift in Sources */,
+				638A92B69B0F49B9B65695D0 /* ApplicationControlPlane.swift in Sources */,
 				A3916D1FF2F74D6FEBDCA8F8 /* CommandPaletteView.swift in Sources */,
+				BEC9C958355B84A4EA636EC9 /* ControlPlaneStore.swift in Sources */,
 				1E1E7B144FBB68F5AC9D1950 /* ControlledProcessSpawner.swift in Sources */,
 				14C750B212F0A1BDD7323551 /* DesignSystem.swift in Sources */,
 				966EB287D49A434179F0C2EB /* DevBerthApp.swift in Sources */,
+				5E371561D3243B236EE52B2E /* DevBerthControlHost.swift in Sources */,
 				FCF37EA1EC6D2D06C46FDDF7 /* DevBerthLogger.swift in Sources */,
 				666C6613FEA0B64F5CB88A2D /* DevBerthManifestCodec.swift in Sources */,
+				25D03D47DE5134875269AC00 /* DevelopmentFixtureController.swift in Sources */,
 				DAA7CCDB0C84018EDB75962A /* DiagnosticsReportBuilder.swift in Sources */,
 				A076E3489901D7B7159CC7BC /* DockerAssociationProvider.swift in Sources */,
 				1B0D10E3DEB2DB4F900AE56D /* DockerCLIClient.swift in Sources */,
@@ -916,9 +1238,11 @@
 				F14884E8E2A2ABD4C0B29DA2 /* LocalNotificationService.swift in Sources */,
 				8B6E683467E88FA2D1606141 /* LocalPortDiscovery.swift in Sources */,
 				ACAD6B504C1B9CA19A20F64E /* LsofFieldParser.swift in Sources */,
+				EB21DCCBB2B41920582327EA /* MCPIntegrationManager.swift in Sources */,
 				4E27607B4D04718489029189 /* ManagedProcessLauncher.swift in Sources */,
 				4E86E3AD38E70C0B786D39BE /* ManagedRuntimeRegistry.swift in Sources */,
 				4858F56C3C193BA2C67ECFBF /* ManagedServiceModels.swift in Sources */,
+				4DCBC25DC0A84832C7789D41 /* ManagedServicePersistence.swift in Sources */,
 				5F82FA0113C00B2ABCA70582 /* ManagedServiceValidationRunner.swift in Sources */,
 				3CA5BA103744C4F94C520C7E /* MenuBarView.swift in Sources */,
 				8659A0813729058D915BFF4A /* NativeProjectDiscoveryAdapters.swift in Sources */,
@@ -933,6 +1257,7 @@
 				015222769C602CCF4B6DDD37 /* PersistentModelsV4.swift in Sources */,
 				789CD2AAB2E699FE7398DAC7 /* PersistentModelsV5.swift in Sources */,
 				7ABAD9286F615E38292C9AA9 /* PersistentModelsV6.swift in Sources */,
+				D98778F03EF1C9DB413BF2A6 /* PersistentModelsV7.swift in Sources */,
 				BD4519287C0A3B915A935E97 /* PortMonitor.swift in Sources */,
 				CA990933C54365E663D73657 /* ProcessClassifier.swift in Sources */,
 				F06E797CC421F9CC852940D7 /* ProcessDefinitionDiscoveryAdapters.swift in Sources */,
@@ -1017,9 +1342,43 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EB28C21D97E818D7991A9EB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4B0B6434A296C97DF84B897A /* CapabilityRegistry.swift in Sources */,
+				5F96559418483B3AA04FC030 /* ControlProtocol.swift in Sources */,
+				1985ED4EC007832FDB468123 /* JSONValue.swift in Sources */,
+				56AC525E2F5042D083C5B20D /* UnixControlSocket.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FB615FF49C0FE1F0BD86DFF4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				88F427C09153E9F0E96F9258 /* ControlPlaneAndProtocolTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		31D217605BB15F9ED1C96485 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AFC0A1490C6DB4BFDC82BFD3 /* DevBerthMCP */;
+			targetProxy = 68FA96141175706570789AE8 /* PBXContainerItemProxy */;
+		};
+		583272E480EFE4836212B05B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E54B86C98FE41DD23F973F86 /* DevBerthControlContracts */;
+			targetProxy = C2860BE186BF8D7B69133B39 /* PBXContainerItemProxy */;
+		};
+		66EADCA625B0B45470BB1689 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5BE5A6A0C4D8DFCF850AC215 /* DevBerth */;
+			targetProxy = 78223EA608411AB788773CF4 /* PBXContainerItemProxy */;
+		};
 		6E6175F20A00246DA5AD2F24 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 5BE5A6A0C4D8DFCF850AC215 /* DevBerth */;
@@ -1029,6 +1388,11 @@
 			isa = PBXTargetDependency;
 			target = 5BE5A6A0C4D8DFCF850AC215 /* DevBerth */;
 			targetProxy = 3EF6D76B8726F5471AEC4837 /* PBXContainerItemProxy */;
+		};
+		EA36497B3C585481BB0C48D4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E54B86C98FE41DD23F973F86 /* DevBerthControlContracts */;
+			targetProxy = 2A1FC3FD3069E0B0D2E43023 /* PBXContainerItemProxy */;
 		};
 		FE145C052A085F8AB4C37A01 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -1054,6 +1418,22 @@
 				TEST_TARGET_NAME = DevBerth;
 			};
 			name = Release;
+		};
+		15EBBEDF1D6973ECC73AC2AF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ysbc.devberth.control-contracts";
+				PRODUCT_NAME = DevBerthControlContracts;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
 		};
 		3399E0FD39CE2FCA5CEC2D79 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1207,6 +1587,23 @@
 			};
 			name = Debug;
 		};
+		59B3D3E322404269578E8E84 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ysbc.devberth.mcp-tests";
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DevBerth.app/Contents/MacOS/DevBerth";
+			};
+			name = Release;
+		};
 		61714A27832DC0CBA76B311B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1221,6 +1618,24 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.ysbc.devberth.integration-tests";
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DevBerth.app/Contents/MacOS/DevBerth";
+			};
+			name = Debug;
+		};
+		914B3E9D927C22E6029E2F6E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_NAME = "devberth-mcp";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -1241,6 +1656,23 @@
 			};
 			name = Debug;
 		};
+		9D3EE487DFCA8D6A9744A312 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ysbc.devberth.mcp-tests";
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DevBerth.app/Contents/MacOS/DevBerth";
+			};
+			name = Debug;
+		};
 		A0B8993FEC6792BE374242B1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1257,6 +1689,10 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.ysbc.devberth;
 				PRODUCT_NAME = DevBerth;
@@ -1281,6 +1717,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.ysbc.devberth;
 				PRODUCT_NAME = DevBerth;
 				SDKROOT = macosx;
@@ -1303,6 +1743,40 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DevBerth.app/Contents/MacOS/DevBerth";
 			};
 			name = Debug;
+		};
+		C3B5159704F72D283F53FFC2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_NAME = "devberth-mcp";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		D20C4EEACC3A6B58E072ABB5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ysbc.devberth.control-contracts";
+				PRODUCT_NAME = DevBerthControlContracts;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
 		};
 		D99400AF10241F7C81BC3144 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1342,6 +1816,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		B3C6481F922C12EFF5813173 /* Build configuration list for PBXNativeTarget "DevBerthMCPTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9D3EE487DFCA8D6A9744A312 /* Debug */,
+				59B3D3E322404269578E8E84 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		C0AD6A6652D2319E3ACD2344 /* Build configuration list for PBXNativeTarget "DevBerthTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1360,6 +1843,24 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		DA9031828A7596DE8C2E8649 /* Build configuration list for PBXNativeTarget "DevBerthMCP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				914B3E9D927C22E6029E2F6E /* Debug */,
+				C3B5159704F72D283F53FFC2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DD42937A5AECA36CD3013326 /* Build configuration list for PBXNativeTarget "DevBerthControlContracts" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				15EBBEDF1D6973ECC73AC2AF /* Debug */,
+				D20C4EEACC3A6B58E072ABB5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		F5EFBBA53A53B12ABC300484 /* Build configuration list for PBXNativeTarget "DevBerthUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1370,6 +1871,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		42BB5150BCED0FE61530F686 /* XCRemoteSwiftPackageReference "swift-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/modelcontextprotocol/swift-sdk.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.12.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		88A636E5B0ACD828E53BFEE7 /* MCP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 42BB5150BCED0FE61530F686 /* XCRemoteSwiftPackageReference "swift-sdk" */;
+			productName = MCP;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9A130C13C933A691EE61D7D1 /* Project object */;
 }

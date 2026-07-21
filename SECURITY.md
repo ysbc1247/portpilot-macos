@@ -29,6 +29,8 @@ Known secret values are redacted across arbitrary stdout/stderr chunk boundaries
 
 DevBerth does not include analytics, telemetry, crash-reporting SDKs, cloud sync, or an application data upload endpoint. Optional HTTP health checks contact only URLs explicitly configured by the user. Docker commands contact the user’s configured local/remote Docker context as Docker itself defines.
 
+The optional MCP helper uses STDIO plus an app-owned current-user Unix socket; it never listens on TCP. Socket permissions, peer UID, frame limits, deadlines, protocol/build-mode negotiation, stable identifiers, revisions, and expiring single-use preview tokens are enforced by the app. MCP cannot retrieve Keychain values, accept raw PID authority, execute arbitrary commands, reset production data, or expose Debug tools from Release.
+
 ## App permissions
 
 DevBerth is not App Sandbox-enabled because global port discovery and signaling are core features. Hardened Runtime is enabled. Normal operation does not require root.
