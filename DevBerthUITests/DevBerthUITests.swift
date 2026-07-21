@@ -52,6 +52,22 @@ final class DevBerthUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["devberth-ui-fixture"].waitForExistence(timeout: 3))
     }
 
+    func testRuntimeGracefulStopConfirmationCancelsWithEscape() {
+        let app = launchApp(onboardingCompleted: true)
+        let fixture = app.staticTexts["devberth-ui-fixture"]
+        XCTAssertTrue(fixture.waitForExistence(timeout: 8))
+
+        let stop = app.buttons["Stop"].firstMatch
+        XCTAssertTrue(stop.waitForExistence(timeout: 3))
+        XCTAssertTrue(stop.isHittable)
+        stop.click()
+        let cancel = app.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 3))
+        app.typeKey(.escape, modifierFlags: [])
+        assertDisappears(cancel)
+        XCTAssertTrue(fixture.waitForExistence(timeout: 3))
+    }
+
     func testPrimaryDestinationEmptyStatesExposeNamedActions() {
         let app = launchApp(onboardingCompleted: true)
 

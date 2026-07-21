@@ -76,6 +76,56 @@ final class RuntimePresentationTests: XCTestCase {
         XCTAssertFalse(stopped.isActive)
     }
 
+    @MainActor
+    func testObservedServiceStopRequiresConfirmationAndDeduplicatesProcessTargets() async {
+        let first = listener(port: 3000, pid: 30)
+        let second = ObservedListener(
+            protocolKind: .tcp,
+            address: first.address,
+            port: 3001,
+            process: first.process,
+            firstDetectedAt: first.firstDetectedAt,
+            lastDetectedAt: first.lastDetectedAt
+        )
+        let router = RecordingObservedStopRouter()
+        let model = AppModel(
+            discoverer: FixedRuntimeDiscoverer(listeners: [first, second]),
+            ownershipResolver: ObservedStopOwnershipResolver(),
+            lifecycleRouter: router
+        )
+        model.refreshInterval = 0.01
+        model.startMonitoring()
+        defer { model.pauseMonitoring() }
+        for _ in 0..<100 where model.listeners.count != 2 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let profile = ManagedServiceConfiguration(
+            name: "Web",
+            command: "web",
+            workingDirectory: "/tmp",
+            expectedPorts: [
+                ExpectedListenerConfiguration(id: UUID(), port: 3000, protocolKind: .tcp, required: true),
+                ExpectedListenerConfiguration(id: UUID(), port: 3001, protocolKind: .tcp, required: true)
+            ]
+        )
+
+        XCTAssertEqual(model.observedServiceStopTargets(for: profile).count, 1)
+
+        await model.stopProfile(profile)
+
+        let actionsBeforeConfirmation = await router.actions()
+        XCTAssertTrue(actionsBeforeConfirmation.isEmpty)
+        XCTAssertEqual(model.serviceOperations[profile.id]?.phase, .failed)
+        XCTAssertTrue(model.serviceOperations[profile.id]?.message.contains("Confirm") == true)
+
+        await model.stopProfile(profile, confirmsObservedProcess: true)
+
+        let actionsAfterConfirmation = await router.actions()
+        XCTAssertEqual(actionsAfterConfirmation, [.gracefulStop])
+        XCTAssertEqual(model.serviceOperations[profile.id]?.phase, .succeeded)
+        XCTAssertEqual(model.serviceOperations[profile.id]?.completedTargetCount, 1)
+    }
+
     func testLifecycleHistoryPresentationIndexesLargeContextSetAndFilters() {
         let selectedID = UUID()
         var events: [LifecycleHistoryEventSnapshot] = []
@@ -152,4 +202,63 @@ final class RuntimePresentationTests: XCTestCase {
             lastDetectedAt: Date(timeIntervalSince1970: 200)
         )
     }
+}
+
+private actor FixedRuntimeDiscoverer: PortDiscovering {
+    let listeners: [ObservedListener]
+    init(listeners: [ObservedListener]) { self.listeners = listeners }
+    func discover() async throws -> [ObservedListener] { listeners }
+}
+
+private struct ObservedStopOwnershipResolver: RuntimeOwnershipResolving {
+    func resolve(listener: ObservedListener) async -> RuntimeOwnershipGraph {
+        RuntimeOwnershipGraph(
+            listenerID: listener.id,
+            listener: listener,
+            processGroupID: nil,
+            processLineage: [],
+            primaryConclusion: OwnershipConclusion(
+                subject: .listener(id: listener.id),
+                category: .standaloneHostProcess,
+                value: listener.process.name,
+                confidence: .verified,
+                evidence: [],
+                detectionMethod: .commandSignature
+            ),
+            additionalConclusions: [],
+            managedRuntimeID: nil,
+            managedServiceID: nil,
+            managedConfigurationDigest: nil,
+            projectID: nil,
+            workspaceSessionIDs: [],
+            recommendation: OwnershipActionRecommendation(
+                controllerKind: .guardedExternalProcess,
+                title: "Stop exact process",
+                reason: "Test fixture",
+                supportedActions: [.inspect, .gracefulStop]
+            ),
+            resolvedAt: Date()
+        )
+    }
+}
+
+private actor RecordingObservedStopRouter: OwnerAwareLifecycleRouting {
+    private var recordedActions: [LifecycleActionKind] = []
+
+    func perform(
+        _ action: LifecycleActionKind,
+        on graph: RuntimeOwnershipGraph,
+        forceConfirmed: Bool
+    ) async throws -> OwnerAwareLifecycleResult {
+        recordedActions.append(action)
+        return OwnerAwareLifecycleResult(
+            controllerKind: graph.recommendation.controllerKind,
+            action: action,
+            didStop: true,
+            summary: "Stopped fixture",
+            durationSeconds: 0
+        )
+    }
+
+    func actions() -> [LifecycleActionKind] { recordedActions }
 }
