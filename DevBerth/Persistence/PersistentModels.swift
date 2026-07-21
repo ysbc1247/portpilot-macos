@@ -221,6 +221,10 @@ enum DevBerthSchemaV1: VersionedSchema {
 }
 
 enum DevBerthMigrationPlan: SchemaMigrationPlan {
-    static var schemas: [any VersionedSchema.Type] { [DevBerthSchemaV1.self] }
-    static var stages: [MigrationStage] { [] }
+    static var schemas: [any VersionedSchema.Type] { [DevBerthSchemaV1.self, DevBerthSchemaV2.self] }
+    static var stages: [MigrationStage] {
+        [
+            .lightweight(fromVersion: DevBerthSchemaV1.self, toVersion: DevBerthSchemaV2.self)
+        ]
+    }
 }

@@ -27,7 +27,7 @@ final class ProductDataMigrationTests: XCTestCase {
             )
         }
 
-        let schema = Schema(DevBerthSchemaV1.models)
+        let schema = Schema(DevBerthSchemaV2.models)
         let configuration = ModelConfiguration("DevBerthMigrationFixture", schema: schema, url: currentStore)
         let container = try ModelContainer(
             for: schema,
@@ -40,6 +40,7 @@ final class ProductDataMigrationTests: XCTestCase {
         let expectedPorts = try context.fetch(FetchDescriptor<ExpectedPortRecord>())
         let history = try context.fetch(FetchDescriptor<ProcessHistoryEventRecord>())
         let preferences = try context.fetch(FetchDescriptor<UserPreferenceRecord>())
+        let runtimeInstances = try context.fetch(FetchDescriptor<RuntimeInstanceRecord>())
 
         XCTAssertEqual(projects.map(\.id), [projectID])
         XCTAssertEqual(projects.map(\.name), ["Legacy Project"])
@@ -48,6 +49,7 @@ final class ProductDataMigrationTests: XCTestCase {
         XCTAssertEqual(expectedPorts.map(\.port), [4317])
         XCTAssertEqual(history.map(\.processName), ["legacy-api"])
         XCTAssertEqual(preferences.map(\.key), ["sidebar.selection"])
+        XCTAssertTrue(runtimeInstances.isEmpty)
     }
 
     func testCopiesLegacyLogsWithoutRemovingRollbackSource() throws {
@@ -148,7 +150,7 @@ final class ProductDataMigrationTests: XCTestCase {
         let configuration = ModelConfiguration("PortPilotV1Fixture", schema: schema, url: storeURL)
         let container = try ModelContainer(
             for: schema,
-            migrationPlan: DevBerthMigrationPlan.self,
+            migrationPlan: DevBerthV1FixturePlan.self,
             configurations: [configuration]
         )
         let context = ModelContext(container)
@@ -179,4 +181,9 @@ final class ProductDataMigrationTests: XCTestCase {
         context.insert(UserPreferenceRecord(key: "sidebar.selection", encodedValue: Data("ports".utf8)))
         try context.save()
     }
+}
+
+private enum DevBerthV1FixturePlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] { [DevBerthSchemaV1.self] }
+    static var stages: [MigrationStage] { [] }
 }

@@ -36,7 +36,7 @@ The listener identity is `PID + protocol + address + port`. Process identity is 
 
 `ObservedListener` and `ObservedProcess` are transient facts reported by the operating system. An observed listener contains an observed process because the listener-to-process edge is direct evidence from `lsof`; neither type contains launch instructions or restart claims. `ManagedServiceConfiguration` is durable, reviewed user intent: launch mechanism, command, arguments, environment references, expected listeners, health/readiness, shutdown/restart policy, dependencies, and log settings. The existing `LaunchProfileRecord` name remains a V1 persistence compatibility detail and is converted at the boundary by `LaunchProfileRecord+Domain`.
 
-Future runtime instances, ownership conclusions, and workspace sessions must reference these concepts rather than accumulate more optional state on observations or managed-service configuration.
+`RuntimeInstance`, `OwnershipConclusion`, `RestartTrustAssessment`, `WorkspaceSession`, `ProjectDiscoveryMetadata`, and `LifecycleEvent` now model the remaining Phase 2 concepts independently. Their V2 records exist, but controllers and UI are delivered in later slices; an empty table is not treated as a completed workflow. See `Documentation/DOMAIN_MODEL.md` for reference and persistence rules.
 
 ## Discovery strategy
 
@@ -91,7 +91,7 @@ Diagnostics include app/macOS versions, non-secret settings, command availabilit
 
 SwiftData schema V1 contains `ProjectRecord`, `LaunchProfileRecord`, `ProfileDependencyRecord`, `ExpectedPortRecord`, `ProcessHistoryEventRecord`, `PortObservationRecord`, `UserPreferenceRecord`, `FavoriteItemRecord`, and `StoredLogMetadataRecord`. Domain values are converted explicitly; live listeners and `Process` instances are never modeled.
 
-`DevBerthMigrationPlan` anchors version `1.0.0`. Future schema changes must add a new `VersionedSchema` and explicit migration stage rather than editing a shipped schema identifier.
+`DevBerthMigrationPlan` contains frozen V1 and additive V2 schemas. V2 adds separate runtime-instance, ownership-evidence, restart-trust, workspace-session, restore-result, project-discovery, and lifecycle-event records through a lightweight migration. Future changes must add a new `VersionedSchema` and explicit migration stage rather than editing either shipped schema identifier.
 
 `ProductIdentity` is the single compatibility map for the former product name, bundle identifier, store, support directory, defaults domain, and Keychain service. Before constructing the production container, `ProductDataMigrator` uses SQLite's online-backup API to materialize a consistent snapshot of an absent current store, including committed legacy WAL data; it atomically promotes the completed snapshot, copies an absent service-log directory, and copies only whitelisted unset defaults. It never overwrites current data and retains the legacy store/WAL/SHM files as a recovery source. `KeychainSecretStore` reads the current service first, copies a successful legacy read forward, and deletes an intentionally removed reference from both services.
 

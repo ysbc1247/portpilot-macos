@@ -77,7 +77,7 @@ Migration rules:
 Verified locally on 2026-07-21 (Asia/Seoul) with Xcode 26.4 and the DevBerth bundle identity:
 
 - A warning-as-error Debug build produced `DevBerth.app` with bundle identifier `com.ysbc.devberth`.
-- The full suite passed 40 of 40 tests with zero failures or skips. It includes consistent SQLite snapshotting, corrupt-store rollback, non-overwrite, known-defaults, legacy V1 SwiftData reopening, Keychain fallback, and three real-process integration tests.
+- The current full suite passed 42 of 42 tests with zero failures or skips. It includes consistent SQLite snapshotting, corrupt-store rollback, non-overwrite, known-defaults, legacy V1 SwiftData reopening through V2, Keychain fallback, separated Phase 2 persistence, and three real-process integration tests.
 - The local legacy store remained present as a rollback source. All 1,278 legacy history UUIDs were found in the migrated DevBerth store; the DevBerth store had 1,494 rows after test-host monitoring added new observations.
 - The three pre-existing service-log files were byte-identical in the DevBerth log directory. Three new DevBerth-only test logs did not alter the legacy copies.
 - Existing window and split-view defaults were copied to `com.ysbc.devberth`, and the migration marker was set to version 1.

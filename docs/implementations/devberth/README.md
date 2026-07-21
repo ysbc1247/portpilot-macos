@@ -10,10 +10,12 @@ Implemented vertical slices:
 - Docker unavailable/daemon/running states, JSON container parsing, published ports, Compose labels, stop/restart, and recent logs.
 - Automated parser/domain/persistence/health/security tests plus harmless real-process discovery and termination integration tests.
 
-Validated locally on 2026-07-21 with Xcode 26.4 and Swift 6.3 in Swift 5 language mode: the warning-as-error Debug build and static analysis succeeded, and 40 of 40 tests passed with zero failures or skips. The suite includes rename/data migration, corrupt-store rollback, Keychain compatibility, and three harmless real-process integration tests. Manual Phase 1 QA detected ports 49151–49156, including a two-port PID; verified correct executable paths containing spaces; and produced `Documentation/Screenshots/active-ports.png`.
+Validated locally on 2026-07-21 with Xcode 26.4 and Swift 6.3 in Swift 5 language mode: the warning-as-error Debug build and static analysis succeeded, and 42 of 42 tests passed with zero failures or skips. The suite includes rename/data migration, V1→V2 migration, corrupt-store rollback, separated Phase 2 records, Keychain compatibility, and three harmless real-process integration tests. Manual Phase 1 QA detected ports 49151–49156, including a two-port PID; verified correct executable paths containing spaces; and produced `Documentation/Screenshots/active-ports.png`.
 
 The Phase 2 product identity is DevBerth. `ProductIdentity` and `ProductDataMigrator` preserve the legacy store, log, defaults, and Keychain compatibility boundary. The private GitHub repository retains its legacy name until a separate rename is authorized.
 
 Phase 2 domain vocabulary now separates transient `ObservedListener`/`ObservedProcess` evidence from durable `ManagedServiceConfiguration`. V1 `LaunchProfileRecord` naming remains only at the persistence and current-UI compatibility boundary.
+
+The additive V2 schema now has independent records for runtime instances, ownership evidence, restart trust, lifecycle events, discovery metadata, sessions, session services, and restore results. Fixture and local-store migration preserve V1 data; these tables do not imply their later controllers or UI are complete. See `Documentation/DOMAIN_MODEL.md`.
 
 See `Documentation/IMPLEMENTATION_PLAN.md` for delivery history and `Documentation/ARCHITECTURE.md` for durable boundaries and measured overhead.
