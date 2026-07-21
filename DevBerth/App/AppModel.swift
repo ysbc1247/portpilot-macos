@@ -546,17 +546,13 @@ final class AppModel: ObservableObject {
         ownershipGraphs[listener.id] = graph
         await persistOwnership(graph.primaryConclusion, reportsError: false)
         do {
-            let outcome = try await lifecycleRouter.perform(
-                .gracefulStop,
-                on: graph,
-                forceConfirmed: false
-            )
+            let outcome = try await stopObservedOwner(graph, escalatesAfterTimeout: true)
             guard outcome.didStop else { throw DevBerthError.unexpected(outcome.summary) }
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: listener.port,
                 processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                 projectID: graph.projectID, profileID: graph.managedServiceID,
-                type: .gracefulStopRequested,
+                type: outcome.action == .forceStop ? .forceStopRequested : .gracefulStopRequested,
                 result: .succeeded,
                 errorDetails: "Stopped with explicit approval before managed-service validation.",
                 durationSeconds: outcome.durationSeconds
@@ -757,13 +753,9 @@ final class AppModel: ObservableObject {
             let graph = await ownershipResolver.resolve(listener: listener)
             ownershipGraphs[listener.id] = graph
             await persistOwnership(graph.primaryConclusion, reportsError: false)
-            let outcome = try await lifecycleRouter.perform(
-                .gracefulStop,
-                on: graph,
-                forceConfirmed: false
-            )
+            let outcome = try await stopObservedOwner(graph, escalatesAfterTimeout: true)
             guard outcome.didStop else {
-                presentedError = .unexpected("The conflicting process did not stop before the timeout. Inspect it before considering a force stop.")
+                presentedError = .unexpected("The conflicting process remained active after graceful and force stop attempts.")
                 return
             }
             pendingLaunchConflict = nil
@@ -771,7 +763,8 @@ final class AppModel: ObservableObject {
                 id: UUID(), timestamp: Date(), port: listener.port,
                 processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                 projectID: pending.profile.projectID, profileID: pending.profile.id,
-                type: .gracefulStopRequested, result: .succeeded,
+                type: outcome.action == .forceStop ? .forceStopRequested : .gracefulStopRequested,
+                result: .succeeded,
                 errorDetails: "Stopped after explicit port-conflict approval.", durationSeconds: outcome.durationSeconds
             ))
             if startAfterStopping {
@@ -920,11 +913,7 @@ final class AppModel: ObservableObject {
         ownershipGraphs[listener.id] = graph
         await persistOwnership(graph.primaryConclusion, reportsError: false)
         do {
-            let outcome = try await lifecycleRouter.perform(
-                .gracefulStop,
-                on: graph,
-                forceConfirmed: false
-            )
+            let outcome = try await stopObservedOwner(graph, escalatesAfterTimeout: true)
             guard outcome.didStop else { throw DevBerthError.unexpected(outcome.summary) }
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: listener.port,
@@ -932,7 +921,7 @@ final class AppModel: ObservableObject {
                 processName: listener.process.name,
                 projectID: profile.projectID,
                 profileID: profile.id,
-                type: .gracefulStopRequested,
+                type: outcome.action == .forceStop ? .forceStopRequested : .gracefulStopRequested,
                 result: .succeeded,
                 errorDetails: outcome.summary,
                 durationSeconds: outcome.durationSeconds
@@ -951,6 +940,27 @@ final class AppModel: ObservableObject {
             ))
             throw error
         }
+    }
+
+    private func stopObservedOwner(
+        _ graph: RuntimeOwnershipGraph,
+        escalatesAfterTimeout: Bool
+    ) async throws -> OwnerAwareLifecycleResult {
+        let graceful = try await lifecycleRouter.perform(
+            .gracefulStop,
+            on: graph,
+            forceConfirmed: false
+        )
+        guard !graceful.didStop,
+              escalatesAfterTimeout,
+              graph.recommendation.supportedActions.contains(.forceStop) else {
+            return graceful
+        }
+        return try await lifecycleRouter.perform(
+            .forceStop,
+            on: graph,
+            forceConfirmed: true
+        )
     }
 
     private func finishServiceOperation(
@@ -1168,7 +1178,9 @@ final class AppModel: ObservableObject {
                 )
             }
             let layers = try DependencyPlanner.orderedLayers(for: profiles)
-            var completed = 0
+            var processed = 0
+            var stoppedIDs = Set<UUID>()
+            var failures: [(name: String, message: String)] = []
             for layer in layers.reversed() {
                 for profile in layer where targetIDs.contains(profile.id) {
                     guard let activity = activities[profile.id] else { continue }
@@ -1202,6 +1214,7 @@ final class AppModel: ObservableObject {
                             message: String(localized: "Stopped \(profile.name)."),
                             startedAt: serviceStartedAt
                         )
+                        stoppedIDs.insert(profile.id)
                     } catch {
                         finishServiceOperation(
                             profile,
@@ -1210,35 +1223,51 @@ final class AppModel: ObservableObject {
                             message: error.localizedDescription,
                             startedAt: serviceStartedAt
                         )
-                        throw error
+                        failures.append((profile.name, error.localizedDescription))
                     }
-                    completed += 1
+                    processed += 1
                     updateProjectOperation(
                         projectID: projectID,
                         kind: .stop,
-                        completed: completed,
+                        completed: processed,
                         total: targets.count,
-                        message: String(localized: "Stopped \(completed) of \(targets.count) service(s)…"),
+                        message: String(localized: "Processed \(processed) of \(targets.count) service(s); stopped \(stoppedIDs.count)…"),
                         startedAt: startedAt
                     )
                 }
             }
-            runningProfileIDs.subtract(targetIDs)
+            runningProfileIDs.subtract(stoppedIDs)
             let duration = Date().timeIntervalSince(startedAt)
             let skippedMessage = skippedIDs.isEmpty
                 ? ""
                 : String(localized: " \(skippedIDs.count) already-stopped service(s) were left unchanged.")
-            projectOperations[projectID] = ProjectOperationStatus(
-                projectID: projectID,
-                kind: .stop,
-                phase: .succeeded,
-                completedServiceCount: targets.count,
-                totalServiceCount: targets.count,
-                message: String(localized: "Stopped \(targets.count) service(s) in \(duration.formatted(.number.precision(.fractionLength(1)))) seconds.\(skippedMessage)"),
-                startedAt: startedAt,
-                finishedAt: Date()
-            )
             refreshNow()
+            if failures.isEmpty {
+                projectOperations[projectID] = ProjectOperationStatus(
+                    projectID: projectID,
+                    kind: .stop,
+                    phase: .succeeded,
+                    completedServiceCount: targets.count,
+                    totalServiceCount: targets.count,
+                    message: String(localized: "Stopped \(targets.count) service(s) in \(duration.formatted(.number.precision(.fractionLength(1)))) seconds.\(skippedMessage)"),
+                    startedAt: startedAt,
+                    finishedAt: Date()
+                )
+            } else {
+                let details = failures.map { "\($0.name): \($0.message)" }.joined(separator: " ")
+                let message = String(localized: "Stopped \(stoppedIDs.count) of \(targets.count) service(s); \(failures.count) failed. \(details)")
+                projectOperations[projectID] = ProjectOperationStatus(
+                    projectID: projectID,
+                    kind: .stop,
+                    phase: .failed,
+                    completedServiceCount: stoppedIDs.count,
+                    totalServiceCount: targets.count,
+                    message: message,
+                    startedAt: startedAt,
+                    finishedAt: Date()
+                )
+                presentedError = .unexpected(message)
+            }
         } catch {
             let completed = projectOperations[projectID]?.completedServiceCount ?? 0
             let message = String(localized: "Project shutdown stopped after \(completed) of \(targets.count) service(s): \(error.localizedDescription)")

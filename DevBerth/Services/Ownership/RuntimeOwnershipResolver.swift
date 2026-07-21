@@ -209,8 +209,12 @@ struct RuntimeOwnershipResolver: RuntimeOwnershipResolving, Sendable {
                 isVerified: false
             ))
         }
-        let composeActions: Set<LifecycleActionKind> = docker.composeContext == nil
-            ? [.inspect]
+        let hasVerifiedComposeContext = docker.composeContext != nil
+        let controller: LifecycleControllerKind = isCompose && hasVerifiedComposeContext
+            ? .dockerComposeService
+            : .dockerContainer
+        let actions: Set<LifecycleActionKind> = isCompose && !hasVerifiedComposeContext
+            ? [.inspect, .gracefulStop, .restart]
             : [.inspect, .gracefulStop, .restart, .remove]
         return OwnershipClassification(
             category: isCompose ? .dockerComposeService : .dockerContainer,
@@ -219,12 +223,14 @@ struct RuntimeOwnershipResolver: RuntimeOwnershipResolving, Sendable {
             evidence: evidence,
             detectionMethod: isCompose ? .composeMetadata : .dockerMetadata,
             recommendation: .init(
-                controllerKind: isCompose ? .dockerComposeService : .dockerContainer,
-                title: isCompose ? "Use the Compose service controller" : "Use the Docker container controller",
+                controllerKind: controller,
+                title: isCompose && hasVerifiedComposeContext
+                    ? "Use the Compose service controller"
+                    : "Use the exact Docker container controller",
                 reason: isCompose && docker.composeContext == nil
-                    ? "\(docker.composeContextIssue ?? "The exact Compose action scope is not verified.") The listener belongs to Docker infrastructure, so DevBerth will not target the observed host-side process."
+                    ? "\(docker.composeContextIssue ?? "The exact Compose action scope is not verified.") DevBerth can still stop or restart container \(docker.containerName) by its exact Engine ID without targeting the shared Docker host process."
                     : "The listener is published by Docker. Killing the observed host-side process would target the wrong ownership layer.",
-                supportedActions: isCompose ? composeActions : [.inspect, .gracefulStop, .restart, .remove]
+                supportedActions: actions
             )
         )
     }
@@ -293,8 +299,8 @@ enum OwnershipRuleEngine {
                 category: .supervisorManagedProcess,
                 value: firstMatchingName(in: lineage, signatures: ["pm2", "nodemon", "supervisord", "foreman", "overmind", "watchexec", "cargo-watch"]) ?? "Supervisor",
                 evidenceValue: "supervisor ancestor",
-                controller: .unavailable,
-                reason: "The parent supervisor may immediately recreate this child. Inspect the controlling owner before acting."
+                controller: .guardedExternalProcess,
+                reason: "The parent supervisor may immediately recreate this child. DevBerth can still stop the exact revalidated process instance, but restart requires a reviewed managed-service definition."
             )
         }
         let hasLaunchdParent = parentNames.contains("launchd") || process.fingerprint.parentPID == 1
@@ -309,9 +315,9 @@ enum OwnershipRuleEngine {
                     .init(field: "executable", value: process.executablePath ?? process.name, source: "process fingerprint", isVerified: true),
                     .init(field: "parent", value: "launchd", source: "process lineage", isVerified: true)
                 ],
-                controller: .homebrewService,
-                actionTitle: "Inspect the Homebrew service",
-                reason: "The executable is under a Homebrew prefix and launchd is its parent. Service metadata must be confirmed before a brew action."
+                controller: .guardedExternalProcess,
+                actionTitle: "Stop this observed process instance",
+                reason: "The executable is under a Homebrew prefix and has launchd as its current parent, but no exact formula or service domain is verified. DevBerth can stop this exact revalidated process instance without guessing a brew service."
             )
         }
         if hasLaunchdParent {
@@ -325,9 +331,11 @@ enum OwnershipRuleEngine {
                     .init(field: "parent", value: "launchd", source: "process lineage", isVerified: true),
                     .init(field: "UID", value: process.fingerprint.uid.map(String.init) ?? "Unavailable", source: "process fingerprint", isVerified: process.fingerprint.uid != nil)
                 ],
-                controller: .launchdService,
-                actionTitle: "Inspect the launchd service",
-                reason: "Killing only the child may trigger an automatic restart. A controlling label must be identified before requesting a launchctl action."
+                controller: daemon ? .launchdService : .guardedExternalProcess,
+                actionTitle: daemon ? "Inspect the launch daemon" : "Stop this observed process instance",
+                reason: daemon
+                    ? "A root launch daemon requires an exact launchd domain and label before control is safe."
+                    : "Parent PID 1 does not prove that launchd owns this process as a job. DevBerth can stop the exact revalidated user process instance; restart requires a reviewed managed-service definition."
             )
         }
         if containsAny(lineageText, ["xcode", "visual studio code", "code helper", "cursor", "windsurf", "intellij", "webstorm", "pycharm", "goland", "rubymine", "nova", "zed"]) {
