@@ -1,0 +1,154 @@
+name: Release merged pull request
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: github-release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  release:
+    name: Publish source release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Publish version and release notes
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = context.sha;
+            const mainBranch = "main";
+
+            let mergedPullRequests = [];
+            for (let attempt = 1; attempt <= 5; attempt += 1) {
+              const response = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner,
+                repo,
+                commit_sha: sha,
+                per_page: 100,
+              });
+              mergedPullRequests = response.data
+                .filter((pullRequest) => pullRequest.merged_at && pullRequest.base.ref === mainBranch)
+                .sort((left, right) => new Date(left.merged_at) - new Date(right.merged_at));
+              if (mergedPullRequests.length > 0) break;
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+
+            if (mergedPullRequests.length === 0) {
+              core.setFailed(
+                `The main update at ${sha} is not associated with a merged pull request. ` +
+                "Direct pushes to main are not versioned."
+              );
+              return;
+            }
+
+            if (mergedPullRequests.length !== 1) {
+              core.setFailed(
+                `The main update at ${sha} is associated with ${mergedPullRequests.length} merged ` +
+                "pull requests. Merge PRs as separate main updates so each receives one version."
+              );
+              return;
+            }
+
+            const mergedPullRequest = mergedPullRequests[0];
+
+            const runNumber = Number(process.env.GITHUB_RUN_NUMBER);
+            if (!Number.isSafeInteger(runNumber) || runNumber < 1) {
+              core.setFailed(`Invalid GITHUB_RUN_NUMBER: ${process.env.GITHUB_RUN_NUMBER}`);
+              return;
+            }
+
+            const tag = `v0.1.${runNumber}`;
+            let existingRef;
+            try {
+              existingRef = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            if (existingRef && existingRef.data.object.sha !== sha) {
+              core.setFailed(
+                `${tag} already points to ${existingRef.data.object.sha}; refusing to move it to ${sha}.`
+              );
+              return;
+            }
+
+            if (!existingRef) {
+              await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${tag}`, sha });
+            }
+
+            let existingRelease;
+            try {
+              existingRelease = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            if (existingRelease) {
+              core.notice(`${tag} is already published at ${existingRelease.data.html_url}.`);
+              await core.summary
+                .addHeading(`Source release ${tag}`)
+                .addLink("Open the existing GitHub Release", existingRelease.data.html_url)
+                .write();
+              return;
+            }
+
+            const releases = await github.paginate(github.rest.repos.listReleases, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const previousRelease = releases
+              .map((release) => {
+                const match = /^v0\.1\.(\d+)$/.exec(release.tag_name);
+                return match ? { release, patch: Number(match[1]) } : undefined;
+              })
+              .filter(Boolean)
+              .filter((candidate) => candidate.patch < runNumber)
+              .sort((left, right) => right.patch - left.patch)
+              .at(0)?.release;
+
+            const pullRequestBody = mergedPullRequest.body?.trim()
+              || "_No additional pull request description was provided._";
+            const compareLine = previousRelease
+              ? `- [Compare ${previousRelease.tag_name}...${tag}](https://github.com/${owner}/${repo}/compare/${previousRelease.tag_name}...${tag})`
+              : "- This is the first automated source release.";
+            const notes = [
+              "## What changed",
+              "",
+              `### [#${mergedPullRequest.number} — ${mergedPullRequest.title}](${mergedPullRequest.html_url})`,
+              "",
+              pullRequestBody,
+              "",
+              "## Release provenance",
+              "",
+              `- Merge commit: [\`${sha}\`](https://github.com/${owner}/${repo}/commit/${sha})`,
+              `- Pull request: [#${mergedPullRequest.number}](${mergedPullRequest.html_url})`,
+              compareLine,
+              "",
+              "> This is a source-project release. It does not include a signed or notarized app binary.",
+            ].join("\n");
+
+            const created = await github.rest.repos.createRelease({
+              owner,
+              repo,
+              tag_name: tag,
+              target_commitish: sha,
+              name: `DevBerth ${tag}`,
+              body: notes,
+              draft: false,
+              prerelease: false,
+              generate_release_notes: false,
+            });
+
+            await core.summary
+              .addHeading(`Published source release ${tag}`)
+              .addLink("Open the GitHub Release", created.data.html_url)
+              .write();
