@@ -80,22 +80,23 @@ enum LifecycleHistoryPresentation {
         for context in contexts {
             contextsByEventID[context.lifecycleEventID] = context
         }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return events.compactMap { event in
             let context = contextsByEventID[event.id]
             let matchesSeverity = severity == nil || context?.severityRawValue == severity?.rawValue
             let matchesDate = cutoff.map { event.timestamp >= $0 } ?? true
-            let haystack = [
-                event.categoryRawValue,
-                event.outcomeRawValue,
-                event.summary,
-                context?.sourceRawValue ?? "",
-                context?.severityRawValue ?? ""
-            ].joined(separator: " ")
-            guard matchesSeverity,
-                  matchesDate,
-                  searchText.isEmpty || haystack.localizedCaseInsensitiveContains(searchText)
-            else { return nil }
+            guard matchesSeverity, matchesDate else { return nil }
+            if !query.isEmpty {
+                let haystack = [
+                    event.categoryRawValue,
+                    event.outcomeRawValue,
+                    event.summary,
+                    context?.sourceRawValue ?? "",
+                    context?.severityRawValue ?? ""
+                ].joined(separator: " ")
+                guard haystack.localizedCaseInsensitiveContains(query) else { return nil }
+            }
             return LifecycleHistoryRow(
                 id: event.id,
                 timestamp: event.timestamp,

@@ -59,7 +59,6 @@ struct RootView: View {
         } detail: {
             detail
         }
-        .searchable(text: $model.searchText, placement: .toolbar, prompt: "Ports, processes, projects")
         .toolbar {
             ToolbarItemGroup {
                 Button { showsCommandPalette = true } label: {

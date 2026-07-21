@@ -111,6 +111,15 @@ final class RuntimePresentationTests: XCTestCase {
         XCTAssertEqual(rows.map { $0.id }, [selectedID])
         XCTAssertEqual(rows.first?.severityRawValue, LifecycleEventSeverity.warning.rawValue)
         XCTAssertEqual(rows.first?.sourceRawValue, LifecycleEventSource.health.rawValue)
+
+        let unfilteredRows = LifecycleHistoryPresentation.rows(
+            events: events,
+            contexts: contexts,
+            severity: nil,
+            cutoff: nil,
+            searchText: "   \n"
+        )
+        XCTAssertEqual(unfilteredRows.count, events.count)
     }
 
     private func listener(

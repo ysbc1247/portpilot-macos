@@ -101,6 +101,7 @@ struct ActivePortsView: View {
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
         .navigationTitle("Runtime")
+        .searchable(text: $model.searchText, placement: .toolbar, prompt: "Ports, processes, projects")
         .toolbar {
             Picker("View", selection: savedViewBinding) {
                 ForEach(RuntimeSavedView.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }

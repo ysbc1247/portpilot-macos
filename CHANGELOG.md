@@ -2,7 +2,7 @@
 
 ## 0.3.0 — 2026-07-21
 
-- Fixed expected-port activity presentation and per-service project controls, repaired bounded lifecycle-history retention/rendering, and made Docker discovery reliable from GUI PATHs without blocking passive monitoring on Compose verification.
+- Fixed expected-port activity presentation and per-service project controls, redesigned History as a full-height explicitly refreshable timeline with a contextual incident inspector and a stable 100-event rendering bound, and made Docker discovery reliable from GUI PATHs without blocking passive monitoring on Compose verification.
 - Added a complete MCP control plane with 82 production tools, 12 Debug-only development tools, 11 resources/templates, and 10 prompts through the official Swift MCP SDK 0.12.1 and MCP protocol 2025-11-25.
 - Added an app-owned `ApplicationControlPlane`, current-user Unix-domain IPC, structured response/error envelopes, stable revisions, bounded audit records, expiring single-use operation/change-set previews, and optimistic concurrency.
 - Added additive SwiftData schema V7 for control-plane revisions, organization/settings records, and MCP audit metadata, with a tested V6→V7 migration.

@@ -6,17 +6,16 @@ private enum HistoryGrouping: String, CaseIterable { case none = "No Grouping", 
 private enum HistoryTimeline: String, CaseIterable { case lifecycle = "Lifecycle", actions = "Ports & Actions" }
 
 struct HistoryView: View {
-    private static let fetchLimit = 500
-    @EnvironmentObject private var model: AppModel
+    private static let fetchLimit = 100
     @Environment(\.modelContext) private var context
-    @Query private var events: [ProcessHistoryEventRecord]
-    @Query private var lifecycleEvents: [LifecycleEventRecord]
-    @Query(sort: \RuntimeIncidentSummaryRecord.generatedAt, order: .reverse) private var incidents: [RuntimeIncidentSummaryRecord]
     @Query private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
     @Query private var expectedPorts: [ExpectedPortRecord]
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @Query private var serviceChecks: [ManagedServiceCheckRecord]
+    @State private var events: [ProcessHistoryEventRecord] = []
+    @State private var lifecycleEvents: [LifecycleEventRecord] = []
+    @State private var incidents: [RuntimeIncidentSummaryRecord] = []
     @State private var eventType: HistoryEventType?
     @State private var severity: LifecycleEventSeverity?
     @State private var timeline = HistoryTimeline.lifecycle
@@ -26,36 +25,23 @@ struct HistoryView: View {
     @State private var selection = Set<UUID>()
     @State private var confirmsClearAll = false
     @State private var lifecycleContextSnapshots: [LifecycleHistoryContextSnapshot] = []
-
-    init() {
-        var processDescriptor = FetchDescriptor<ProcessHistoryEventRecord>(
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-        processDescriptor.fetchLimit = Self.fetchLimit
-        _events = Query(processDescriptor)
-
-        var lifecycleDescriptor = FetchDescriptor<LifecycleEventRecord>(
-            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
-        )
-        lifecycleDescriptor.fetchLimit = Self.fetchLimit
-        _lifecycleEvents = Query(lifecycleDescriptor)
-    }
+    @State private var presentedErrorMessage: String?
 
     private var filtered: [ProcessHistoryEventRecord] {
-        events.filter { event in
+        let cutoff = cutoff
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return events.filter { event in
             let matchesType = eventType == nil || event.typeRawValue == eventType?.rawValue
-            let cutoff: Date? = {
-                switch range {
-                case .all: nil
-                case .today: Calendar.current.startOfDay(for: Date())
-                case .week: Calendar.current.date(byAdding: .day, value: -7, to: Date())
-                case .month: Calendar.current.date(byAdding: .day, value: -30, to: Date())
-                }
-            }()
             let matchesDate = cutoff.map { event.timestamp >= $0 } ?? true
-            let haystack = [event.typeRawValue, event.processName ?? "", event.port.map(String.init) ?? "", event.errorDetails ?? ""].joined(separator: " ")
-            let matchesSearch = searchText.isEmpty || haystack.localizedCaseInsensitiveContains(searchText)
-            return matchesType && matchesDate && matchesSearch
+            guard matchesType, matchesDate else { return false }
+            guard !query.isEmpty else { return true }
+            let haystack = [
+                event.typeRawValue,
+                event.processName ?? "",
+                event.port.map(String.init) ?? "",
+                event.errorDetails ?? ""
+            ].joined(separator: " ")
+            return haystack.localizedCaseInsensitiveContains(query)
         }
     }
 
@@ -95,63 +81,39 @@ struct HistoryView: View {
 
     var body: some View {
         let lifecycleRows = filteredLifecycle
-        Group {
-            if timeline == .lifecycle && lifecycleRows.isEmpty {
-                EmptyStateView(
-                    symbol: searchText.isEmpty ? "waveform.path.ecg" : "magnifyingglass",
-                    title: searchText.isEmpty ? "No lifecycle events" : "No matching lifecycle events",
-                    message: "Managed launches, readiness, health, exits, restarts, and incidents appear here."
-                )
-            } else if timeline == .lifecycle {
-                lifecycleTimeline(lifecycleRows)
-            } else if filtered.isEmpty {
-                EmptyStateView(
-                    symbol: searchText.isEmpty ? "clock.arrow.circlepath" : "magnifyingglass",
-                    title: searchText.isEmpty ? "No history events" : "No matching events",
-                    message: "Port changes, launches, health checks, and process actions are recorded locally."
-                )
-            } else if grouping == .none {
-                table
-            } else {
-                groupedList
+        let actionRows = filtered
+        let displayedCount = timeline == .lifecycle ? lifecycleRows.count : actionRows.count
+
+        VStack(spacing: 0) {
+            historyControls(displayedCount: displayedCount)
+            Divider()
+            Group {
+                if timeline == .lifecycle && lifecycleRows.isEmpty {
+                    EmptyStateView(
+                        symbol: searchText.isEmpty ? "waveform.path.ecg" : "magnifyingglass",
+                        title: searchText.isEmpty ? "No lifecycle events" : "No matching lifecycle events",
+                        message: "Managed launches, readiness, health, exits, restarts, and incidents appear here."
+                    )
+                } else if timeline == .lifecycle {
+                    lifecycleTimeline(lifecycleRows)
+                } else if actionRows.isEmpty {
+                    EmptyStateView(
+                        symbol: searchText.isEmpty ? "clock.arrow.circlepath" : "magnifyingglass",
+                        title: searchText.isEmpty ? "No history events" : "No matching events",
+                        message: "Port changes, launches, health checks, and process actions are recorded locally."
+                    )
+                } else if grouping == .none {
+                    actionTable(actionRows)
+                } else {
+                    groupedList(actionRows)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("History")
-        .task(id: lifecycleEvents.map(\.id)) {
-            loadLifecycleContexts()
-        }
-        .toolbar {
-            Picker("Timeline", selection: $timeline) {
-                ForEach(HistoryTimeline.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            if displayedPageIsLimited {
-                Text("Latest \(Self.fetchLimit)")
-                    .foregroundStyle(.secondary)
-            }
-            TextField("Search history", text: $searchText).textFieldStyle(.roundedBorder).frame(width: 180)
-            Picker("Date range", selection: $range) { ForEach(HistoryRange.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-            if timeline == .lifecycle {
-                Picker("Severity", selection: $severity) {
-                    Text("All Severities").tag(nil as LifecycleEventSeverity?)
-                    ForEach(LifecycleEventSeverity.allCases, id: \.self) {
-                        Text($0.rawValue.capitalized).tag($0 as LifecycleEventSeverity?)
-                    }
-                }
-            } else {
-                Picker("Event type", selection: $eventType) {
-                    Text("All Events").tag(nil as HistoryEventType?)
-                    ForEach(HistoryEventType.allCases, id: \.self) { Text(humanized($0.rawValue)).tag($0 as HistoryEventType?) }
-                }
-            }
-            if timeline == .actions {
-                Picker("Group", selection: $grouping) { ForEach(HistoryGrouping.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-            }
-            Button("Restart Related Managed Service", systemImage: "play") { restartSelected() }
-                .disabled(relatedConfiguration == nil)
-            Button("Clear Selected", role: .destructive) { clearSelected() }
-                .disabled(selection.isEmpty)
-            Button("Clear All", role: .destructive) { confirmsClearAll = true }
-                .disabled(events.isEmpty && lifecycleEvents.isEmpty)
+        .task {
+            refreshHistory()
         }
         .confirmationDialog("Clear all DevBerth history?", isPresented: $confirmsClearAll, titleVisibility: .visible) {
             Button("Clear All History", role: .destructive) {
@@ -160,49 +122,168 @@ struct HistoryView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: { Text("Projects and managed services will not be deleted. This history cannot be recovered.") }
-    }
-
-    private func lifecycleTimeline(_ rows: [LifecycleHistoryRow]) -> some View {
-        HSplitView {
-            Table(rows, selection: $selection) {
-                TableColumn("Time") {
-                    Text($0.timestamp, format: .dateTime.month().day().hour().minute().second())
-                }
-                .width(min: 125, ideal: 150)
-                TableColumn("Severity") { event in
-                    let value = event.severityRawValue
-                    Label(value.capitalized, systemImage: severitySymbol(value))
-                        .foregroundStyle(severityColor(value))
-                }
-                .width(min: 85, ideal: 100)
-                TableColumn("Event") { Text(humanized($0.categoryRawValue)) }
-                TableColumn("Service") { event in
-                    Text(profileName(for: event.managedServiceID))
-                }
-                TableColumn("Source") { event in
-                    Text(humanized(event.sourceRawValue))
-                }
-                TableColumn("Summary", value: \.summary)
-                TableColumn("Result") { Text($0.outcomeRawValue.capitalized) }
-            }
-            .frame(minWidth: 720)
-
-            if let incident = selectedIncident {
-                LifecycleIncidentView(incident: incident)
-                    .frame(minWidth: 280, idealWidth: 340, maxWidth: 430)
-            } else {
-                ContentUnavailableView(
-                    "No related incident",
-                    systemImage: "checkmark.circle",
-                    description: Text("Select a failed or degraded event to inspect its ordered evidence.")
-                )
-                .frame(minWidth: 280, idealWidth: 340, maxWidth: 430)
-            }
+        .alert(
+            "History couldn’t be updated",
+            isPresented: Binding(
+                get: { presentedErrorMessage != nil },
+                set: { if !$0 { presentedErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(presentedErrorMessage ?? "An unexpected error occurred.")
         }
     }
 
-    private var table: some View {
-        Table(filtered, selection: $selection) {
+    private func historyControls(displayedCount: Int) -> some View {
+        VStack(spacing: DevBerthSpacing.medium) {
+            HStack(spacing: DevBerthSpacing.medium) {
+                Picker("Timeline", selection: $timeline) {
+                    ForEach(HistoryTimeline.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 260)
+
+                Text("\(displayedCount) events")
+                    .font(.callout.weight(.medium))
+                    .monospacedDigit()
+                if displayedPageIsLimited {
+                    Label("Newest \(Self.fetchLimit)", systemImage: "clock")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: DevBerthSpacing.medium)
+
+                Button {
+                    refreshHistory()
+                } label: {
+                    Label("Refresh History", systemImage: "arrow.clockwise")
+                }
+                HistoryRestartButton(configuration: relatedConfiguration)
+                Menu {
+                    Button(role: .destructive) {
+                        clearSelected()
+                    } label: {
+                        Label("Clear Selected", systemImage: "trash")
+                    }
+                    .disabled(selection.isEmpty)
+                    Divider()
+                    Button(role: .destructive) {
+                        confirmsClearAll = true
+                    } label: {
+                        Label("Clear All History", systemImage: "trash.slash")
+                    }
+                    .disabled(events.isEmpty && lifecycleEvents.isEmpty)
+                } label: {
+                    Label("History Actions", systemImage: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+
+            HStack(spacing: DevBerthSpacing.medium) {
+                HStack(spacing: DevBerthSpacing.small) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search this history", text: $searchText)
+                        .textFieldStyle(.plain)
+                    if !searchText.isEmpty {
+                        Button("Clear Search", systemImage: "xmark.circle.fill") {
+                            searchText = ""
+                        }
+                        .labelStyle(.iconOnly)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, DevBerthSpacing.medium)
+                .padding(.vertical, DevBerthSpacing.small)
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .frame(minWidth: 240, idealWidth: 320, maxWidth: 420)
+
+                Picker("Date range", selection: $range) {
+                    ForEach(HistoryRange.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .frame(width: 170)
+
+                if timeline == .lifecycle {
+                    Picker("Severity", selection: $severity) {
+                        Text("All Severities").tag(nil as LifecycleEventSeverity?)
+                        ForEach(LifecycleEventSeverity.allCases, id: \.self) {
+                            Text($0.rawValue.capitalized).tag($0 as LifecycleEventSeverity?)
+                        }
+                    }
+                    .frame(width: 200)
+                } else {
+                    Picker("Event type", selection: $eventType) {
+                        Text("All Events").tag(nil as HistoryEventType?)
+                        ForEach(HistoryEventType.allCases, id: \.self) {
+                            Text(humanized($0.rawValue)).tag($0 as HistoryEventType?)
+                        }
+                    }
+                    .frame(width: 220)
+
+                    Picker("Group", selection: $grouping) {
+                        ForEach(HistoryGrouping.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .frame(width: 180)
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, DevBerthSpacing.large)
+        .padding(.vertical, DevBerthSpacing.medium)
+        .background(.bar)
+    }
+
+    private func lifecycleTimeline(_ rows: [LifecycleHistoryRow]) -> some View {
+        let serviceNames = profiles.reduce(into: [UUID: String]()) { names, profile in
+            names[profile.id] = profile.name
+        }
+        return Group {
+            if let incident = selectedIncident {
+                HSplitView {
+                    lifecycleTable(rows, serviceNames: serviceNames)
+                        .frame(minWidth: 720, maxWidth: .infinity, maxHeight: .infinity)
+                    LifecycleIncidentView(incident: incident)
+                        .frame(minWidth: 280, idealWidth: 340, maxWidth: 430, maxHeight: .infinity)
+                }
+            } else {
+                lifecycleTable(rows, serviceNames: serviceNames)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func lifecycleTable(_ rows: [LifecycleHistoryRow], serviceNames: [UUID: String]) -> some View {
+        Table(rows, selection: $selection) {
+            TableColumn("Time") {
+                Text($0.timestamp, format: .dateTime.month().day().hour().minute().second())
+            }
+            .width(min: 125, ideal: 150)
+            TableColumn("Severity") { event in
+                let value = event.severityRawValue
+                Label(value.capitalized, systemImage: severitySymbol(value))
+                    .foregroundStyle(severityColor(value))
+            }
+            .width(min: 85, ideal: 100)
+            TableColumn("Event") { Text(humanized($0.categoryRawValue)) }
+            TableColumn("Service") { event in
+                Text(profileName(for: event.managedServiceID, serviceNames: serviceNames))
+            }
+            TableColumn("Source") { event in
+                Text(humanized(event.sourceRawValue))
+            }
+            TableColumn("Summary", value: \.summary)
+            TableColumn("Result") { Text($0.outcomeRawValue.capitalized) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func actionTable(_ rows: [ProcessHistoryEventRecord]) -> some View {
+        Table(rows, selection: $selection) {
             TableColumn("Time") { Text($0.timestamp, format: .dateTime.month().day().hour().minute().second()) }
             TableColumn("Event") { Text(humanized($0.typeRawValue)) }
             TableColumn("Process") { Text($0.processName ?? "—") }
@@ -210,10 +291,11 @@ struct HistoryView: View {
             TableColumn("Result") { Text($0.resultRawValue.capitalized) }
             TableColumn("Details") { Text($0.errorDetails ?? "—").foregroundStyle(.secondary) }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var groupedList: some View {
-        let groups = Dictionary(grouping: filtered) { event -> String in
+    private func groupedList(_ rows: [ProcessHistoryEventRecord]) -> some View {
+        let groups = Dictionary(grouping: rows) { event -> String in
             switch grouping {
             case .day: event.timestamp.formatted(.dateTime.year().month().day())
             case .event: humanized(event.typeRawValue)
@@ -237,14 +319,16 @@ struct HistoryView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var relatedConfiguration: ManagedServiceConfiguration? {
+        guard let selectedID = selection.first else { return nil }
         let profileID: UUID? = {
             if timeline == .lifecycle {
-                return lifecycleEvents.first { selection.contains($0.id) }?.managedServiceID
+                return lifecycleEvents.first { $0.id == selectedID }?.managedServiceID
             }
-            return events.first { selection.contains($0.id) }?.profileID
+            return events.first { $0.id == selectedID }?.profileID
         }()
         guard
             let profileID,
@@ -256,11 +340,6 @@ struct HistoryView: View {
             processPolicies: processPolicies,
             serviceChecks: serviceChecks
         )
-    }
-
-    private func restartSelected() {
-        guard let relatedConfiguration else { return }
-        Task { await model.launchProfile(relatedConfiguration) }
     }
 
     private func clearSelected() {
@@ -276,23 +355,52 @@ struct HistoryView: View {
         }
         try? context.save()
         selection.removeAll()
+        refreshHistory()
     }
 
-    private func loadLifecycleContexts() {
-        let ids = Set(lifecycleEvents.map(\.id))
-        guard !ids.isEmpty else {
-            lifecycleContextSnapshots = []
-            return
-        }
-        let descriptor = FetchDescriptor<LifecycleEventContextRecord>(
-            predicate: #Predicate { ids.contains($0.lifecycleEventID) }
-        )
-        lifecycleContextSnapshots = ((try? context.fetch(descriptor)) ?? []).map {
-            LifecycleHistoryContextSnapshot(
-                lifecycleEventID: $0.lifecycleEventID,
-                severityRawValue: $0.severityRawValue,
-                sourceRawValue: $0.sourceRawValue
+    private func refreshHistory() {
+        do {
+            var processDescriptor = FetchDescriptor<ProcessHistoryEventRecord>(
+                sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
             )
+            processDescriptor.fetchLimit = Self.fetchLimit
+
+            var lifecycleDescriptor = FetchDescriptor<LifecycleEventRecord>(
+                sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+            )
+            lifecycleDescriptor.fetchLimit = Self.fetchLimit
+
+            var incidentDescriptor = FetchDescriptor<RuntimeIncidentSummaryRecord>(
+                sortBy: [SortDescriptor(\.generatedAt, order: .reverse)]
+            )
+            incidentDescriptor.fetchLimit = 250
+
+            let refreshedEvents = try context.fetch(processDescriptor)
+            let refreshedLifecycleEvents = try context.fetch(lifecycleDescriptor)
+            let refreshedIncidents = try context.fetch(incidentDescriptor)
+            let ids = Set(refreshedLifecycleEvents.map(\.id))
+            let refreshedContexts: [LifecycleHistoryContextSnapshot]
+            if ids.isEmpty {
+                refreshedContexts = []
+            } else {
+                let contextDescriptor = FetchDescriptor<LifecycleEventContextRecord>(
+                    predicate: #Predicate { ids.contains($0.lifecycleEventID) }
+                )
+                refreshedContexts = try context.fetch(contextDescriptor).map {
+                    LifecycleHistoryContextSnapshot(
+                        lifecycleEventID: $0.lifecycleEventID,
+                        severityRawValue: $0.severityRawValue,
+                        sourceRawValue: $0.sourceRawValue
+                    )
+                }
+            }
+
+            events = refreshedEvents
+            lifecycleEvents = refreshedLifecycleEvents
+            incidents = refreshedIncidents
+            lifecycleContextSnapshots = refreshedContexts
+        } catch {
+            presentedErrorMessage = error.localizedDescription
         }
     }
 
@@ -303,14 +411,18 @@ struct HistoryView: View {
             try context.delete(model: LifecycleEventContextRecord.self, where: #Predicate { _ in true })
             try context.delete(model: RuntimeIncidentSummaryRecord.self, where: #Predicate { _ in true })
             try context.save()
+            events = []
+            lifecycleEvents = []
+            incidents = []
             lifecycleContextSnapshots = []
         } catch {
-            model.presentedError = .unexpected(error.localizedDescription)
+            presentedErrorMessage = error.localizedDescription
         }
     }
 
     private var selectedIncident: RuntimeIncidentSummary? {
-        guard let selectedEvent = lifecycleEvents.first(where: { selection.contains($0.id) }),
+        guard let selectedID = selection.first,
+              let selectedEvent = lifecycleEvents.first(where: { $0.id == selectedID }),
               let serviceID = selectedEvent.managedServiceID else { return nil }
         return incidents.first {
             $0.managedServiceID == serviceID
@@ -318,9 +430,9 @@ struct HistoryView: View {
         }?.summary ?? incidents.first { $0.managedServiceID == serviceID }?.summary
     }
 
-    private func profileName(for id: UUID?) -> String {
+    private func profileName(for id: UUID?, serviceNames: [UUID: String]) -> String {
         guard let id else { return "—" }
-        return profiles.first { $0.id == id }?.name ?? String(id.uuidString.prefix(8))
+        return serviceNames[id] ?? String(id.uuidString.prefix(8))
     }
 
     private func severitySymbol(_ value: String) -> String {
@@ -343,6 +455,21 @@ struct HistoryView: View {
 
     private func humanized(_ value: String) -> String {
         value.replacingOccurrences(of: "([a-z])([A-Z])", with: "$1 $2", options: .regularExpression).capitalized
+    }
+}
+
+private struct HistoryRestartButton: View {
+    @EnvironmentObject private var model: AppModel
+    let configuration: ManagedServiceConfiguration?
+
+    var body: some View {
+        Button {
+            guard let configuration else { return }
+            Task { await model.launchProfile(configuration) }
+        } label: {
+            Label("Restart Service", systemImage: "play")
+        }
+        .disabled(configuration == nil)
     }
 }
 
