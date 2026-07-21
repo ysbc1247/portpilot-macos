@@ -4,6 +4,7 @@ Prompts are conservative workflow guides. They do not grant permission, execute 
 
 | Prompt | Availability | Workflow |
 | --- | --- | --- |
+| `manage_local_development` | Production | Use the most relevant bounded resources and tools proactively, combine inspections, avoid re-asking for known app data, and report exact MCP gaps |
 | `inspect_local_runtime` | Production | Read snapshot, inspect and explain selected stable runtime IDs without mutation |
 | `diagnose_port_conflict` | Production | Inspect port/owner evidence, preview safest exact resolution, wait for approval |
 | `onboard_existing_project` | Production | Discover only a user-selected root, review untrusted candidates, apply selections |

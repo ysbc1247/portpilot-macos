@@ -49,6 +49,8 @@ The app remains the only runtime monitor, Docker inspector, persistent writer, l
 
 A successful `service_verify` response is emitted only after the isolated validation process has stopped and the app has published a newer runtime snapshot. This prevents an immediate `service_start` from treating the validator's stale listener as an active port conflict.
 
+The installed helper and global Codex configuration are an operator integration boundary. Settings exposes their independent state plus one setup/repair action that installs the bundled helper, safely edits only the DevBerth TOML table, and checks the app-owned socket. The stable Release installer refreshes `/Applications/DevBerth.app` and the user-scoped helper from the same build so code and protocol adapters cannot drift. The `manage_local_development` prompt encourages broad typed MCP usage while requiring clients to report concrete gaps rather than bypass the control plane.
+
 Development mode is a separate Debug-only host with an in-memory V7 container and application-owned fixtures. Its discoverer scopes `lsof` to fixture/managed PIDs before enrichment. Release argument parsing rejects `--development` and Release discovery contains no `dev_*` tools.
 
 ## Runtime state flow
@@ -182,6 +184,8 @@ The first-run guide is local and account-free. It states visibility limits, obse
 Projects and Managed Services share the same managed-service activity resolver. Project rows provide independent Start for stopped definitions, Stop for live DevBerth-managed runtimes, and Inspect for expected-port observations that are not control authority. Bulk Start retains the complete dependency graph but launches only stopped definitions; bulk Stop walks that graph in reverse while controlling only live DevBerth-managed runtimes. AppModel publishes bounded per-project operation progress and terminal results, rejects overlap, and requests an immediate runtime refresh on success. Project progress uses the broader active count while lifecycle actions continue to use only verified managed runtime state.
 
 Dismissible custom sheets and the command palette handle Escape explicitly and provide a cancel/close control with the native cancel keyboard shortcut. Editors and restore flows ignore Escape only while a protected in-flight mutation is executing. The mandatory first-run safety guide remains intentionally non-dismissible.
+
+Settings provides a direct handoff to macOS Privacy & Security → Full Disk Access. Full Disk Access has no supported self-grant API: DevBerth opens the pane and explains the manual user step, but never claims the permission was granted or silently changes security policy. Release builds are installed at the stable `/Applications/DevBerth.app` path so the System Settings entry and the user's launch target do not drift between rebuilds.
 
 ## Persistence and migrations
 

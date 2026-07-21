@@ -2,7 +2,7 @@
 
 ![DevBerth Codex and MCP integration settings](Screenshots/mcp-codex-settings.png)
 
-DevBerth exposes its complete local development-runtime control plane to Codex and compatible MCP clients. Production provides 82 tools, 11 resources/templates, and 9 prompts; an isolated Debug development host adds 12 tools and one prompt.
+DevBerth exposes its complete local development-runtime control plane to Codex and compatible MCP clients. Production provides 82 tools, 11 resources/templates, and 10 prompts; an isolated Debug development host adds 12 tools and one prompt.
 
 ## Versions and compatibility
 
@@ -42,7 +42,7 @@ The helper is not a second application. It does not run `lsof`, `ps`, Docker, Ho
 
 ## Installation
 
-In DevBerth, open **Settings → Integrations → Codex & MCP**:
+In DevBerth, open **Settings → Integrations → Codex & MCP**. **Set Up / Repair Codex MCP** performs the normal helper installation, global configuration update, and connection check together. The explicit workflow remains available:
 
 1. Select **Install/Repair Helper**.
 2. Choose global `~/.codex/config.toml` or a project root for `.codex/config.toml`.
@@ -73,6 +73,8 @@ tool_timeout_sec = 120
 ```
 
 The Settings editor accepts only a regular non-symlink configuration up to 1 MiB, rejects duplicate DevBerth tables, preserves unrelated content, writes atomically, verifies the result, and leaves a timestamped backup.
+
+The production `manage_local_development` prompt directs compatible clients to prefer DevBerth's current resources and typed tools, combine bounded calls flexibly, reuse data already held by the app, and report an exact capability/usability gap when the control plane needs extension.
 
 ## Operating rules
 
