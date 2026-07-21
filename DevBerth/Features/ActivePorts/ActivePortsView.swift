@@ -1,4 +1,5 @@
 import AppKit
+import SwiftData
 import SwiftUI
 
 struct ActivePortsView: View {
@@ -132,6 +133,11 @@ struct ActivePortsView: View {
 
 private struct ProcessInspectorView: View {
     @EnvironmentObject private var model: AppModel
+    @Query private var profiles: [LaunchProfileRecord]
+    @Query private var dependencies: [ProfileDependencyRecord]
+    @Query private var expectedPorts: [ExpectedPortRecord]
+    @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
+    @Query private var validationRecords: [ManagedServiceValidationRecord]
     let listener: ObservedListener
     @State private var showsForceConfirmation = false
     @State private var showsProfileReview = false
@@ -195,6 +201,7 @@ private struct ProcessInspectorView: View {
                     graph: model.ownershipGraphs[listener.id],
                     isLoading: model.ownershipInspectionsInProgress.contains(listener.id)
                 )
+                RestartTrustExplanationView(summary: restartTrustSummary)
                 if let project = listener.process.project {
                     GroupBox("Inferred project") {
                         VStack(spacing: 10) {
@@ -230,10 +237,19 @@ private struct ProcessInspectorView: View {
                     .disabled(!canGracefullyStop || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
 
                     HStack {
-                        Button("Save as Launch Profile") { showsProfileReview = true }
+                        if canConvertToManagedService {
+                            Button("Convert to Managed Service") { showsProfileReview = true }
+                        }
                         Spacer()
                         if canRestart {
-                            Button("Restart") { Task { await model.restartOwnedRuntime(listener) } }
+                            Button("Restart") {
+                                Task {
+                                    await model.restartOwnedRuntime(
+                                        listener,
+                                        verifiedConfiguration: managedConfiguration
+                                    )
+                                }
+                            }
                         }
                         Button("Force Stop", role: .destructive) { showsForceConfirmation = true }
                             .disabled(!canForceStop || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
@@ -290,7 +306,38 @@ private struct ProcessInspectorView: View {
     }
 
     private var canRestart: Bool {
-        ownershipGraph?.recommendation.supportedActions.contains(.restart) == true
+        guard let graph = ownershipGraph,
+              graph.recommendation.supportedActions.contains(.restart) else { return false }
+        guard graph.recommendation.controllerKind == .managedProcess else { return true }
+        guard let managedConfiguration else { return false }
+        return restartTrustSummary.state == .verifiedRestartable
+            && graph.managedConfigurationDigest == ManagedServiceConfigurationDigest.make(
+                for: managedConfiguration
+            )
+    }
+
+    private var canConvertToManagedService: Bool {
+        listener.process.managedServiceID == nil && listener.process.docker == nil
+    }
+
+    private var restartTrustSummary: RestartTrustSummary {
+        guard let managedConfiguration else {
+            return RestartTrustEvaluator.observedSummary(for: listener)
+        }
+        let validation = validationRecords.first {
+            $0.managedServiceID == managedConfiguration.id
+        }?.result
+        return RestartTrustEvaluator.summary(for: managedConfiguration, validation: validation)
+    }
+
+    private var managedConfiguration: ManagedServiceConfiguration? {
+        guard let managedServiceID = listener.process.managedServiceID,
+              let profile = profiles.first(where: { $0.id == managedServiceID }) else { return nil }
+        return profile.configuration(
+            dependencies: dependencies,
+            expectedPorts: expectedPorts,
+            processPolicies: processPolicies
+        )
     }
 
     private func usesPIDController(_ controller: LifecycleControllerKind) -> Bool {
@@ -310,6 +357,41 @@ private struct ProcessInspectorView: View {
         case .kubernetesPortForward: "Stop Port Forward"
         case .sshTunnel: "Stop SSH Tunnel"
         default: "Graceful Stop"
+        }
+    }
+}
+
+private struct RestartTrustExplanationView: View {
+    let summary: RestartTrustSummary
+
+    var body: some View {
+        GroupBox("Can DevBerth restart this reliably?") {
+            VStack(alignment: .leading, spacing: DevBerthSpacing.small) {
+                Label(summary.state.title, systemImage: summary.state.symbol)
+                    .font(.headline)
+                    .foregroundStyle(color)
+                ForEach(summary.reasons, id: \.self) { reason in
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let lastValidatedAt = summary.lastValidatedAt {
+                    InspectorRow(title: "Last validated", value: lastValidatedAt.formatted())
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Restart trust: \(summary.state.title)")
+        }
+    }
+
+    private var color: Color {
+        switch summary.state {
+        case .verifiedRestartable: .green
+        case .conditionallyRestartable: .orange
+        case .inferredRestartCandidate: .blue
+        case .notRestartable: .red
         }
     }
 }
@@ -413,68 +495,383 @@ private struct OwnershipExplanationView: View {
 }
 
 private struct DiscoveredProfileReviewView: View {
+    @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     let listener: ObservedListener
+    private let profileID = UUID()
+    private let expectedPortID = UUID()
+    private let secretLifecycle = SecretLifecycleCoordinator()
+    private let stepTitles = [
+        "Command", "Directory & shell", "Environment", "Keychain",
+        "Readiness", "Review", "Validate"
+    ]
+
+    @State private var step = 0
     @State private var name: String
     @State private var command: String
-    @State private var argumentsText: String
+    @State private var argumentsText = ""
     @State private var workingDirectory: String
+    @State private var usesLoginShell = false
+    @State private var shellPath = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+    @State private var environmentText = ""
+    @State private var secretReplacements: [String: String] = [:]
+    @State private var secretName = ""
+    @State private var secretValue = ""
+    @State private var expectedPort: String
+    @State private var healthURL = ""
+    @State private var expectedStatus = 200
     @State private var reviewed = false
+    @State private var stopConfirmed = false
+    @State private var isWorking = false
+    @State private var errorMessage: String?
 
     init(listener: ObservedListener) {
         self.listener = listener
         _name = State(initialValue: listener.process.project?.name ?? listener.process.name)
-        _command = State(initialValue: listener.process.executablePath ?? listener.process.name)
-        let tokens = listener.process.commandLine.split(separator: " ").dropFirst().map(String.init)
-        _argumentsText = State(initialValue: tokens.joined(separator: "\n"))
-        _workingDirectory = State(initialValue: listener.process.currentDirectory ?? NSHomeDirectory())
+        _command = State(initialValue: listener.process.executablePath ?? "")
+        _workingDirectory = State(initialValue: listener.process.currentDirectory ?? "")
+        _expectedPort = State(initialValue: String(listener.port))
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Form {
-                Section("Verified and inferred values") {
-                    TextField("Profile name", text: $name)
-                    TextField("Executable", text: $command)
-                    TextField("Working directory", text: $workingDirectory)
-                    TextField("Arguments (one per line)", text: $argumentsText, axis: .vertical)
-                        .lineLimit(3...8)
-                    LabeledContent("Expected port") { Text("\(listener.protocolKind.rawValue) \(listener.port)") }
-                }
-                Section("Review required") {
-                    Text("The operating system does not expose the original shell state or complete environment. Arguments above are a best-effort split of process output; correct quoting and add required environment values before relying on this profile.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Toggle("I reviewed the executable, arguments, directory, and expected port", isOn: $reviewed)
-                }
+            VStack(alignment: .leading, spacing: DevBerthSpacing.small) {
+                Text("Convert to Managed Service").font(.title2.bold())
+                Text("Step \(step + 1) of \(stepTitles.count): \(stepTitles[step])")
+                    .foregroundStyle(.secondary)
+                ProgressView(value: Double(step + 1), total: Double(stepTitles.count))
+                    .accessibilityLabel("Conversion progress")
+                    .accessibilityValue("Step \(step + 1) of \(stepTitles.count)")
             }
-            .formStyle(.grouped)
+            .padding()
+
+            Divider()
+            Form { stepContent }
+                .formStyle(.grouped)
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+            }
+
             HStack {
-                Spacer()
+                if isWorking { ProgressView().controlSize(.small) }
                 Button("Cancel", role: .cancel) { dismiss() }
-                Button("Save Profile") { save() }
+                Spacer()
+                if step > 0 {
+                    Button("Back") { step -= 1; errorMessage = nil }
+                        .disabled(isWorking)
+                }
+                if step < stepTitles.count - 1 {
+                    Button("Continue") { step += 1; errorMessage = nil }
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!canContinue || isWorking)
+                } else {
+                    Button("Stop, Test & Save Verified") {
+                        Task { await validateAndSave() }
+                    }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!reviewed || name.isEmpty || command.isEmpty || workingDirectory.isEmpty)
+                    .disabled(!stopConfirmed || !reviewed || isWorking)
+                }
             }
-            .padding().background(.bar)
+            .padding()
+            .background(.bar)
         }
-        .frame(width: 640, height: 560)
+        .frame(width: 700, height: 680)
+        .interactiveDismissDisabled(isWorking)
     }
 
-    private func save() {
-        let profile = LaunchProfileRecord(name: name, command: command, workingDirectory: workingDirectory)
-        profile.kindRawValue = LaunchMechanism.executable.rawValue
-        profile.isReviewed = reviewed
-        let arguments = argumentsText.split(whereSeparator: \.isNewline).map(String.init)
-        profile.argumentsData = (try? JSONEncoder().encode(arguments)) ?? Data("[]".utf8)
+    @ViewBuilder
+    private var stepContent: some View {
+        switch step {
+        case 0:
+            Section("Observed evidence") {
+                Text(listener.process.commandLine)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                Text("The operating system exposes a command string, not trustworthy original argument boundaries. DevBerth does not split it automatically.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section("Reviewed launch command") {
+                TextField("Service name", text: $name)
+                TextField("Executable path", text: $command)
+                TextField("Exact arguments (one argument per line)", text: $argumentsText, axis: .vertical)
+                    .lineLimit(4...9)
+            }
+        case 1:
+            Section("Working directory") {
+                TextField("Absolute directory", text: $workingDirectory)
+                Text("Observed value: \(listener.process.currentDirectory ?? "Unavailable")")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Shell behavior") {
+                Toggle("Run through a login shell", isOn: $usesLoginShell)
+                if usesLoginShell { TextField("Shell path", text: $shellPath) }
+                Text("Direct execution is safer when the executable and arguments are known. Select a shell only when startup depends on shell initialization.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        case 2:
+            Section("Non-secret environment") {
+                TextField("KEY=value, one per line", text: $environmentText, axis: .vertical)
+                    .lineLimit(6...12)
+                Text("The original environment cannot be recovered reliably. Secret-like names are rejected here and must be stored in Keychain.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        case 3:
+            Section("Keychain environment") {
+                ForEach(secretReplacements.keys.sorted(), id: \.self) { name in
+                    HStack {
+                        Label(name, systemImage: "key.fill")
+                        Spacer()
+                        Text("Value staged in memory").font(.caption).foregroundStyle(.secondary)
+                        Button("Remove", role: .destructive) { secretReplacements.removeValue(forKey: name) }
+                            .buttonStyle(.borderless)
+                    }
+                }
+                HStack {
+                    TextField("Variable name", text: $secretName)
+                    SecureField("Value", text: $secretValue)
+                    Button("Add") { addSecret() }
+                        .disabled(secretName.isEmpty || secretValue.isEmpty)
+                }
+                Text("Values are never placed in SwiftData, logs, validation evidence, or this form after conversion closes.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        case 4:
+            Section("Required listener") {
+                Picker("Protocol", selection: .constant(listener.protocolKind)) {
+                    Text(listener.protocolKind.rawValue).tag(listener.protocolKind)
+                }
+                .disabled(true)
+                TextField("Port", text: $expectedPort)
+                Text("A successful validation must observe this listener before the startup timeout.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Optional HTTP health check") {
+                TextField("http://127.0.0.1:port/path", text: $healthURL)
+                Stepper("Expected status: \(expectedStatus)", value: $expectedStatus, in: 100...599)
+            }
+        case 5:
+            Section("Review inferred and reconstructed fields") {
+                LabeledContent("Executable") { Text(command).font(.system(.caption, design: .monospaced)) }
+                LabeledContent("Arguments") { Text("\(argumentCount) exact value(s)") }
+                LabeledContent("Working directory") { Text(workingDirectory) }
+                LabeledContent("Shell") { Text(usesLoginShell ? shellPath : "Direct execution") }
+                LabeledContent("Non-secret fields") { Text("\(parsedEnvironment.values.count)") }
+                LabeledContent("Keychain fields") { Text("\(secretReplacements.count)") }
+                LabeledContent("Required listener") { Text("\(listener.protocolKind.rawValue) :\(expectedPort)") }
+                Toggle("I reviewed every reconstructed field and its exact argument boundaries", isOn: $reviewed)
+            }
+        default:
+            Section("Explicit stop approval") {
+                Text("Port \(listener.port) is currently occupied by PID \(listener.process.fingerprint.pid). DevBerth must re-resolve its controlling owner and stop it before testing the managed definition on the same port.")
+                    .font(.callout)
+                Toggle("Stop the revalidated observed owner before the test", isOn: $stopConfirmed)
+                Label("No profile or secret reference is saved unless the candidate starts, becomes ready, and stops cleanly.", systemImage: "checkmark.shield")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("If candidate startup fails after the approved stop, the original process remains stopped and DevBerth reports the failure; it will not guess how to recreate it.")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private var canContinue: Bool {
+        switch step {
+        case 0:
+            return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case 1:
+            return !workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && (!usesLoginShell || !shellPath.isEmpty)
+        case 2:
+            return parsedEnvironment.isValid
+        case 4:
+            return UInt16(expectedPort) != nil && validHealthURL
+        case 5:
+            return reviewed
+        default:
+            return true
+        }
+    }
+
+    private var argumentCount: Int {
+        argumentsText.split(whereSeparator: \.isNewline).count
+    }
+
+    private var parsedEnvironment: ManagedEnvironmentParseResult {
+        ManagedEnvironmentParser.parse(environmentText)
+    }
+
+    private var validHealthURL: Bool {
+        let trimmed = healthURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        guard let url = URL(string: trimmed) else { return false }
+        return ["http", "https"].contains(url.scheme?.lowercased() ?? "")
+    }
+
+    private func addSecret() {
+        let normalized = secretName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard ManagedEnvironmentParser.isValidVariableName(normalized) else {
+            errorMessage = "Enter a valid environment variable name."
+            return
+        }
+        secretReplacements[normalized] = secretValue
+        secretName = ""
+        secretValue = ""
+        errorMessage = nil
+    }
+
+    @MainActor
+    private func validateAndSave() async {
+        isWorking = true
+        errorMessage = nil
+        defer { isWorking = false }
+
+        let staged: StagedSecretMutation
+        do {
+            staged = try await secretLifecycle.stage(
+                existingReferences: [:],
+                retainedNames: Set(secretReplacements.keys),
+                replacements: secretReplacements
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
+
+        let candidate: ManagedServiceConfiguration
+        do {
+            candidate = try makeConfiguration(references: staged.references)
+            let issues = ManagedServiceValidator.validate(candidate).filter { $0.severity == .error }
+            guard issues.isEmpty else {
+                throw DevBerthError.launchValidation(issues.map(\.message).joined(separator: " "))
+            }
+        } catch {
+            await secretLifecycle.rollback(staged)
+            errorMessage = error.localizedDescription
+            return
+        }
+
+        do {
+            try await model.stopObservedProcessForValidation(listener)
+        } catch {
+            await secretLifecycle.rollback(staged)
+            errorMessage = "The observed owner was not stopped, so validation did not run: \(error.localizedDescription)"
+            return
+        }
+
+        let validation = await model.validateManagedService(candidate)
+        guard validation.succeeded else {
+            await secretLifecycle.rollback(staged)
+            errorMessage = "The observed process was stopped, but the managed candidate failed validation: \(validation.summary)"
+            return
+        }
+
+        do {
+            try persist(candidate)
+        } catch {
+            context.rollback()
+            await secretLifecycle.rollback(staged)
+            errorMessage = "The candidate validated and stopped, but its definition was not saved: \(error.localizedDescription)"
+            return
+        }
+        do {
+            try await model.recordRestartTrust(for: candidate, validation: validation)
+            dismiss()
+        } catch {
+            errorMessage = "The profile and Keychain references were saved, but validation metadata could not be recorded: \(error.localizedDescription)"
+        }
+    }
+
+    private func makeConfiguration(references: [String: UUID]) throws -> ManagedServiceConfiguration {
+        let environment = parsedEnvironment
+        if !environment.sensitiveNames.isEmpty {
+            throw DevBerthError.launchValidation(
+                "Move secret-like fields to Keychain: \(environment.sensitiveNames.joined(separator: ", "))."
+            )
+        }
+        if !environment.duplicateNames.isEmpty {
+            throw DevBerthError.launchValidation(
+                "Environment fields must be unique: \(environment.duplicateNames.joined(separator: ", "))."
+            )
+        }
+        guard environment.invalidLines.isEmpty else {
+            throw DevBerthError.launchValidation(
+                "\(environment.invalidLines.count) environment line(s) do not use a valid KEY=value form."
+            )
+        }
+        guard let port = UInt16(expectedPort) else {
+            throw DevBerthError.launchValidation("Enter a valid expected port.")
+        }
+        let trimmedHealthURL = healthURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let healthCheck: HealthCheckConfiguration?
+        if trimmedHealthURL.isEmpty {
+            healthCheck = nil
+        } else {
+            guard validHealthURL, let url = URL(string: trimmedHealthURL) else {
+                throw DevBerthError.launchValidation("The health-check URL must be an HTTP or HTTPS URL.")
+            }
+            healthCheck = .init(url: url, expectedStatus: expectedStatus, intervalSeconds: 0.5)
+        }
+        return ManagedServiceConfiguration(
+            id: profileID,
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            launchMechanism: .executable,
+            command: command.trimmingCharacters(in: .whitespacesAndNewlines),
+            arguments: argumentsText.split(whereSeparator: \.isNewline).map(String.init),
+            workingDirectory: workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines),
+            shell: usesLoginShell ? .loginShell(path: shellPath) : .direct,
+            environment: environment.values,
+            secretReferences: references,
+            expectedPorts: [.init(
+                id: expectedPortID,
+                port: port,
+                protocolKind: listener.protocolKind,
+                required: true
+            )],
+            processPolicy: .controlledProcessGroup,
+            healthCheck: healthCheck,
+            isReviewed: reviewed
+        )
+    }
+
+    @MainActor
+    private func persist(_ candidate: ManagedServiceConfiguration) throws {
+        let encoder = JSONEncoder()
+        let profile = LaunchProfileRecord(
+            id: candidate.id,
+            name: candidate.name,
+            command: candidate.command,
+            workingDirectory: candidate.workingDirectory
+        )
+        profile.projectID = candidate.projectID
+        profile.kindRawValue = candidate.launchMechanism.rawValue
+        profile.argumentsData = try encoder.encode(candidate.arguments)
+        profile.shellData = try encoder.encode(candidate.shell)
+        profile.environmentData = try encoder.encode(candidate.environment)
+        profile.secretReferencesData = try encoder.encode(candidate.secretReferences)
+        profile.healthCheckData = try candidate.healthCheck.map(encoder.encode)
+        profile.isReviewed = candidate.isReviewed
+        profile.launchesAutomatically = false
         context.insert(profile)
-        context.insert(ExpectedPortRecord(
-            profileID: profile.id,
-            port: listener.port,
-            protocolKind: listener.protocolKind
+        for expected in candidate.expectedPorts {
+            context.insert(ExpectedPortRecord(
+                id: expected.id,
+                profileID: profile.id,
+                port: expected.port,
+                protocolKind: expected.protocolKind,
+                required: expected.required
+            ))
+        }
+        context.insert(ManagedServiceProcessPolicyRecord(
+            managedServiceID: profile.id,
+            policy: candidate.processPolicy
         ))
-        try? context.save()
-        dismiss()
+        try context.save()
     }
 }

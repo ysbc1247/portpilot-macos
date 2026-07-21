@@ -11,11 +11,12 @@ DevBerth is a native macOS developer utility for discovering, understanding, sto
 - Discovers TCP listeners and meaningful UDP endpoints across IPv4, IPv6, loopback, local-network, and wildcard addresses.
 - Shows PID, owner, executable, full command, start time, working directory, inferred project, runtime classification, address scope, and Docker association when verified locally.
 - Separates discovered processes from reviewed launch profiles; inferred commands are never executed automatically.
+- Shows explicit restart trust and enables normal Start only after the exact reviewed configuration passes isolated start, readiness, and controlled-stop validation.
 - Gracefully stops a process with `SIGTERM`, waits for its configured timeout, and requires explicit confirmation before `SIGKILL`.
 - Revalidates PID, executable path, and process start time immediately before every destructive process action.
 - Supports generic commands, npm/pnpm/Yarn/Bun scripts, Gradle, Maven, executables, custom shells, Docker containers, and Docker Compose services.
 - Starts project dependencies in ordered layers while parallelizing independent services and rejecting dependency cycles.
-- Uses Keychain-backed secret references, bounded redacted logs, expected-port readiness, optional HTTP health checks, and preflight conflict resolution.
+- Uses transactional Keychain-backed secret references, bounded redacted logs, expected-port readiness, optional HTTP health checks, and preflight conflict resolution.
 - Maps published Docker host ports to container ports, image, container, and Compose metadata; Docker absence never breaks listener monitoring.
 - Persists projects, profiles, expected ports, dependencies, observations, favorites, settings, log metadata, and event history with SwiftData.
 - Includes Overview, Active Ports, Projects, Launch Profiles, History, Docker, Settings, a `⌘K` command palette, and a menu-bar utility.
@@ -77,6 +78,7 @@ Port, process, project, command, history, Docker, log, and preference data remai
 ## Current limitations
 
 - macOS cannot reconstruct an arbitrary process's original shell session or complete environment. Exact restarts require a reviewed launch profile.
+- Existing profiles migrate safely as conditional and require one successful validation before their first verified restart under Phase 2.
 - Root-owned and recognized Apple/system processes are intentionally blocked from termination. DevBerth does not request elevation.
 - Some process metadata may be unavailable because of ownership or macOS privacy restrictions; unavailable values stay visibly unavailable rather than inferred.
 - UDP has no universal listening state, so DevBerth reports meaningful bound UDP endpoints instead of claiming TCP-style semantics.

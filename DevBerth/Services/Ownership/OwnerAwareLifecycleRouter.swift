@@ -34,7 +34,7 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
         switch graph.recommendation.controllerKind {
         case .managedProcess:
             guard
-                action == .gracefulStop,
+                action == .gracefulStop || action == .restart,
                 let serviceID = graph.managedServiceID,
                 let runtimeID = graph.managedRuntimeID,
                 let registration = await runtimeRegistry.registration(serviceID: serviceID),
@@ -49,11 +49,16 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
                 profileID: serviceID,
                 timeoutSeconds: registration.configuration.shutdownTimeoutSeconds
             )
+            if action == .restart {
+                try await managedServiceController.launch(registration.configuration)
+            }
             return result(
                 controller: .managedProcess,
                 action: action,
                 didStop: true,
-                summary: "Stopped the verified managed process scope.",
+                summary: action == .restart
+                    ? "Restarted the exact verified managed-service definition."
+                    : "Stopped the verified managed process scope.",
                 startedAt: startedAt
             )
 

@@ -19,12 +19,15 @@ final class AppModel: ObservableObject {
     @Published var pendingLaunchConflict: PendingLaunchConflict?
     @Published private(set) var ownershipGraphs: [String: RuntimeOwnershipGraph] = [:]
     @Published private(set) var ownershipInspectionsInProgress = Set<String>()
+    @Published private(set) var servicesBeingValidated = Set<UUID>()
 
     private let monitor: PortMonitor
     private let lifecycleRouter: any OwnerAwareLifecycleRouting
     private let historyRecorder: (any HistoryRecording)?
     private let ownershipRecorder: (any OwnershipRecording)?
     private let ownershipResolver: any RuntimeOwnershipResolving
+    private let validationService: any ManagedServiceValidating
+    private let restartTrustStore: (any RestartTrustStoring)?
     private let launchService: any LaunchProfileServing
     private let projectOrchestrator: ProjectOrchestrator
     private let notifier: any PortNotifying
@@ -39,8 +42,10 @@ final class AppModel: ObservableObject {
         processController: (any ProcessControlling)? = nil,
         historyRecorder: (any HistoryRecording)? = nil,
         ownershipRecorder: (any OwnershipRecording)? = nil,
+        restartTrustStore: (any RestartTrustStoring)? = nil,
         ownershipResolver: (any RuntimeOwnershipResolving)? = nil,
-        lifecycleRouter: (any OwnerAwareLifecycleRouting)? = nil
+        lifecycleRouter: (any OwnerAwareLifecycleRouting)? = nil,
+        validationService: (any ManagedServiceValidating)? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
@@ -72,6 +77,7 @@ final class AppModel: ObservableObject {
         )
         self.historyRecorder = historyRecorder
         self.ownershipRecorder = ownershipRecorder
+        self.restartTrustStore = restartTrustStore
         self.ownershipResolver = ownershipResolver ?? RuntimeOwnershipResolver(
             runtimeRegistry: runtimeRegistry,
             lineageProvider: SystemProcessLineageProvider(
@@ -79,6 +85,9 @@ final class AppModel: ObservableObject {
             )
         )
         self.launchService = coordinator
+        self.validationService = validationService ?? ManagedServiceValidationRunner(
+            launchService: coordinator
+        )
         self.projectOrchestrator = ProjectOrchestrator(launcher: coordinator)
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
@@ -225,7 +234,51 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func restartOwnedRuntime(_ listener: ObservedListener) async {
+    func stopObservedProcessForValidation(_ listener: ObservedListener) async throws {
+        let pid = listener.process.fingerprint.pid
+        guard !processesBeingControlled.contains(pid) else {
+            throw DevBerthError.unexpected("A lifecycle action is already in progress for this process.")
+        }
+        processesBeingControlled.insert(pid)
+        defer { processesBeingControlled.remove(pid) }
+        let startedAt = Date()
+        let graph = await ownershipResolver.resolve(listener: listener)
+        ownershipGraphs[listener.id] = graph
+        await persistOwnership(graph.primaryConclusion, reportsError: false)
+        do {
+            let outcome = try await lifecycleRouter.perform(
+                .gracefulStop,
+                on: graph,
+                forceConfirmed: false
+            )
+            guard outcome.didStop else { throw DevBerthError.unexpected(outcome.summary) }
+            await record(HistoryEvent(
+                id: UUID(), timestamp: startedAt, port: listener.port,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
+                projectID: graph.projectID, profileID: graph.managedServiceID,
+                type: .gracefulStopRequested,
+                result: .succeeded,
+                errorDetails: "Stopped with explicit approval before managed-service validation.",
+                durationSeconds: outcome.durationSeconds
+            ))
+            refreshNow()
+        } catch {
+            await record(HistoryEvent(
+                id: UUID(), timestamp: startedAt, port: listener.port,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
+                projectID: graph.projectID, profileID: graph.managedServiceID,
+                type: .gracefulStopRequested, result: .failed,
+                errorDetails: error.localizedDescription,
+                durationSeconds: Date().timeIntervalSince(startedAt)
+            ))
+            throw error
+        }
+    }
+
+    func restartOwnedRuntime(
+        _ listener: ObservedListener,
+        verifiedConfiguration: ManagedServiceConfiguration? = nil
+    ) async {
         let pid = listener.process.fingerprint.pid
         guard !processesBeingControlled.contains(pid) else { return }
         processesBeingControlled.insert(pid)
@@ -235,6 +288,19 @@ final class AppModel: ObservableObject {
             let graph = await ownershipResolver.resolve(listener: listener)
             ownershipGraphs[listener.id] = graph
             await persistOwnership(graph.primaryConclusion, reportsError: false)
+            if graph.recommendation.controllerKind == .managedProcess {
+                guard let verifiedConfiguration,
+                      graph.managedServiceID == verifiedConfiguration.id,
+                      graph.managedConfigurationDigest == ManagedServiceConfigurationDigest.make(
+                          for: verifiedConfiguration
+                      ) else {
+                    throw DevBerthError.restartTrustRequired(
+                        service: listener.process.name,
+                        reason: "The active runtime was launched from a different definition. Stop it and validate the current definition before restart."
+                    )
+                }
+                try await requireVerifiedRestartTrust(for: verifiedConfiguration)
+            }
             let outcome = try await lifecycleRouter.perform(
                 .restart,
                 on: graph,
@@ -266,6 +332,23 @@ final class AppModel: ObservableObject {
     func launchProfile(_ profile: ManagedServiceConfiguration, bypassCachedConflict: Bool = false) async {
         let startedAt = Date()
         profileFailures[profile.id] = nil
+        do {
+            try await requireVerifiedRestartTrust(for: profile)
+        } catch let error as DevBerthError {
+            profileFailures[profile.id] = error.localizedDescription
+            presentedError = error
+            await record(HistoryEvent(
+                id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
+                processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
+                profileID: profile.id, type: .launchFailed, result: .failed,
+                errorDetails: error.localizedDescription,
+                durationSeconds: Date().timeIntervalSince(startedAt)
+            ))
+            return
+        } catch {
+            presentedError = .unexpected(error.localizedDescription)
+            return
+        }
         if !bypassCachedConflict,
            let conflict = PortConflictDetector.conflicts(for: profile, listeners: listeners).first {
             pendingLaunchConflict = PendingLaunchConflict(profile: profile, conflict: conflict)
@@ -372,6 +455,9 @@ final class AppModel: ObservableObject {
     func startProject(_ profiles: [ManagedServiceConfiguration]) async {
         let startedAt = Date()
         do {
+            for profile in profiles {
+                try await requireVerifiedRestartTrust(for: profile)
+            }
             let result = try await projectOrchestrator.start(profiles: profiles)
             runningProfileIDs.formUnion(result.startedProfileIDs)
             for profile in profiles where result.startedProfileIDs.contains(profile.id) {
@@ -385,6 +471,50 @@ final class AppModel: ObservableObject {
         } catch {
             presentedError = .unexpected("Project startup stopped because a dependency failed: \(error.localizedDescription)")
         }
+    }
+
+    func validateManagedService(
+        _ profile: ManagedServiceConfiguration
+    ) async -> ManagedServiceValidationResult {
+        guard !servicesBeingValidated.contains(profile.id) else {
+            return ManagedServiceValidationResult(
+                id: UUID(),
+                managedServiceID: profile.id,
+                configurationDigest: ManagedServiceConfigurationDigest.make(for: profile),
+                status: .failed,
+                summary: "A validation run is already in progress for this service.",
+                evidence: [],
+                startedAt: Date(),
+                completedAt: Date()
+            )
+        }
+        servicesBeingValidated.insert(profile.id)
+        defer { servicesBeingValidated.remove(profile.id) }
+        return await validationService.validate(profile)
+    }
+
+    func recordRestartTrust(
+        for profile: ManagedServiceConfiguration,
+        validation: ManagedServiceValidationResult?
+    ) async throws {
+        guard let restartTrustStore else { return }
+        if let validation {
+            guard validation.managedServiceID == profile.id else {
+                throw DevBerthError.unexpected("The validation result belongs to another managed service.")
+            }
+            try await restartTrustStore.record(validation)
+        }
+        let resolvedValidation: ManagedServiceValidationResult?
+        if let validation {
+            resolvedValidation = validation
+        } else {
+            resolvedValidation = try await restartTrustStore.latestValidation(for: profile.id)
+        }
+        let assessment = RestartTrustEvaluator.assessment(
+            for: profile,
+            validation: resolvedValidation
+        )
+        try await restartTrustStore.record(assessment)
     }
 
     func stopProject(_ profiles: [ManagedServiceConfiguration]) async {
@@ -414,6 +544,20 @@ final class AppModel: ObservableObject {
                 projectID: nil, profileID: listener.process.managedServiceID,
                 type: .portReleased, result: .observed, errorDetails: nil, durationSeconds: nil
             )) }
+        }
+    }
+
+    private func requireVerifiedRestartTrust(
+        for profile: ManagedServiceConfiguration
+    ) async throws {
+        guard let restartTrustStore else { return }
+        let validation = try await restartTrustStore.latestValidation(for: profile.id)
+        let summary = RestartTrustEvaluator.summary(for: profile, validation: validation)
+        guard summary.state == .verifiedRestartable else {
+            throw DevBerthError.restartTrustRequired(
+                service: profile.name,
+                reason: summary.reasons.joined(separator: " ")
+            )
         }
     }
 

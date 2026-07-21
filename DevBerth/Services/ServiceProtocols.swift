@@ -78,6 +78,16 @@ protocol OwnershipRecording: Sendable {
     func record(_ conclusion: OwnershipConclusion) async throws
 }
 
+protocol RestartTrustStoring: Sendable {
+    func record(_ validation: ManagedServiceValidationResult) async throws
+    func record(_ assessment: RestartTrustAssessment) async throws
+    func latestValidation(for managedServiceID: UUID) async throws -> ManagedServiceValidationResult?
+}
+
+protocol ManagedServiceValidating: Sendable {
+    func validate(_ profile: ManagedServiceConfiguration) async -> ManagedServiceValidationResult
+}
+
 protocol OwnerAwareLifecycleRouting: Sendable {
     func perform(
         _ action: LifecycleActionKind,

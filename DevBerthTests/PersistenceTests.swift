@@ -5,7 +5,7 @@ import XCTest
 final class PersistenceTests: XCTestCase {
     @MainActor
     func testHistoryPersistsInMemory() async throws {
-        let schema = Schema(DevBerthSchemaV3.models)
+        let schema = Schema(DevBerthSchemaV4.models)
         let configuration = ModelConfiguration("Tests", schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(for: schema, migrationPlan: DevBerthMigrationPlan.self, configurations: [configuration])
         let store = SwiftDataStore(modelContainer: container)
@@ -22,7 +22,7 @@ final class PersistenceTests: XCTestCase {
 
     @MainActor
     func testOwnershipEvidencePersistsAndRetainsOnlyNewestThousandRecords() async throws {
-        let schema = Schema(DevBerthSchemaV3.models)
+        let schema = Schema(DevBerthSchemaV4.models)
         let configuration = ModelConfiguration("OwnershipEvidenceTests", schema: schema, isStoredInMemoryOnly: true)
         let container = try ModelContainer(
             for: schema,
@@ -80,11 +80,12 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(persisted.detectionMethodRawValue, OwnershipDetectionMethod.dockerMetadata.rawValue)
     }
 
-    func testMigrationPlanContainsFrozenV1V2AndCurrentV3Schema() {
-        XCTAssertEqual(DevBerthMigrationPlan.schemas.count, 3)
-        XCTAssertEqual(DevBerthMigrationPlan.stages.count, 2)
+    func testMigrationPlanContainsFrozenSchemasThroughCurrentV4() {
+        XCTAssertEqual(DevBerthMigrationPlan.schemas.count, 4)
+        XCTAssertEqual(DevBerthMigrationPlan.stages.count, 3)
         XCTAssertEqual(DevBerthSchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(DevBerthSchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
         XCTAssertEqual(DevBerthSchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
+        XCTAssertEqual(DevBerthSchemaV4.versionIdentifier, Schema.Version(4, 0, 0))
     }
 }

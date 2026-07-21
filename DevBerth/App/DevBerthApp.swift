@@ -9,7 +9,7 @@ struct DevBerthApp: App {
     init() {
         do {
             let migration = try ProductDataMigrator().migrateForCurrentUser()
-            let schema = Schema(DevBerthSchemaV3.models)
+            let schema = Schema(DevBerthSchemaV4.models)
             let configuration = ModelConfiguration("DevBerth", schema: schema, url: migration.storeURL)
             let createdContainer = try ModelContainer(
                 for: schema,
@@ -20,7 +20,8 @@ struct DevBerthApp: App {
             let store = SwiftDataStore(modelContainer: createdContainer)
             _model = StateObject(wrappedValue: AppModel(
                 historyRecorder: store,
-                ownershipRecorder: store
+                ownershipRecorder: store,
+                restartTrustStore: store
             ))
         } catch {
             fatalError("Unable to initialize DevBerth's local database: \(error.localizedDescription)")

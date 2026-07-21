@@ -60,6 +60,9 @@ struct RuntimeOwnershipResolver: RuntimeOwnershipResolving, Sendable {
             additionalConclusions: [],
             managedRuntimeID: registration?.runtime.id,
             managedServiceID: registration?.configuration.id,
+            managedConfigurationDigest: registration.map {
+                ManagedServiceConfigurationDigest.make(for: $0.configuration)
+            },
             projectID: registration?.configuration.projectID,
             workspaceSessionIDs: [],
             recommendation: classification.recommendation,
@@ -111,8 +114,8 @@ struct RuntimeOwnershipResolver: RuntimeOwnershipResolving, Sendable {
             recommendation: .init(
                 controllerKind: .managedProcess,
                 title: "Use the managed service policy",
-                reason: "DevBerth launched and registered this runtime, so it can stop the reviewed process scope instead of guessing from a PID.",
-                supportedActions: [.inspect, .gracefulStop]
+                reason: "DevBerth launched and registered this runtime, so it can stop or restart the reviewed process scope instead of guessing from a PID.",
+                supportedActions: [.inspect, .gracefulStop, .restart]
             )
         )
     }

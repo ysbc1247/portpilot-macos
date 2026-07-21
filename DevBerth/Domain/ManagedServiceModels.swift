@@ -147,6 +147,65 @@ struct ManagedServiceValidationIssue: Hashable, Sendable, Identifiable {
     let severity: Severity
 }
 
+struct ManagedEnvironmentParseResult: Sendable, Equatable {
+    let values: [String: String]
+    let sensitiveNames: [String]
+    let invalidLines: [String]
+    let duplicateNames: [String]
+
+    var isValid: Bool {
+        sensitiveNames.isEmpty && invalidLines.isEmpty && duplicateNames.isEmpty
+    }
+}
+
+enum ManagedEnvironmentParser {
+    static func parse(_ text: String) -> ManagedEnvironmentParseResult {
+        var values: [String: String] = [:]
+        var sensitiveNames = Set<String>()
+        var invalidLines: [String] = []
+        var duplicateNames = Set<String>()
+
+        for rawLine in text.split(whereSeparator: \.isNewline) {
+            let line = String(rawLine).trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty else { continue }
+            guard let equal = line.firstIndex(of: "=") else {
+                invalidLines.append(line)
+                continue
+            }
+            let name = String(line[..<equal]).trimmingCharacters(in: .whitespaces)
+            let value = String(line[line.index(after: equal)...])
+            guard isValidVariableName(name) else {
+                invalidLines.append(line)
+                continue
+            }
+            if values[name] != nil {
+                duplicateNames.insert(name)
+                continue
+            }
+            if SensitiveEnvironmentKeyPolicy.isSensitive(name) {
+                sensitiveNames.insert(name)
+                continue
+            }
+            values[name] = value
+        }
+        return ManagedEnvironmentParseResult(
+            values: values,
+            sensitiveNames: sensitiveNames.sorted(),
+            invalidLines: invalidLines,
+            duplicateNames: duplicateNames.sorted()
+        )
+    }
+
+    static func isValidVariableName(_ name: String) -> Bool {
+        guard let first = name.unicodeScalars.first,
+              CharacterSet.letters.union(CharacterSet(charactersIn: "_")).contains(first) else {
+            return false
+        }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
+        return name.unicodeScalars.dropFirst().allSatisfy(allowed.contains)
+    }
+}
+
 enum ManagedServiceValidator {
     static func validate(_ profile: ManagedServiceConfiguration, fileManager: FileManager = .default) -> [ManagedServiceValidationIssue] {
         var issues: [ManagedServiceValidationIssue] = []

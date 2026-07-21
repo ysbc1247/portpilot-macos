@@ -156,6 +156,10 @@ final class OwnershipTests: XCTestCase {
         XCTAssertEqual(graph.primaryConclusion.value, "Managed API")
         XCTAssertEqual(graph.managedRuntimeID, runtime.id)
         XCTAssertEqual(graph.managedServiceID, serviceID)
+        XCTAssertEqual(
+            graph.managedConfigurationDigest,
+            ManagedServiceConfigurationDigest.make(for: configuration)
+        )
         XCTAssertEqual(graph.projectID, projectID)
         XCTAssertEqual(graph.recommendation.controllerKind, .managedProcess)
         XCTAssertTrue(graph.primaryConclusion.evidence.contains { $0.field == "listener owner" && $0.isVerified })

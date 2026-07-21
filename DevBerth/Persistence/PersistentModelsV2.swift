@@ -87,6 +87,16 @@ final class ManagedServiceTrustRecord {
         assessedAt = assessment.assessedAt
         lastValidatedAt = assessment.lastValidatedAt
     }
+
+    func apply(_ assessment: RestartTrustAssessment) throws {
+        let encoder = JSONEncoder()
+        id = assessment.id
+        stateRawValue = assessment.state.rawValue
+        reasonsData = try encoder.encode(assessment.reasons)
+        evidenceIDsData = try encoder.encode(assessment.evidenceIDs)
+        assessedAt = assessment.assessedAt
+        lastValidatedAt = assessment.lastValidatedAt
+    }
 }
 
 @Model

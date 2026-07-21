@@ -162,6 +162,59 @@ final class LifecycleRouterTests: XCTestCase {
         let stops = await managedController.stops()
         XCTAssertTrue(stops.isEmpty)
     }
+
+    func testManagedRestartStopsRegisteredRuntimeAndLaunchesExactConfiguration() async throws {
+        let registry = ManagedRuntimeRegistry()
+        let managedController = RecordingLaunchController()
+        let serviceID = UUID()
+        let runtimeID = UUID()
+        let leader = makeProcess(pid: 885).fingerprint
+        let runtime = ManagedRuntimeHandle(
+            id: runtimeID,
+            managedServiceID: serviceID,
+            leaderFingerprint: leader,
+            processGroupID: 885,
+            processPolicy: .controlledProcessGroup,
+            launchedAt: leader.detectedAt
+        )
+        let snapshot = ProcessGroupSnapshot(
+            runtimeID: runtimeID,
+            managedServiceID: serviceID,
+            processGroupID: 885,
+            leaderFingerprint: leader,
+            members: [.init(fingerprint: leader, processGroupID: 885, role: .leader, isInControlledGroup: true)]
+        )
+        let configuration = ManagedServiceConfiguration(
+            id: serviceID,
+            name: "Verified API",
+            command: "/usr/bin/ruby",
+            arguments: ["server.rb"],
+            workingDirectory: "/tmp",
+            shutdownTimeoutSeconds: 9
+        )
+        await registry.register(runtime: runtime, configuration: configuration, snapshot: snapshot)
+        let router = OwnerAwareLifecycleRouter(
+            processController: RecordingProcessController(),
+            managedServiceController: managedController,
+            dockerController: RecordingDockerController(),
+            runtimeRegistry: registry
+        )
+        let graph = lifecycleGraph(
+            controller: .managedProcess,
+            supportedActions: [.inspect, .gracefulStop, .restart],
+            category: .applicationManagedProcess,
+            managedRuntimeID: runtimeID,
+            managedServiceID: serviceID
+        )
+
+        let result = try await router.perform(.restart, on: graph, forceConfirmed: false)
+
+        let stops = await managedController.stops()
+        let launches = await managedController.launches()
+        XCTAssertTrue(result.didStop)
+        XCTAssertEqual(stops, [.init(serviceID: serviceID, timeout: 9)])
+        XCTAssertEqual(launches, [configuration])
+    }
 }
 
 private actor RecordingProcessController: ProcessControlling {
@@ -184,11 +237,15 @@ private actor RecordingLaunchController: LaunchProfileServing {
         let timeout: Double
     }
     private var recordedStops: [Stop] = []
-    func launch(_ profile: ManagedServiceConfiguration) async throws {}
+    private var recordedLaunches: [ManagedServiceConfiguration] = []
+    func launch(_ profile: ManagedServiceConfiguration) async throws {
+        recordedLaunches.append(profile)
+    }
     func stop(profileID: UUID, timeoutSeconds: Double) async throws {
         recordedStops.append(.init(serviceID: profileID, timeout: timeoutSeconds))
     }
     func stops() -> [Stop] { recordedStops }
+    func launches() -> [ManagedServiceConfiguration] { recordedLaunches }
 }
 
 private actor RecordingDockerController: DockerServing {
@@ -249,6 +306,7 @@ private func lifecycleGraph(
         additionalConclusions: [],
         managedRuntimeID: managedRuntimeID,
         managedServiceID: managedServiceID,
+        managedConfigurationDigest: nil,
         projectID: nil,
         workspaceSessionIDs: [],
         recommendation: .init(

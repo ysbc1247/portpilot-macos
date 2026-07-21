@@ -210,6 +210,7 @@ struct RuntimeOwnershipGraph: Hashable, Codable, Sendable, Identifiable {
     let additionalConclusions: [OwnershipConclusion]
     let managedRuntimeID: UUID?
     let managedServiceID: UUID?
+    let managedConfigurationDigest: String?
     let projectID: UUID?
     let workspaceSessionIDs: [UUID]
     let recommendation: OwnershipActionRecommendation
