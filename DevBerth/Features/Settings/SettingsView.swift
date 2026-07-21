@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage("devberth.onboarding.completed") private var hasCompletedOnboarding = false
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginItemError: String?
+    @State private var systemSettingsError: String?
     @State private var diagnosticsDocument: LogTextDocument?
     @State private var copiedCodexConfiguration = false
     @State private var integrationSnapshot: MCPIntegrationSnapshot?
@@ -64,6 +65,11 @@ struct SettingsView: View {
                 Label("System and root-owned processes receive additional protection.", systemImage: "lock.shield")
                 Text("DevBerth never silently requests administrator privileges and never uploads process information.")
                     .font(.callout).foregroundStyle(.secondary)
+                Button("Open Full Disk Access Settings", systemImage: "externaldrive.badge.checkmark") {
+                    openFullDiskAccessSettings()
+                }
+                Text("macOS requires you to add or enable DevBerth in System Settings. DevBerth can open the correct pane, but it cannot grant this permission to itself.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
             Section("Integrations · Codex & MCP") {
                 LabeledContent("MCP status", value: controlHost.state)
@@ -71,6 +77,7 @@ struct SettingsView: View {
                 LabeledContent("Protocol", value: "v\(ControlProtocolConstants.version) · schema v\(ControlProtocolConstants.toolSchemaVersion)")
                 LabeledContent("Helper", value: integrationSnapshot?.installedHelperURL?.path ?? "Not installed")
                 LabeledContent("Helper version", value: integrationSnapshot?.installedVersion ?? "Unavailable")
+                LabeledContent("Global Codex configuration", value: integrationSnapshot?.globalConfigurationMessage ?? "Checking")
                 LabeledContent("Production tools", value: String(ControlCapabilityRegistry.productionTools.count))
                 LabeledContent("Development tools", value: String(ControlCapabilityRegistry.developmentTools.count))
                 HStack {
@@ -84,6 +91,11 @@ struct SettingsView: View {
                     }
                 }
                 HStack {
+                    Button("Set Up / Repair Codex MCP", systemImage: "wand.and.stars") {
+                        pendingIntegrationAction = .setupGlobal
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(integrationSnapshot?.canInstall != true)
                     Button(helperActionTitle, systemImage: "shippingbox") {
                         pendingIntegrationAction = .install
                     }
@@ -93,13 +105,7 @@ struct SettingsView: View {
                     }
                     .disabled(integrationSnapshot?.installedHelperURL == nil)
                     Button("Run MCP Validation", systemImage: "checkmark.shield") {
-                        Task {
-                            integrationSnapshot = await integrationManager.inspect()
-                            await controlHost.testConnection()
-                            integrationMessage = integrationSnapshot?.installedVersion == nil
-                                ? "Validation failed: install the stable helper."
-                                : "Helper and local control-host checks completed."
-                        }
+                        Task { await validateMCPIntegration() }
                     }
                 }
                 HStack {
@@ -189,6 +195,9 @@ struct SettingsView: View {
         .alert("Login item could not be changed", isPresented: .constant(loginItemError != nil)) {
             Button("OK") { loginItemError = nil }
         } message: { Text(loginItemError ?? "") }
+        .alert("System Settings could not be opened", isPresented: .constant(systemSettingsError != nil)) {
+            Button("OK") { systemSettingsError = nil }
+        } message: { Text(systemSettingsError ?? "") }
         .alert(item: $pendingIntegrationAction) { action in
             Alert(
                 title: Text(action.title),
@@ -212,6 +221,43 @@ struct SettingsView: View {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             loginItemError = error.localizedDescription
         }
+    }
+
+    private func openFullDiskAccessSettings() {
+        guard
+            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"),
+            NSWorkspace.shared.open(url)
+        else {
+            systemSettingsError = "Open System Settings → Privacy & Security → Full Disk Access, then add or enable DevBerth."
+            return
+        }
+    }
+
+    private func validateMCPIntegration() async {
+        integrationSnapshot = await integrationManager.inspect()
+        await controlHost.testConnection()
+        guard let snapshot = integrationSnapshot else {
+            integrationMessage = "Validation failed: integration state is unavailable."
+            return
+        }
+        guard snapshot.installedVersion != nil else {
+            integrationMessage = "Validation failed: install the stable helper."
+            return
+        }
+        guard !snapshot.needsUpdate else {
+            integrationMessage = "Validation failed: update the stable helper to match this app build."
+            return
+        }
+        guard snapshot.globalConfigurationReady else {
+            integrationMessage = "Validation failed: " + snapshot.globalConfigurationMessage.lowercased() + "."
+            return
+        }
+        guard controlHost.lastConnectionTest?.hasPrefix("Connected") == true else {
+            let failure = controlHost.lastConnectionTest ?? "the local control host did not respond"
+            integrationMessage = "Validation failed: " + failure + "."
+            return
+        }
+        integrationMessage = "MCP is ready: helper, global Codex configuration, and local control host all passed."
     }
 
     private var helperActionTitle: String {
@@ -252,6 +298,14 @@ struct SettingsView: View {
         Task {
             do {
                 switch action {
+                case .setupGlobal:
+                    let result = try await integrationManager.setUpGlobalCodex()
+                    integrationSnapshot = result.snapshot
+                    integrationPreview = result.configurationPreview
+                    await validateMCPIntegration()
+                    if integrationMessage?.hasPrefix("MCP is ready") == true {
+                        integrationMessage = "MCP is ready. Reload MCP servers or restart Codex to use it in an existing session."
+                    }
                 case .install:
                     integrationSnapshot = try await integrationManager.installOrRepair()
                     integrationMessage = "The stable helper was installed and version-validated."
@@ -278,6 +332,7 @@ struct SettingsView: View {
 }
 
 private enum PendingIntegrationAction: String, Identifiable {
+    case setupGlobal
     case install
     case uninstall
     case configureGlobal
@@ -286,6 +341,7 @@ private enum PendingIntegrationAction: String, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
+        case .setupGlobal: "Set up DevBerth MCP for Codex?"
         case .install: "Install or repair helper?"
         case .uninstall: "Uninstall helper?"
         case .configureGlobal: "Update global Codex configuration?"
@@ -294,6 +350,7 @@ private enum PendingIntegrationAction: String, Identifiable {
     }
     var message: String {
         switch self {
+        case .setupGlobal: "DevBerth will install or repair its user-scoped helper, preserve unrelated global Codex TOML, create a backup, write the MCP configuration atomically, and validate the local control host."
         case .install: "DevBerth will atomically replace only its user-scoped helper and validate the installed version."
         case .uninstall: "DevBerth will move only its stable helper to Trash. Existing Codex configuration will be preserved."
         case .configureGlobal, .configureProject: "DevBerth will preserve unrelated TOML, create a backup, write atomically, and roll back if validation fails."
@@ -301,6 +358,7 @@ private enum PendingIntegrationAction: String, Identifiable {
     }
     var confirmTitle: String {
         switch self {
+        case .setupGlobal: "Set Up"
         case .install: "Install"
         case .uninstall: "Move to Trash"
         case .configureGlobal, .configureProject: "Apply"

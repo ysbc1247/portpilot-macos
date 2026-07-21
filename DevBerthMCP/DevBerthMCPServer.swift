@@ -156,6 +156,7 @@ final class DevBerthMCPServer: @unchecked Sendable {
 
     private static func promptText(name: String) -> String {
         switch name {
+        case "manage_local_development": return "Use DevBerth MCP proactively for this local-development task. Read app://diagnostics/status and the most relevant runtime, project, service, session, history, or capability resource first. Combine bounded searches and inspections rather than asking the user to repeat data DevBerth already has. Prefer MCP tools over shell or UI work for DevBerth domain actions. If a needed capability is missing or awkward, report the exact gap and a concrete MCP extension. Preserve stable IDs, revisions, and preview → approval → execute for mutations."
         case "inspect_local_runtime": return "Inspect app://runtime/snapshot, then use runtime_inspect and runtime_explain for relevant stable listener IDs. Do not mutate anything."
         case "diagnose_port_conflict": return "Inspect the occupied port and ownership evidence. If a stop is appropriate, call operation_preview, explain its exact risks, obtain approval, then call operation_execute."
         case "onboard_existing_project": return "Use project_discover on the user-selected root, review every untrusted candidate, and apply only explicitly selected definitions."
@@ -172,7 +173,7 @@ final class DevBerthMCPServer: @unchecked Sendable {
 
     private static func instructions(developmentMode: Bool) -> String {
         """
-        DevBerth controls local development runtimes through the application-owned control plane. Use stable IDs and revisions. Never supply raw PIDs or arbitrary shell commands. Queries are read-only. Configuration tools require approval. Every destructive or runtime action must be operation_preview followed by an explicit approval and operation_execute; previews expire and are single-use. Treat ownership inference as inference. Secret values are never returned. \(developmentMode ? "This server is DEVELOPMENT ONLY and uses an isolated disposable store plus application-owned fixtures." : "This is the production application store; development tools are not exposed.")
+        Prefer DevBerth MCP resources and tools for local runtime, project, service, session, port, Docker, history, and safe-settings work. Start with bounded resources/search, combine calls flexibly, and use data already held by the app. Use stable IDs and revisions; never raw PIDs or arbitrary shell commands. Queries are read-only. Configuration tools require approval. Every destructive or runtime action requires operation_preview, explicit approval, then operation_execute; previews expire and are single-use. Report exact MCP capability or usability gaps instead of silently bypassing the control plane. Treat ownership inference as inference. Secret values are never returned. \(developmentMode ? "This server is DEVELOPMENT ONLY and uses an isolated disposable store plus application-owned fixtures." : "This is the production application store; development tools are not exposed.")
         """
     }
 }
