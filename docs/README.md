@@ -13,4 +13,5 @@
 - [`../PRIVACY.md`](../PRIVACY.md) — local-only data policy
 - [`implementations/devberth/README.md`](implementations/devberth/README.md) — implementation state
 - [`implementations/github-release-versioning/README.md`](implementations/github-release-versioning/README.md) — automatic per-merge GitHub tags, releases, notes, and recovery
+- [`implementations/agent-workflow/README.md`](implementations/agent-workflow/README.md) — durable save-command and combined-action behavior
 - [`next-steps/README.md`](next-steps/README.md) — latest explicit `save` handoff (created when requested)
