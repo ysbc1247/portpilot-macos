@@ -161,6 +161,7 @@
 		F76E0F5CC8017D06A8FF96A6 /* SecretLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BA0A32DD7B638630BF0822A /* SecretLifecycleTests.swift */; };
 		F7A3452DD487E67357A98017 /* ProductIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B43A2EDCF87B1FCBE5C128 /* ProductIdentity.swift */; };
 		F8D9B3781FE8F91D023453E5 /* WorkspaceSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB313CE5B5FDE51759500E47 /* WorkspaceSessionTests.swift */; };
+		FA30FEC89DA0B963403A9818 /* PerformanceDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995C493A0D80A0F798D576A5 /* PerformanceDiagnosticsView.swift */; };
 		FA41E5A63C8C572E2858CC96 /* DevBerthUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43CA9FC382536F4F0B74B6E6 /* DevBerthUITests.swift */; };
 		FAAF0AF480B39C38355C5A53 /* TerminationStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1817AFDC3300D91000276616 /* TerminationStateMachine.swift */; };
 		FCD6D0882232E7FADA8713C6 /* lsof_tcp.fields in Resources */ = {isa = PBXBuildFile; fileRef = 1CAC55806EDB0182F79707CC /* lsof_tcp.fields */; };
@@ -314,6 +315,7 @@
 		92D93CEE681463E6E322349F /* RuntimePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimePresentationTests.swift; sourceTree = "<group>"; };
 		942F9F67C08A5214843D32DD /* OwnershipTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnershipTests.swift; sourceTree = "<group>"; };
 		98727B3B1F8FD9DA0F29B999 /* ControlProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlProtocol.swift; sourceTree = "<group>"; };
+		995C493A0D80A0F798D576A5 /* PerformanceDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceDiagnosticsView.swift; sourceTree = "<group>"; };
 		996099AC5AF505DEBBF80B04 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		9B8CDEE1C161A5A02A7E6CF5 /* MCPIntegrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPIntegrationManager.swift; sourceTree = "<group>"; };
 		9B9AC72B7125A6F0F3BF2329 /* DockerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerTests.swift; sourceTree = "<group>"; };
@@ -669,6 +671,7 @@
 		7EEF9B2E3D6AE0A2C16E4C83 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				995C493A0D80A0F798D576A5 /* PerformanceDiagnosticsView.swift */,
 				E915152771EBB18742462365 /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -1269,6 +1272,7 @@
 				C63424BC10A501694197D5FB /* OnboardingView.swift in Sources */,
 				502C31FD8921E689E4B3293A /* OwnerAwareLifecycleRouter.swift in Sources */,
 				C32AE5AD6EFAB7B982ED649E /* OwnershipModels.swift in Sources */,
+				FA30FEC89DA0B963403A9818 /* PerformanceDiagnosticsView.swift in Sources */,
 				46F7C03681125C5ABF68D6B6 /* PerformanceInstrumentation.swift in Sources */,
 				8126BBFD7328CB533EC01E5F /* PersistentModels.swift in Sources */,
 				BBC0CB99DAC609967629F47B /* PersistentModelsV2.swift in Sources */,

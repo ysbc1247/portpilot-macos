@@ -143,7 +143,7 @@ actor LaunchCoordinator: LaunchProfileServing {
                     serviceID: profile.id,
                     description: "Waiting for HTTP health status \(healthCheck.expectedStatus)."
                 ))
-                try await healthChecker.waitUntilHealthy(
+                try await runHTTPHealthCheck(
                     configuration: healthCheck,
                     timeoutSeconds: profile.startupTimeoutSeconds
                 )
@@ -216,6 +216,8 @@ actor LaunchCoordinator: LaunchProfileServing {
             policy: policy
         )
         healthMonitorTasks[profile.id] = Task { [weak self, healthCheckGate] in
+            await PerformanceDiagnostics.shared.backgroundTaskStarted()
+            defer { Task { await PerformanceDiagnostics.shared.backgroundTaskFinished() } }
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(policy.jittered(schedule.intervalSeconds)))
@@ -244,7 +246,7 @@ actor LaunchCoordinator: LaunchProfileServing {
         let succeeded: Bool
         do {
             if let configuration = profile.healthCheck {
-                try await healthChecker.waitUntilHealthy(
+                try await runHTTPHealthCheck(
                     configuration: configuration,
                     timeoutSeconds: max(0.5, configuration.intervalSeconds)
                 )
@@ -287,6 +289,23 @@ actor LaunchCoordinator: LaunchProfileServing {
         }
         await gate.release()
         return succeeded
+    }
+
+    private func runHTTPHealthCheck(
+        configuration: HealthCheckConfiguration,
+        timeoutSeconds: Double
+    ) async throws {
+        await PerformanceDiagnostics.shared.healthCheckStarted()
+        do {
+            try await healthChecker.waitUntilHealthy(
+                configuration: configuration,
+                timeoutSeconds: timeoutSeconds
+            )
+            await PerformanceDiagnostics.shared.healthCheckFinished()
+        } catch {
+            await PerformanceDiagnostics.shared.healthCheckFinished()
+            throw error
+        }
     }
 
     private func waitForExpectedPorts(_ profile: ManagedServiceConfiguration) async throws -> Set<String> {
