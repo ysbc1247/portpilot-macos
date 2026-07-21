@@ -41,6 +41,7 @@ The existing “Launch Profiles” feature and `LaunchProfileRecord` class retai
 - Process-running, required-listener-open, service-ready, and service-healthy are different facts. A runtime may be running and listening while still waiting for readiness or degraded.
 - Lifecycle details may include reviewed identifiers and concise explanations, but never raw environment values, HTTP bodies, command output, or unredacted logs.
 - Project discovery evidence is inert. Detection never edits project files or creates a launchable service without review.
+- `ProjectDiscoveryFinding` groups one adapter's redacted evidence and `DiscoveredServiceCandidate` values. A candidate is not durable managed intent until explicit import, and import always begins unreviewed even for the native manifest.
 - A dedicated managed process group is an application-created ownership boundary. An external PGID is observation only and never grants group-signal authority.
 - A descendant that leaves the controlled group remains ownership evidence but is excluded from group termination unless a separate reviewed controller claims it.
 - An inferred owner category is explanatory evidence, not action authority. Lifecycle requests must route through a controller whose exact context is available; otherwise the action is refused without falling back to a PID signal.
@@ -84,3 +85,4 @@ Profiles without additional checks retain their pre-V6 exact validation digest. 
 - Normal launch paths must also compare V4 validation evidence with the current configuration digest; a stale cached trust row cannot authorize launch.
 - Runtime, ownership, lifecycle, and discovery tables require explicit retention policies before they receive continuous production writes. Lifecycle events and incidents now have production bounds; session/discovery retention is completed with their workflows.
 - Adding records does not make the corresponding workflow complete. Controllers, reconciliation, retention, and UI remain required and must be verified independently.
+- Discovery adapters may infer candidate ports and dependency names only when their source text contains direct evidence. Ambiguous or unresolved names remain visible diagnostics rather than silently creating graph edges.

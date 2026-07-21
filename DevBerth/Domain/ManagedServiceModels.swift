@@ -10,6 +10,11 @@ enum LaunchMechanism: String, Codable, CaseIterable, Sendable {
     case mavenGoal
     case dockerContainer
     case dockerComposeService
+    case pythonApplication
+    case goCommand
+    case cargoCommand
+    case procfileProcess
+    case processComposeService
     case executable
     case customShell
 
@@ -24,6 +29,11 @@ enum LaunchMechanism: String, Codable, CaseIterable, Sendable {
         case .mavenGoal: "Maven goal"
         case .dockerContainer: "Docker container"
         case .dockerComposeService: "Docker Compose service"
+        case .pythonApplication: "Python application"
+        case .goCommand: "Go command"
+        case .cargoCommand: "Cargo command"
+        case .procfileProcess: "Procfile process"
+        case .processComposeService: "Process Compose service"
         case .executable: "Executable or application"
         case .customShell: "Custom shell command"
         }

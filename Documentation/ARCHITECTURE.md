@@ -18,6 +18,7 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 | Runtime lifecycle | Runtime truth, readiness/health transitions, incidents, exit supervision, bounded restarts | `RuntimeLifecycleTracker`, `ManagedProcessExitHub`, `RestartPolicyEvaluator` |
 | Service checks | Reviewed TCP, HTTP status/text, command, file, Docker, and dependency criteria | `ServiceCheckRunner`, `LaunchCoordinator` |
 | Projects | Dependency-layer orchestration | `ProjectOrchestrator` |
+| Project discovery | Bounded, non-recursive, review-only adapters and native manifest interchange | `ProjectDiscoveryCoordinator`, `ProjectDiscoveryAdapting`, `DevBerthManifestCodec` |
 | Docker | Availability, container JSON, ports, actions, logs | `DockerCLIClient`, `DockerAssociationProvider` |
 | Secrets | Opaque references and values | SwiftData references plus `KeychainSecretStore` values |
 | Logs | stdout/stderr capture, redaction, bounds, persistence | `ServiceLogBuffer` |
@@ -42,7 +43,7 @@ The listener identity is `PID + protocol + address + port`. A process fingerprin
 
 `ObservedListener` and `ObservedProcess` are transient facts reported by the operating system. An observed listener contains an observed process because the listener-to-process edge is direct evidence from `lsof`; neither type contains launch instructions or restart claims. `ManagedServiceConfiguration` is durable, reviewed user intent: launch mechanism, command, arguments, environment references, expected listeners, health/readiness, shutdown/restart policy, dependencies, and log settings. The existing `LaunchProfileRecord` name remains a V1 persistence compatibility detail and is converted at the boundary by `LaunchProfileRecord+Domain`.
 
-`RuntimeInstance`, `OwnershipConclusion`, `RestartTrustAssessment`, `ManagedServiceValidationResult`, `WorkspaceSession`, `ProjectDiscoveryMetadata`, and `LifecycleEvent` model the remaining Phase 2 concepts independently. Ownership resolution, safe lifecycle routing, restart trust, isolated managed-service validation, continuous runtime lifecycle persistence, health monitoring, and deterministic incident summaries are live. Session restoration and adapter import remain later slices. An empty table is never treated as a completed workflow. See `Documentation/DOMAIN_MODEL.md` for reference and persistence rules.
+`RuntimeInstance`, `OwnershipConclusion`, `RestartTrustAssessment`, `ManagedServiceValidationResult`, `WorkspaceSession`, `ProjectDiscoveryMetadata`, and `LifecycleEvent` model the remaining Phase 2 concepts independently. Ownership resolution, safe lifecycle routing, restart trust, isolated managed-service validation, continuous runtime lifecycle persistence, health monitoring, deterministic incident summaries, and review-only project discovery/import are live. Session restoration remains a later slice. An empty table is never treated as a completed workflow. See `Documentation/DOMAIN_MODEL.md` for reference and persistence rules.
 
 ## Runtime lifecycle and health
 
@@ -75,6 +76,8 @@ DevBerth invokes `/usr/sbin/lsof` using `-F0` machine fields, numeric hosts/port
 `ps` provides parent PID, owner, start time, and command. Tagged `lsof` `cwd` and `txt` file records provide paths without losing spaces. Verified raw executable and command data remain visible even when classification heuristics label a runtime or infer a project.
 
 Project inference walks at most twelve parent directories from the verified CWD and looks for a small marker set. It never performs a recursive filesystem scan.
+
+Explicit project discovery is a different, user-initiated boundary. `ProjectDiscoveryCoordinator` runs independent adapters only against the selected project root. Readers accept only non-symlink regular files up to 1 MiB; no adapter runs a package manager, Docker, build tool, or discovered command. npm, pnpm, Yarn, Bun, Gradle, Maven, Python, Go, Cargo, Docker Compose, Procfile, Process Compose, workspace markers, and the native DevBerth manifest produce evidence plus unreviewed candidates. The UI persists selected candidates with `isReviewed == false`, so normal launch remains blocked until review and exact validation. `devberth-runtime.json` exports discrete launch data and named secret requirements but never values or Keychain reference UUIDs. See `PROJECT_DISCOVERY.md`.
 
 ## Process fingerprints and termination
 
@@ -144,6 +147,7 @@ Production ownership inspection records only the redacted `OwnershipConclusion`,
 - The main actor owns observable presentation state only.
 - Monitoring uses an `AsyncStream` buffered to the newest update, so slow UI work does not build an unbounded queue.
 - Project layers use throwing task groups, which cancel sibling/remaining work after a failure.
+- Project-file parsing and manifest writes run behind actor-isolated service protocols; SwiftUI owns selection and presentation, not file evaluation.
 
 ## Security model
 
@@ -153,7 +157,7 @@ See `SECURITY.md` and `PRIVACY.md` for operator-facing policy.
 
 ## Tests
 
-Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, exact restart digests including V6 checks, trust gating, isolated validation, secret staging/rollback/clone/delete, graph ordering/cycles, conflict detection, distinct runtime/readiness/health states, deterministic incidents, every service-check kind, retry timing, health degradation/recovery/cancellation, restart policy and crash-loop limits, listener lifecycle metadata, lifecycle retention, migrations through V6, bounded ownership evidence, bounded/cyclic lineage, deterministic owner classification, managed-runtime reconciliation, managed restart, owner-aware dispatch, and explicit controller refusal.
+Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, exact restart digests including V6 checks, trust gating, isolated validation, secret staging/rollback/clone/delete, graph ordering/cycles, conflict detection, distinct runtime/readiness/health states, deterministic incidents, every service-check kind, retry timing, health degradation/recovery/cancellation, restart policy and crash-loop limits, listener lifecycle metadata, lifecycle retention, migrations through V6, bounded ownership evidence, bounded/cyclic lineage, deterministic owner classification, managed-runtime reconciliation, managed restart, owner-aware dispatch, explicit controller refusal, every required discovery ecosystem, Compose dependency/port extraction, shell-review flags, native manifest redaction, and unreviewed import persistence.
 
 Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong fingerprints, listener ownership, graceful exit, graceful timeout, confirmed force-stop, dedicated POSIX groups, child/multi-listener shutdown, `exec` replacement, supervisor restart, ignored `SIGTERM`, and detached-descendant exclusion. Every test owns and cleans up its fixture process.
 

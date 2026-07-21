@@ -12,6 +12,7 @@ struct ProjectsView: View {
     @Query private var processPolicies: [ManagedServiceProcessPolicyRecord]
     @Query private var serviceChecks: [ManagedServiceCheckRecord]
     @State private var showsNewProject = false
+    @State private var discoveryProject: ProjectRecord?
 
     var body: some View {
         Group {
@@ -41,6 +42,10 @@ struct ProjectsView: View {
         .navigationTitle("Projects")
         .toolbar { Button("New Project", systemImage: "plus") { showsNewProject = true } }
         .sheet(isPresented: $showsNewProject) { NewProjectView() }
+        .sheet(item: $discoveryProject) { project in
+            ProjectDiscoveryReviewView(project: project)
+                .environmentObject(model)
+        }
     }
 
     private func projectSection(_ project: ProjectRecord) -> some View {
@@ -88,6 +93,14 @@ struct ProjectsView: View {
                         .disabled(configurations.isEmpty)
                     Button("Stop All") { Task { await model.stopProject(configurations) } }
                         .disabled(configurations.isEmpty)
+                    Button("Discover Services", systemImage: "sparkle.magnifyingglass") {
+                        discoveryProject = project
+                    }
+                    .disabled(project.folderPath == nil)
+                    Button("Export Manifest", systemImage: "square.and.arrow.up") {
+                        exportManifest(for: project, configurations: configurations)
+                    }
+                    .disabled(project.folderPath == nil || configurations.isEmpty)
                     Menu("Add Service", systemImage: "plus") {
                         let available = profiles.filter { $0.projectID == nil }
                         if available.isEmpty { Text("No unassigned profiles") }
@@ -126,6 +139,26 @@ struct ProjectsView: View {
         NSWorkspace.shared.open([URL(fileURLWithPath: path)], withApplicationAt: terminal, configuration: configuration)
     }
 
+    private func exportManifest(
+        for project: ProjectRecord,
+        configurations: [ManagedServiceConfiguration]
+    ) {
+        guard let rootPath = project.folderPath else { return }
+        let panel = NSSavePanel()
+        panel.title = "Export DevBerth Project Manifest"
+        panel.nameFieldStringValue = DevBerthManifestCodec.fileName
+        panel.directoryURL = URL(fileURLWithPath: rootPath, isDirectory: true)
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        Task {
+            await model.exportProjectManifest(
+                projectName: project.name,
+                rootPath: rootPath,
+                services: configurations,
+                destination: destination
+            )
+        }
+    }
+
     private func visualStatus(for profileID: UUID) -> StatusDot.Status {
         guard let status = model.runtimeStatuses[profileID] else {
             return model.runningProfileIDs.contains(profileID) ? .healthy : .stopped
@@ -137,6 +170,208 @@ struct ProjectsView: View {
             || status.lifecycleState == .waitingForPort
             || status.lifecycleState == .waitingForReadiness { return .warning }
         return status.processRunning ? .healthy : .stopped
+    }
+}
+
+private struct ProjectDiscoveryReviewView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @Query private var existingProfiles: [LaunchProfileRecord]
+    let project: ProjectRecord
+    @State private var report: ProjectDiscoveryReport?
+    @State private var selectedCandidateIDs = Set<UUID>()
+    @State private var isDiscovering = true
+    @State private var isImporting = false
+    @State private var message: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Discover Services").font(.title2.bold())
+                    Text(project.folderPath ?? "No project folder selected")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                Spacer()
+                Button("Close") { dismiss() }
+            }
+            .padding()
+
+            Divider()
+
+            if isDiscovering {
+                ProgressView("Inspecting only the selected project root…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let report {
+                discoveryContent(report)
+            } else {
+                ContentUnavailableView(
+                    "Discovery unavailable",
+                    systemImage: "exclamationmark.magnifyingglass",
+                    description: Text(message ?? "DevBerth could not inspect this project.")
+                )
+            }
+        }
+        .frame(minWidth: 760, minHeight: 600)
+        .task { await discover() }
+    }
+
+    @ViewBuilder
+    private func discoveryContent(_ report: ProjectDiscoveryReport) -> some View {
+        if report.findings.isEmpty {
+            ContentUnavailableView(
+                "No supported project definitions found",
+                systemImage: "doc.text.magnifyingglass",
+                description: Text("DevBerth checked the selected folder only. It did not recurse into nested projects or execute project files.")
+            )
+        } else {
+            VStack(spacing: 0) {
+                HStack {
+                    Label(report.recognizedProjectTypes.joined(separator: ", "), systemImage: "checkmark.seal")
+                    Spacer()
+                    Text("\(report.candidates.count) candidate\(report.candidates.count == 1 ? "" : "s")")
+                        .foregroundStyle(.secondary)
+                }
+                .padding()
+                .background(.quaternary.opacity(0.35))
+
+                List {
+                    Section {
+                        Label(
+                            "Detection never runs commands or changes project files. Imported services remain unreviewed and cannot launch until you review and validate them.",
+                            systemImage: "hand.raised.fill"
+                        )
+                        .foregroundStyle(.orange)
+                    }
+                    ForEach(report.findings) { finding in
+                        Section(finding.projectType) {
+                            ForEach(finding.candidates) { candidate in
+                                candidateRow(candidate)
+                            }
+                            if finding.candidates.isEmpty {
+                                ForEach(finding.evidence) { evidence in
+                                    Label(evidence.detail, systemImage: "doc.text.magnifyingglass")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+                HStack {
+                    if let message {
+                        Text(message).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Select All") {
+                        selectedCandidateIDs = Set(importableCandidates(in: report).map(\.id))
+                    }
+                    Button("Import Selected") { importSelected(from: report) }
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(selectedCandidateIDs.isEmpty || isImporting)
+                }
+                .padding()
+                .background(.bar)
+            }
+        }
+    }
+
+    private func candidateRow(_ candidate: DiscoveredServiceCandidate) -> some View {
+        let alreadyImported = existingProfiles.contains { $0.id == candidate.id }
+        return HStack(alignment: .top, spacing: 12) {
+            Toggle("", isOn: Binding(
+                get: { selectedCandidateIDs.contains(candidate.id) },
+                set: { selected in
+                    if selected { selectedCandidateIDs.insert(candidate.id) }
+                    else { selectedCandidateIDs.remove(candidate.id) }
+                }
+            ))
+            .labelsHidden()
+            .disabled(alreadyImported)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(candidate.name).font(.headline)
+                    Text(candidate.launchMechanism.title)
+                        .font(.caption)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                    if candidate.requiresShellReview {
+                        Label("Shell review", systemImage: "exclamationmark.shield")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                    if alreadyImported { Text("Already imported").font(.caption).foregroundStyle(.secondary) }
+                }
+                Text(([candidate.command] + candidate.arguments).joined(separator: " "))
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                HStack(spacing: 14) {
+                    Text(candidate.confidence.title)
+                    if !candidate.expectedPorts.isEmpty {
+                        Text("Ports \(candidate.expectedPorts.map(String.init).joined(separator: ", "))")
+                    }
+                    if !candidate.dependencyCandidateNames.isEmpty {
+                        Text("Depends on \(candidate.dependencyCandidateNames.joined(separator: ", "))")
+                    }
+                    if !candidate.requiredSecretNames.isEmpty {
+                        Text("Needs Keychain values for \(candidate.requiredSecretNames.joined(separator: ", "))")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Text(candidate.evidence.map(\.detail).joined(separator: " "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 5)
+    }
+
+    private func discover() async {
+        guard let folderPath = project.folderPath else {
+            message = "Choose a project folder before discovery."
+            isDiscovering = false
+            return
+        }
+        do {
+            let discovered = try await model.discoverProject(at: folderPath)
+            report = discovered
+            selectedCandidateIDs = Set(importableCandidates(in: discovered).map(\.id))
+        } catch {
+            message = error.localizedDescription
+        }
+        isDiscovering = false
+    }
+
+    @MainActor
+    private func importSelected(from report: ProjectDiscoveryReport) {
+        isImporting = true
+        defer { isImporting = false }
+        let candidates = importableCandidates(in: report).filter { selectedCandidateIDs.contains($0.id) }
+        do {
+            let result = try ProjectDiscoveryImporter.importCandidates(
+                candidates,
+                report: report,
+                projectID: project.id,
+                into: context
+            )
+            selectedCandidateIDs.subtract(result.importedServiceIDs)
+            if result.unresolvedDependencies.isEmpty {
+                message = "Imported \(result.importedServiceIDs.count) unreviewed service candidate(s). Review them in Managed Services."
+            } else {
+                message = "Imported \(result.importedServiceIDs.count) candidate(s). Reconnect unresolved dependencies: \(result.unresolvedDependencies.joined(separator: ", "))."
+            }
+        } catch {
+            message = "Nothing was imported: \(error.localizedDescription)"
+        }
+    }
+
+    private func importableCandidates(in report: ProjectDiscoveryReport) -> [DiscoveredServiceCandidate] {
+        let existingIDs = Set(existingProfiles.map(\.id))
+        return report.candidates.filter { !existingIDs.contains($0.id) }
     }
 }
 

@@ -16,6 +16,8 @@ DevBerth is a native macOS developer utility for discovering, understanding, sto
 - Revalidates PID, executable path, and process start time immediately before every destructive process action.
 - Supports generic commands, npm/pnpm/Yarn/Bun scripts, Gradle, Maven, executables, custom shells, Docker containers, and Docker Compose services.
 - Starts project dependencies in ordered layers while parallelizing independent services and rejecting dependency cycles.
+- Discovers npm, pnpm, Yarn, Bun, Gradle, Maven, Python, Go, Cargo, Docker Compose, Procfile, and Process Compose definitions only inside an explicitly selected project root; imports remain unreviewed until validated.
+- Imports and exports the versioned `devberth-runtime.json` manifest without secret values or Keychain reference identifiers.
 - Uses transactional Keychain-backed secret references, bounded redacted logs, expected-port readiness, optional HTTP health checks, and preflight conflict resolution.
 - Separates process, listener, readiness, and health state; supports reviewed HTTP text, command, file, Docker, and dependency checks with bounded retry behavior.
 - Records a searchable lifecycle timeline, runtime instances, health transitions, unexpected exits, automatic-restart evidence, and deterministic incident summaries.

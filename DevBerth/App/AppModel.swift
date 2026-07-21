@@ -36,6 +36,8 @@ final class AppModel: ObservableObject {
     private let projectOrchestrator: ProjectOrchestrator
     private let notifier: any PortNotifying
     private let dockerAssociations: DockerAssociationProvider
+    private let projectDiscovery: any ProjectDiscoveryServing
+    private let projectManifest: any ProjectManifestServing
     private var notificationPorts = Set<UInt16>()
     let logBuffer: ServiceLogBuffer
     private var monitoringTask: Task<Void, Never>?
@@ -53,7 +55,9 @@ final class AppModel: ObservableObject {
         ownershipResolver: (any RuntimeOwnershipResolving)? = nil,
         lifecycleRouter: (any OwnerAwareLifecycleRouting)? = nil,
         validationService: (any ManagedServiceValidating)? = nil,
-        runtimeLifecycle: (any RuntimeLifecycleObserving)? = nil
+        runtimeLifecycle: (any RuntimeLifecycleObserving)? = nil,
+        projectDiscovery: (any ProjectDiscoveryServing)? = nil,
+        projectManifest: (any ProjectManifestServing)? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
@@ -119,6 +123,8 @@ final class AppModel: ObservableObject {
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
         self.dockerAssociations = DockerAssociationProvider(client: dockerClient)
+        self.projectDiscovery = projectDiscovery ?? LocalProjectDiscoveryService()
+        self.projectManifest = projectManifest ?? LocalProjectManifestService()
         lifecycleTask = Task { [weak self, resolvedRuntimeLifecycle] in
             let stream = await resolvedRuntimeLifecycle.snapshots()
             for await snapshot in stream {
@@ -193,6 +199,30 @@ final class AppModel: ObservableObject {
 
     func navigate(to section: AppSection) {
         requestedSection = section
+    }
+
+    func discoverProject(at rootPath: String) async throws -> ProjectDiscoveryReport {
+        try await projectDiscovery.discover(at: URL(fileURLWithPath: rootPath, isDirectory: true))
+    }
+
+    func exportProjectManifest(
+        projectName: String,
+        rootPath: String,
+        services: [ManagedServiceConfiguration],
+        destination: URL
+    ) async {
+        do {
+            try await projectManifest.export(
+                projectName: projectName,
+                projectRoot: URL(fileURLWithPath: rootPath, isDirectory: true),
+                services: services,
+                destination: destination
+            )
+        } catch let error as DevBerthError {
+            presentedError = error
+        } catch {
+            presentedError = .unexpected("The project manifest could not be exported: \(error.localizedDescription)")
+        }
     }
 
     func setNotificationPorts(_ ports: [Int]) {

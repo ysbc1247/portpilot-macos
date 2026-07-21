@@ -16,6 +16,8 @@
 - Route managed launch, stop, exit, health, and automatic-restart transitions through `RuntimeLifecycleObserving`. Lifecycle metadata must be structured, bounded, and secret-safe; a check failure may persist its reviewed failure message, never an HTTP body, command output, or environment value.
 - Automatic restart must re-check exact restart trust, cancel stale health monitors, apply bounded exponential backoff, and stop after the rolling crash-loop limit. An intentional stop never qualifies for automatic restart.
 - Ownership evidence, lifecycle details, discovery metadata, and workspace-session snapshots may store identifiers and redacted explanations, never secret values or raw environment values.
+- Run project discovery only against a user-selected root through `ProjectDiscoveryAdapting`. Adapters must be non-recursive, side-effect-free, bounded to regular non-symlink files, and must return unreviewed candidates; discovery must never evaluate or execute project commands.
+- Treat `devberth-runtime.json` as a versioned interchange format, not trust evidence. Export no secret values or Keychain reference UUIDs, reject secret-like plaintext environment fields, and require imported definitions to pass the normal review and exact validation gates.
 - Keep verified process metadata separate from inferred classification or relaunch suggestions in the UI and domain models.
 - Add parser fixtures and tests when changing command formats. Tests must use mocks and must never terminate real user processes.
 - Localize user-facing strings with `String(localized:)` or `LocalizedStringKey`; keep business-logic errors actionable and non-secret.

@@ -146,3 +146,16 @@ protocol ManagedProcessLaunching: Sendable {
     func launch(_ profile: ManagedServiceConfiguration) async throws
     func stop(profileID: UUID, timeoutSeconds: Double) async throws
 }
+
+protocol ProjectDiscoveryServing: Sendable {
+    func discover(at rootURL: URL) async throws -> ProjectDiscoveryReport
+}
+
+protocol ProjectManifestServing: Sendable {
+    func export(
+        projectName: String,
+        projectRoot: URL,
+        services: [ManagedServiceConfiguration],
+        destination: URL
+    ) async throws
+}

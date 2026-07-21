@@ -4,7 +4,7 @@ This plan follows the evidence in `PHASE_2_AUDIT.md`. Each slice must preserve t
 
 ## Delivery slices
 
-Current status on 2026-07-21: slices 1–7 are implemented and locally validated. Slices 8–10 remain active work; the optional alias router remains deferred.
+Current status on 2026-07-21: slices 1–7 and the project-discovery/import portion of slice 8 are implemented and locally validated. Session capture/restoration and slices 9–10 remain active work; the optional alias router remains deferred.
 
 1. **Audit and plan**
    - Freeze the baseline, gaps, measurements, removals, and acceptance evidence.
