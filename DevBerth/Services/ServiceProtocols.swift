@@ -161,10 +161,14 @@ protocol LaunchProfileServing: Sendable {
     func launch(_ profile: ManagedServiceConfiguration) async throws
     func stop(profileID: UUID, timeoutSeconds: Double) async throws
     func runtimeDidExit(profileID: UUID) async
+    func retire(profileID: UUID) async
+    func setSystemSuspended(_ suspended: Bool) async
 }
 
 extension LaunchProfileServing {
     func runtimeDidExit(profileID: UUID) async {}
+    func retire(profileID: UUID) async {}
+    func setSystemSuspended(_ suspended: Bool) async {}
 }
 
 protocol ManagedProcessLaunching: Sendable {

@@ -4,6 +4,8 @@ struct MonitoringUpdate: Sendable {
     let snapshot: RuntimeSnapshot
     let diff: RuntimeDiff
     let error: DevBerthError?
+    let mode: RuntimeMonitoringMode
+    let scheduledIntervalSeconds: Double
 }
 
 struct MonitoringConfiguration: Equatable, Sendable {
@@ -157,9 +159,14 @@ actor PortMonitor {
 
             refreshPending = false
             scanInFlight = true
+            let schedule = currentSchedule(at: Date())
+            await diagnostics.setMonitoring(
+                mode: schedule.mode,
+                intervalSeconds: schedule.interval
+            )
             let scanStartedAt = Date()
             let scanInterval = DevBerthPerformance.begin(.runtimeScan)
-            let update = await scan()
+            let update = await scan(schedule: schedule)
             DevBerthPerformance.end(scanInterval)
             scanInFlight = false
             await diagnostics.recordScan(
@@ -172,16 +179,13 @@ actor PortMonitor {
             streamContinuation?.yield(update)
 
             if refreshPending { continue }
-            let schedule = currentSchedule(at: Date())
-            await diagnostics.setMonitoring(
-                mode: schedule.mode,
-                intervalSeconds: schedule.interval
-            )
-            await wait(seconds: schedule.interval)
+            await wait(seconds: currentSchedule(at: Date()).interval)
         }
     }
 
-    private func scan() async -> MonitoringUpdate {
+    private func scan(
+        schedule: (mode: RuntimeMonitoringMode, interval: Double)
+    ) async -> MonitoringUpdate {
         do {
             var listeners = try await discoverer.discover()
             if let correlator {
@@ -192,18 +196,28 @@ actor PortMonitor {
             let diff = RuntimeDiffer.diff(previous: previous, current: listeners)
             DevBerthPerformance.end(diffInterval)
             previous = listeners
-            return MonitoringUpdate(snapshot: snapshot, diff: diff, error: nil)
+            return MonitoringUpdate(
+                snapshot: snapshot,
+                diff: diff,
+                error: nil,
+                mode: schedule.mode,
+                scheduledIntervalSeconds: schedule.interval
+            )
         } catch let error as DevBerthError {
             return MonitoringUpdate(
                 snapshot: RuntimeSnapshot(listeners: previous, capturedAt: Date()),
                 diff: .empty,
-                error: error
+                error: error,
+                mode: schedule.mode,
+                scheduledIntervalSeconds: schedule.interval
             )
         } catch {
             return MonitoringUpdate(
                 snapshot: RuntimeSnapshot(listeners: previous, capturedAt: Date()),
                 diff: .empty,
-                error: .unexpected(error.localizedDescription)
+                error: .unexpected(error.localizedDescription),
+                mode: schedule.mode,
+                scheduledIntervalSeconds: schedule.interval
             )
         }
     }

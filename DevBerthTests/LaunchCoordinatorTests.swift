@@ -73,6 +73,66 @@ final class LaunchCoordinatorTests: XCTestCase {
         let finalCallCount = await health.callCount()
         XCTAssertEqual(finalCallCount, callsAfterExit)
     }
+
+    func testHealthScheduleStabilizesAndBacksOffFailures() {
+        let policy = HealthMonitoringPolicy(
+            minimumIntervalSeconds: 1,
+            stableIntervalSeconds: 15,
+            maximumBackoffSeconds: 60,
+            jitterFraction: 0
+        )
+        var schedule = AdaptiveHealthSchedule(baseIntervalSeconds: 1, policy: policy)
+        XCTAssertEqual(schedule.intervalSeconds, 1)
+        schedule.record(true)
+        schedule.record(true)
+        schedule.record(true)
+        XCTAssertEqual(schedule.intervalSeconds, 15)
+        schedule.record(false)
+        XCTAssertEqual(schedule.intervalSeconds, 1)
+        schedule.record(false)
+        XCTAssertEqual(schedule.intervalSeconds, 2)
+        schedule.record(false)
+        XCTAssertEqual(schedule.intervalSeconds, 4)
+    }
+
+    func testHealthCheckGateBoundsConcurrentWork() async {
+        let gate = HealthCheckConcurrencyGate(limit: 2)
+        let first = await gate.tryAcquire()
+        let second = await gate.tryAcquire()
+        let third = await gate.tryAcquire()
+        XCTAssertTrue(first)
+        XCTAssertTrue(second)
+        XCTAssertFalse(third)
+        await gate.release()
+        let afterRelease = await gate.tryAcquire()
+        XCTAssertTrue(afterRelease)
+    }
+
+    func testRetiringServiceCancelsHealthMonitoringImmediately() async throws {
+        let health = SequencedHealthChecker(outcomes: [true, true, true])
+        let coordinator = LaunchCoordinator(
+            discoverer: FixedDiscovery(listeners: []),
+            processLauncher: RecordingManagedLauncher(),
+            healthChecker: health
+        )
+        let profile = ManagedServiceConfiguration(
+            name: "Deleted health fixture",
+            command: "/usr/bin/true",
+            workingDirectory: "/tmp",
+            healthCheck: HealthCheckConfiguration(
+                url: try XCTUnwrap(URL(string: "http://127.0.0.1:49906/health")),
+                expectedStatus: 200,
+                intervalSeconds: 0.05
+            )
+        )
+
+        try await coordinator.launch(profile)
+        await coordinator.retire(profileID: profile.id)
+        let callsAfterRetirement = await health.callCount()
+        try await Task.sleep(for: .milliseconds(400))
+        let finalCallCount = await health.callCount()
+        XCTAssertEqual(finalCallCount, callsAfterRetirement)
+    }
 }
 
 final class ProjectOrchestratorTests: XCTestCase {

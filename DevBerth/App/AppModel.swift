@@ -48,6 +48,7 @@ final class AppModel: ObservableObject {
     private let projectOrchestrator: ProjectOrchestrator
     private let workspaceSessions: WorkspaceSessionCoordinator
     private let notifier: any PortNotifying
+    private let dockerAssociations: DockerAssociationProvider
     let dockerService: any DockerServing
     let lifecycleEventRecorder: (any RuntimeLifecycleRecording)?
     private let projectDiscovery: any ProjectDiscoveryServing
@@ -59,6 +60,8 @@ final class AppModel: ObservableObject {
     private var lifecycleTask: Task<Void, Never>?
     private var exitTask: Task<Void, Never>?
     private var powerNotificationObservers: [NSObjectProtocol] = []
+    private var lastResourceSampleAt = Date.distantPast
+    private var lastResourcePIDs = Set<Int32>()
     private var automaticRestartLimiters: [UUID: AutomaticRestartLimiter] = [:]
     var refreshInterval: Double = 2
 
@@ -123,6 +126,7 @@ final class AppModel: ObservableObject {
             lifecycleRecorder: lifecycleRecorder
         )
         self.dockerService = dockerClient
+        self.dockerAssociations = dockerAssociator
         self.lifecycleEventRecorder = lifecycleRecorder
         self.monitor = PortMonitor(discoverer: service, correlator: dockerAssociator)
         self.lifecycleRouter = lifecycleRouter ?? OwnerAwareLifecycleRouter(
@@ -244,12 +248,15 @@ final class AppModel: ObservableObject {
                 } else {
                     listeners = update.snapshot.listeners
                 }
-                let resourceUsage = (try? await processResourceReader.read(
-                    pids: Set(update.snapshot.listeners.map { $0.process.fingerprint.pid })
-                )) ?? [:]
                 let statePublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
-                if resourceUsage.isMeaningfullyDifferent(from: processResourceUsage) {
-                    processResourceUsage = resourceUsage
+                let resourcePIDs = Set(update.snapshot.listeners.map { $0.process.fingerprint.pid })
+                if shouldSampleResources(pids: resourcePIDs, mode: update.mode, at: update.snapshot.capturedAt) {
+                    let resourceUsage = (try? await processResourceReader.read(pids: resourcePIDs)) ?? [:]
+                    lastResourceSampleAt = update.snapshot.capturedAt
+                    lastResourcePIDs = resourcePIDs
+                    if resourceUsage.isMeaningfullyDifferent(from: processResourceUsage) {
+                        processResourceUsage = resourceUsage
+                    }
                 }
                 if listenersChanged {
                     let currentListenerIDs = Set(listeners.map(\.id))
@@ -280,7 +287,23 @@ final class AppModel: ObservableObject {
             return
         }
         if !isRefreshing { isRefreshing = true }
-        Task { await monitor.requestRefresh() }
+        Task {
+            await dockerAssociations.invalidate()
+            await monitor.requestRefresh()
+        }
+    }
+
+    func dockerMutationDidComplete() {
+        refreshNow()
+    }
+
+    func managedServicesWereDeleted(_ profileIDs: Set<UUID>) async {
+        for profileID in profileIDs {
+            await launchService.retire(profileID: profileID)
+            runningProfileIDs.remove(profileID)
+            runtimeStatuses.removeValue(forKey: profileID)
+            runtimeIncidents.removeValue(forKey: profileID)
+        }
     }
 
     func setMonitoringSurface(_ surface: MonitoringSurface, visible: Bool) {
@@ -288,7 +311,25 @@ final class AppModel: ObservableObject {
     }
 
     private func setSystemSuspended(_ suspended: Bool) {
-        Task { await monitor.setSuspended(suspended) }
+        Task {
+            await monitor.setSuspended(suspended)
+            await launchService.setSystemSuspended(suspended)
+        }
+    }
+
+    private func shouldSampleResources(
+        pids: Set<Int32>,
+        mode: RuntimeMonitoringMode,
+        at date: Date
+    ) -> Bool {
+        if pids != lastResourcePIDs { return true }
+        let interval: TimeInterval = switch mode {
+        case .transition: 1
+        case .active: 5
+        case .background: 30
+        case .idle: 60
+        }
+        return date.timeIntervalSince(lastResourceSampleAt) >= interval
     }
 
     func navigate(to section: AppSection) {

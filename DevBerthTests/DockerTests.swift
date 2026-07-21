@@ -249,6 +249,77 @@ final class DockerTests: XCTestCase {
         XCTAssertEqual(events.map(\.category), [.dockerContainerStopped, .dockerComposeChanged])
         XCTAssertTrue(events.allSatisfy { $0.outcome == .observed && $0.trigger == .observation })
     }
+
+    func testAssociationRefreshUsesExponentialBackoffAndManualInvalidation() async {
+        let docker = FailingDockerService()
+        let clock = MutableDateClock(date: Date(timeIntervalSince1970: 100))
+        let provider = DockerAssociationProvider(
+            client: docker,
+            refreshInterval: 10,
+            clock: { clock.now() }
+        )
+
+        _ = await provider.correlate([])
+        var observationCalls = await docker.observationCalls()
+        let availabilityCalls = await docker.availabilityCalls()
+        XCTAssertEqual(observationCalls, 1)
+        XCTAssertEqual(availabilityCalls, 0)
+
+        clock.advance(by: 9)
+        _ = await provider.correlate([])
+        observationCalls = await docker.observationCalls()
+        XCTAssertEqual(observationCalls, 1)
+
+        clock.advance(by: 1)
+        _ = await provider.correlate([])
+        observationCalls = await docker.observationCalls()
+        XCTAssertEqual(observationCalls, 2)
+
+        clock.advance(by: 19)
+        _ = await provider.correlate([])
+        observationCalls = await docker.observationCalls()
+        XCTAssertEqual(observationCalls, 2)
+
+        clock.advance(by: 1)
+        _ = await provider.correlate([])
+        observationCalls = await docker.observationCalls()
+        XCTAssertEqual(observationCalls, 3)
+
+        await provider.invalidate()
+        _ = await provider.correlate([])
+        observationCalls = await docker.observationCalls()
+        XCTAssertEqual(observationCalls, 4)
+    }
+}
+
+private actor FailingDockerService: DockerServing {
+    private var observations = 0
+    private var availabilityChecks = 0
+
+    func availability() async -> DockerAvailability {
+        availabilityChecks += 1
+        return .daemonUnavailable("test")
+    }
+
+    func runningContainers() async throws -> [DockerContainer] {
+        observations += 1
+        throw DevBerthError.dockerUnavailable("test")
+    }
+
+    func observationCalls() -> Int { observations }
+    func availabilityCalls() -> Int { availabilityChecks }
+    func stop(containerID: String) async throws {}
+    func restart(containerID: String) async throws {}
+    func recentLogs(containerID: String, lines: Int) async throws -> String { "" }
+}
+
+private final class MutableDateClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date: Date
+
+    init(date: Date) { self.date = date }
+    func now() -> Date { lock.withLock { date } }
+    func advance(by seconds: TimeInterval) { lock.withLock { date = date.addingTimeInterval(seconds) } }
 }
 
 private actor SequencedDockerService: DockerServing {

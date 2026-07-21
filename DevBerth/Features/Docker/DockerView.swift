@@ -10,13 +10,20 @@ final class DockerViewModel: ObservableObject {
     @Published var logsContainerName = ""
     private let client: any DockerServing
     private let lifecycleRecorder: (any RuntimeLifecycleRecording)?
+    private let didMutate: @MainActor () -> Void
 
-    init(client: any DockerServing, lifecycleRecorder: (any RuntimeLifecycleRecording)? = nil) {
+    init(
+        client: any DockerServing,
+        lifecycleRecorder: (any RuntimeLifecycleRecording)? = nil,
+        didMutate: @escaping @MainActor () -> Void = {}
+    ) {
         self.client = client
         self.lifecycleRecorder = lifecycleRecorder
+        self.didMutate = didMutate
     }
 
-    func refresh() async {
+    func refresh(invalidateRuntime: Bool = false) async {
+        if invalidateRuntime { didMutate() }
         availability = await client.availability()
         guard case .available = availability else { containers = []; return }
         isLoadingContainers = true
@@ -45,6 +52,7 @@ final class DockerViewModel: ObservableObject {
                 }
             }
             await record(action: action, container: container, startedAt: startedAt)
+            didMutate()
             await refresh()
         } catch {
             await recordRefusal(action: action, container: container, error: error, startedAt: startedAt)
@@ -141,11 +149,13 @@ struct DockerView: View {
 
     init(
         client: any DockerServing = DockerCLIClient(runner: FoundationCommandRunner()),
-        lifecycleRecorder: (any RuntimeLifecycleRecording)? = nil
+        lifecycleRecorder: (any RuntimeLifecycleRecording)? = nil,
+        didMutate: @escaping @MainActor () -> Void = {}
     ) {
         _model = StateObject(wrappedValue: DockerViewModel(
             client: client,
-            lifecycleRecorder: lifecycleRecorder
+            lifecycleRecorder: lifecycleRecorder,
+            didMutate: didMutate
         ))
     }
 
@@ -160,7 +170,7 @@ struct DockerView: View {
                     title: "Docker is not installed",
                     message: "Port monitoring remains available. Install a Docker-compatible runtime to enable exact container controls.",
                     actionTitle: "Check Again",
-                    action: { Task { await model.refresh() } }
+                    action: { Task { await model.refresh(invalidateRuntime: true) } }
                 )
             case let .daemonUnavailable(details):
                 EmptyStateView(
@@ -168,7 +178,7 @@ struct DockerView: View {
                     title: "Docker daemon is unavailable",
                     message: LocalizedStringKey(details),
                     actionTitle: "Retry",
-                    action: { Task { await model.refresh() } }
+                    action: { Task { await model.refresh(invalidateRuntime: true) } }
                 )
             case let .available(version):
                 if model.isLoadingContainers && model.containers.isEmpty {
@@ -179,7 +189,7 @@ struct DockerView: View {
                         title: "No running containers",
                         message: "Docker \(version) is available. Published ports will appear here when containers are running.",
                         actionTitle: "Refresh",
-                        action: { Task { await model.refresh() } }
+                        action: { Task { await model.refresh(invalidateRuntime: true) } }
                     )
                 } else {
                     containerBrowser(version: version)
@@ -188,7 +198,9 @@ struct DockerView: View {
         }
         .navigationTitle("Docker")
         .toolbar {
-            Button("Refresh", systemImage: "arrow.clockwise") { Task { await model.refresh() } }
+            Button("Refresh", systemImage: "arrow.clockwise") {
+                Task { await model.refresh(invalidateRuntime: true) }
+            }
         }
         .task {
             await model.refresh()

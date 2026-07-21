@@ -1,26 +1,113 @@
 import Foundation
 
+struct HealthMonitoringPolicy: Equatable, Sendable {
+    let minimumIntervalSeconds: Double
+    let stableIntervalSeconds: Double
+    let maximumBackoffSeconds: Double
+    let jitterFraction: Double
+
+    static let production = HealthMonitoringPolicy(
+        minimumIntervalSeconds: 0.25,
+        stableIntervalSeconds: 15,
+        maximumBackoffSeconds: 60,
+        jitterFraction: 0.1
+    )
+
+    func baseInterval(for profile: ManagedServiceConfiguration) -> Double {
+        let intervals = [profile.healthCheck?.intervalSeconds]
+            .compactMap { $0 } + profile.serviceChecks.map(\.intervalSeconds)
+        return max(minimumIntervalSeconds, intervals.min() ?? 2)
+    }
+
+    func jittered(_ seconds: Double) -> Double {
+        guard jitterFraction > 0 else { return seconds }
+        return seconds * Double.random(in: (1 - jitterFraction)...(1 + jitterFraction))
+    }
+}
+
+struct AdaptiveHealthSchedule: Equatable, Sendable {
+    private let baseIntervalSeconds: Double
+    private let stableIntervalSeconds: Double
+    private let maximumBackoffSeconds: Double
+    private(set) var consecutiveSuccesses = 0
+    private(set) var consecutiveFailures = 0
+
+    init(baseIntervalSeconds: Double, policy: HealthMonitoringPolicy) {
+        self.baseIntervalSeconds = baseIntervalSeconds
+        stableIntervalSeconds = max(policy.stableIntervalSeconds, baseIntervalSeconds)
+        maximumBackoffSeconds = max(policy.maximumBackoffSeconds, baseIntervalSeconds)
+    }
+
+    var intervalSeconds: Double {
+        if consecutiveFailures > 0 {
+            return min(
+                maximumBackoffSeconds,
+                baseIntervalSeconds * pow(2, Double(min(8, consecutiveFailures - 1)))
+            )
+        }
+        return consecutiveSuccesses >= 3 ? stableIntervalSeconds : baseIntervalSeconds
+    }
+
+    mutating func record(_ succeeded: Bool?) {
+        guard let succeeded else { return }
+        if succeeded {
+            consecutiveFailures = 0
+            consecutiveSuccesses += 1
+        } else {
+            consecutiveSuccesses = 0
+            consecutiveFailures += 1
+        }
+    }
+}
+
+actor HealthCheckConcurrencyGate {
+    private let limit: Int
+    private var active = 0
+
+    init(limit: Int = 4) {
+        self.limit = max(1, limit)
+    }
+
+    func tryAcquire() -> Bool {
+        guard active < limit else { return false }
+        active += 1
+        return true
+    }
+
+    func release() {
+        active = max(0, active - 1)
+    }
+}
+
 actor LaunchCoordinator: LaunchProfileServing {
     private let discoverer: any PortDiscovering
     private let processLauncher: any ManagedProcessLaunching
     private let healthChecker: any HealthChecking
     private let lifecycle: any RuntimeLifecycleObserving
     private let serviceCheckRunner: (any ServiceCheckRunning)?
+    private let healthMonitoringPolicy: HealthMonitoringPolicy
+    private let healthCheckGate: HealthCheckConcurrencyGate
     private var healthMonitorTasks: [UUID: Task<Void, Never>] = [:]
+    private var healthMonitorGenerations: [UUID: UUID] = [:]
     private var latestHealthSuccess: [UUID: Bool] = [:]
+    private var healthMonitoringSuspended = false
 
     init(
         discoverer: any PortDiscovering,
         processLauncher: any ManagedProcessLaunching,
         healthChecker: any HealthChecking,
         lifecycle: (any RuntimeLifecycleObserving)? = nil,
-        serviceCheckRunner: (any ServiceCheckRunning)? = nil
+        serviceCheckRunner: (any ServiceCheckRunning)? = nil,
+        healthMonitoringPolicy: HealthMonitoringPolicy = .production,
+        maximumConcurrentHealthChecks: Int = 4
     ) {
         self.discoverer = discoverer
         self.processLauncher = processLauncher
         self.healthChecker = healthChecker
         self.lifecycle = lifecycle ?? RuntimeLifecycleTracker()
         self.serviceCheckRunner = serviceCheckRunner
+        self.healthMonitoringPolicy = healthMonitoringPolicy
+        healthCheckGate = HealthCheckConcurrencyGate(limit: maximumConcurrentHealthChecks)
     }
 
     func launch(_ profile: ManagedServiceConfiguration) async throws {
@@ -88,8 +175,7 @@ actor LaunchCoordinator: LaunchProfileServing {
                 startHealthMonitoring(profile: profile)
             }
         } catch {
-            healthMonitorTasks.removeValue(forKey: profile.id)?.cancel()
-            latestHealthSuccess.removeValue(forKey: profile.id)
+            cancelHealthMonitoring(profileID: profile.id)
             try? await processLauncher.stop(profileID: profile.id, timeoutSeconds: profile.shutdownTimeoutSeconds)
             await lifecycle.transition(.launchFailed(profile, reason: error.localizedDescription))
             throw error
@@ -105,27 +191,57 @@ actor LaunchCoordinator: LaunchProfileServing {
         cancelHealthMonitoring(profileID: profileID)
     }
 
+    func retire(profileID: UUID) async {
+        cancelHealthMonitoring(profileID: profileID)
+    }
+
+    func setSystemSuspended(_ suspended: Bool) async {
+        healthMonitoringSuspended = suspended
+    }
+
     private func cancelHealthMonitoring(profileID: UUID) {
         healthMonitorTasks.removeValue(forKey: profileID)?.cancel()
+        healthMonitorGenerations.removeValue(forKey: profileID)
         latestHealthSuccess.removeValue(forKey: profileID)
     }
 
     private func startHealthMonitoring(profile: ManagedServiceConfiguration) {
         healthMonitorTasks.removeValue(forKey: profile.id)?.cancel()
+        let generation = UUID()
+        healthMonitorGenerations[profile.id] = generation
         latestHealthSuccess[profile.id] = true
-        let intervals = [profile.healthCheck?.intervalSeconds]
-            .compactMap { $0 } + profile.serviceChecks.map(\.intervalSeconds)
-        let interval = max(0.25, intervals.min() ?? 2)
-        healthMonitorTasks[profile.id] = Task { [weak self] in
+        let policy = healthMonitoringPolicy
+        var schedule = AdaptiveHealthSchedule(
+            baseIntervalSeconds: policy.baseInterval(for: profile),
+            policy: policy
+        )
+        healthMonitorTasks[profile.id] = Task { [weak self, healthCheckGate] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(interval))
+                do {
+                    try await Task.sleep(for: .seconds(policy.jittered(schedule.intervalSeconds)))
+                } catch {
+                    return
+                }
                 guard !Task.isCancelled, let self else { return }
-                await self.sampleHealth(profile: profile)
+                let result = await self.sampleHealth(
+                    profile: profile,
+                    generation: generation,
+                    gate: healthCheckGate
+                )
+                schedule.record(result)
             }
         }
     }
 
-    private func sampleHealth(profile: ManagedServiceConfiguration) async {
+    private func sampleHealth(
+        profile: ManagedServiceConfiguration,
+        generation: UUID,
+        gate: HealthCheckConcurrencyGate
+    ) async -> Bool? {
+        guard !healthMonitoringSuspended,
+              healthMonitorGenerations[profile.id] == generation,
+              await gate.tryAcquire() else { return nil }
+        let succeeded: Bool
         do {
             if let configuration = profile.healthCheck {
                 try await healthChecker.waitUntilHealthy(
@@ -141,6 +257,11 @@ actor LaunchCoordinator: LaunchProfileServing {
                 }
                 _ = try await serviceCheckRunner.run(profile.serviceChecks)
             }
+            guard !healthMonitoringSuspended,
+                  healthMonitorGenerations[profile.id] == generation else {
+                await gate.release()
+                return nil
+            }
             if latestHealthSuccess[profile.id] != true {
                 await lifecycle.transition(.healthPassed(
                     serviceID: profile.id,
@@ -148,7 +269,13 @@ actor LaunchCoordinator: LaunchProfileServing {
                 ))
             }
             latestHealthSuccess[profile.id] = true
+            succeeded = true
         } catch {
+            guard !healthMonitoringSuspended,
+                  healthMonitorGenerations[profile.id] == generation else {
+                await gate.release()
+                return nil
+            }
             if latestHealthSuccess[profile.id] != false {
                 await lifecycle.transition(.healthDegraded(
                     serviceID: profile.id,
@@ -156,7 +283,10 @@ actor LaunchCoordinator: LaunchProfileServing {
                 ))
             }
             latestHealthSuccess[profile.id] = false
+            succeeded = false
         }
+        await gate.release()
+        return succeeded
     }
 
     private func waitForExpectedPorts(_ profile: ManagedServiceConfiguration) async throws -> Set<String> {

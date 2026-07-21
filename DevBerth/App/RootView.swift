@@ -143,7 +143,8 @@ struct RootView: View {
         case .history: HistoryView()
         case .docker: DockerView(
             client: model.dockerService,
-            lifecycleRecorder: model.lifecycleEventRecorder
+            lifecycleRecorder: model.lifecycleEventRecorder,
+            didMutate: model.dockerMutationDidComplete
         )
         case .settings: SettingsView()
         }

@@ -342,6 +342,7 @@ extension ApplicationControlPlane {
             } else {
                 try await model.dockerService.restart(containerID: container.id)
             }
+            model.dockerMutationDidComplete()
             return .object(["container_id": .string(container.id), "action": .string(lease.type)])
         case "stop_compose_service", "restart_compose_service":
             let container = try await currentContainer(matching: target)
@@ -353,6 +354,7 @@ extension ApplicationControlPlane {
             } else {
                 try await model.dockerService.restartComposeService(context: context)
             }
+            model.dockerMutationDidComplete()
             return .object(["project": .string(context.projectName), "service": .string(context.serviceName)])
         case "stop_compose_project", "restart_compose_project":
             let seed = try await currentContainer(matching: target)
@@ -373,12 +375,15 @@ extension ApplicationControlPlane {
                     try await model.dockerService.restartComposeService(context: context)
                 }
             }
+            model.dockerMutationDidComplete()
             return .object(["project": .string(seedContext.projectName), "service_count": .number(Double(containers.count))])
         case "delete_project_with_dependencies":
             try store.deleteProject(id: stableUUID(target, kind: "project"), allowReferences: true)
             return .object(["deleted": .bool(true), "project_id": .string(target)])
         case "delete_managed_service_with_references":
-            try store.deleteService(id: stableUUID(target, kind: "service"), allowReferences: true)
+            let serviceID = try stableUUID(target, kind: "service")
+            try store.deleteService(id: serviceID, allowReferences: true)
+            await model.managedServicesWereDeleted([serviceID])
             return .object(["deleted": .bool(true), "service_id": .string(target)])
         case "delete_session_with_history":
             try store.deleteSession(id: stableUUID(target, kind: "session"), allowHistory: true)
