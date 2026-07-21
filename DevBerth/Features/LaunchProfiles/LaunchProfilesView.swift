@@ -16,6 +16,7 @@ struct LaunchProfilesView: View {
     @State private var editingProfile: LaunchProfileRecord?
     @State private var logsProfile: LaunchProfileRecord?
     @State private var operationError: String?
+    @State private var pendingObservedStopID: UUID?
     private let secretLifecycle = SecretLifecycleCoordinator()
 
     var body: some View {
@@ -53,7 +54,13 @@ struct LaunchProfilesView: View {
                     TableColumn("Status") { profile in
                         let configuration = configuration(for: profile)
                         let activity = configuration.map { model.managedServiceActivity(for: $0) }
-                        if let status = model.runtimeStatuses[profile.id], status.processRunning {
+                        if let operation = model.serviceOperations[profile.id], operation.isRunning {
+                            HStack(spacing: DevBerthSpacing.small) {
+                                ProgressView().controlSize(.small)
+                                Text(operation.kind == .stop ? "Stopping…" : "Starting…")
+                            }
+                            .help(operation.message)
+                        } else if let status = model.runtimeStatuses[profile.id], status.processRunning {
                             RuntimeStatusLabel(status: status)
                         } else if model.profileFailures[profile.id] != nil {
                             Label("Failed", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
@@ -65,15 +72,17 @@ struct LaunchProfilesView: View {
                             Text("Stopped").foregroundStyle(.secondary)
                         }
                     }
-                    .width(min: 85, ideal: 100)
+                    .width(min: 100, ideal: 125)
                     TableColumn("Actions") { profile in
                         if let configuration = configuration(for: profile) {
                             let activity = model.managedServiceActivity(for: configuration)
+                            let isBusy = model.serviceOperations[profile.id]?.isRunning == true
                             HStack {
                                 Button("Logs") { logsProfile = profile }
                                 if activity.state == .controlled {
                                     Button("Stop") { Task { await model.stopProfile(configuration) } }
                                 } else if activity.state == .observed {
+                                    Button("Stop") { pendingObservedStopID = profile.id }
                                     Button("Inspect") { model.inspectObservedRuntime(for: configuration) }
                                 } else if trustSummary(for: profile)?.state == .verifiedRestartable {
                                     Button("Start") { Task { await model.launchProfile(configuration) } }
@@ -81,11 +90,12 @@ struct LaunchProfilesView: View {
                                     Button("Review & Validate") { editingProfile = profile }
                                 }
                             }
+                            .disabled(isBusy)
                         } else {
                             Button("Repair") { editingProfile = profile }
                         }
                     }
-                    .width(min: 155, ideal: 210)
+                    .width(min: 190, ideal: 240)
                 }
                 .contextMenu(forSelectionType: UUID.self) { ids in
                     Button("Edit") { editingProfile = profiles.first { ids.contains($0.id) } }
@@ -137,6 +147,28 @@ struct LaunchProfilesView: View {
         }
         .sheet(item: $logsProfile) { profile in
             ProfileLogsView(profileID: profile.id, profileName: profile.name).environmentObject(model)
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { pendingObservedStopID != nil },
+                set: { if !$0 { pendingObservedStopID = nil } }
+            )
+        ) {
+            if let configuration = pendingObservedStopConfiguration {
+                ActionConfirmationSheet(
+                    title: Text("Stop observed service?"),
+                    message: Text("\(configuration.name) is active outside DevBerth. The exact process, container, or Compose owner will be resolved and revalidated immediately before it is stopped. Protected or unverifiable owners will remain running."),
+                    actionTitle: Text("Stop \(configuration.name)"),
+                    actionRole: .destructive
+                ) {
+                    Task {
+                        await model.stopProfile(
+                            configuration,
+                            confirmsObservedProcess: true
+                        )
+                    }
+                }
+            }
         }
         .alert(
             "Managed-service operation failed",
@@ -201,6 +233,13 @@ struct LaunchProfilesView: View {
         guard let configuration = configuration(for: profile) else { return nil }
         let validation = validationRecords.first { $0.managedServiceID == profile.id }?.result
         return RestartTrustEvaluator.summary(for: configuration, validation: validation)
+    }
+
+    private var pendingObservedStopConfiguration: ManagedServiceConfiguration? {
+        guard let pendingObservedStopID,
+              let profile = profiles.first(where: { $0.id == pendingObservedStopID })
+        else { return nil }
+        return configuration(for: profile)
     }
 
     @MainActor

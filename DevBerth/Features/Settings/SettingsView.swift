@@ -198,13 +198,15 @@ struct SettingsView: View {
         .alert("System Settings could not be opened", isPresented: .constant(systemSettingsError != nil)) {
             Button("OK") { systemSettingsError = nil }
         } message: { Text(systemSettingsError ?? "") }
-        .alert(item: $pendingIntegrationAction) { action in
-            Alert(
+        .sheet(item: $pendingIntegrationAction) { action in
+            ActionConfirmationSheet(
                 title: Text(action.title),
                 message: Text(action.message),
-                primaryButton: .default(Text(action.confirmTitle)) { performIntegrationAction(action) },
-                secondaryButton: .cancel()
-            )
+                actionTitle: Text(action.confirmTitle),
+                actionRole: action == .uninstall ? .destructive : nil
+            ) {
+                performIntegrationAction(action)
+            }
         }
         .fileExporter(
             isPresented: Binding(get: { diagnosticsDocument != nil }, set: { if !$0 { diagnosticsDocument = nil } }),

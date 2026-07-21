@@ -81,3 +81,33 @@ struct InspectorRow: View {
     }
 }
 
+struct ActionConfirmationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let title: Text
+    let message: Text
+    let actionTitle: Text
+    let actionRole: ButtonRole?
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DevBerthSpacing.large) {
+            title.font(.title3.bold())
+            message.foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(role: actionRole) {
+                    dismiss()
+                    action()
+                } label: {
+                    actionTitle
+                }
+            }
+        }
+        .padding(DevBerthSpacing.xLarge)
+        .frame(width: 460)
+        .onExitCommand { dismiss() }
+    }
+}

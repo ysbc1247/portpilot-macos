@@ -197,26 +197,22 @@ struct DockerView: View {
         .onChange(of: model.containers.map(\.id)) { _, identifiers in
             ensureSelection(identifiers)
         }
-        .confirmationDialog(
-            confirmationTitle,
+        .sheet(
             isPresented: Binding(
                 get: { pendingMutation != nil },
                 set: { if !$0 { pendingMutation = nil } }
-            ),
-            titleVisibility: .visible
+            )
         ) {
             if let pendingMutation {
-                Button(
-                    confirmationButtonTitle(pendingMutation),
-                    role: pendingMutation.action == .restart ? nil : .destructive
+                ActionConfirmationSheet(
+                    title: Text(confirmationTitle),
+                    message: Text(confirmationMessage),
+                    actionTitle: Text(confirmationButtonTitle(pendingMutation)),
+                    actionRole: pendingMutation.action == .restart ? nil : .destructive
                 ) {
                     Task { await model.perform(pendingMutation.action, on: pendingMutation.container) }
-                    self.pendingMutation = nil
                 }
             }
-            Button("Cancel", role: .cancel) { pendingMutation = nil }
-        } message: {
-            Text(confirmationMessage)
         }
         .sheet(isPresented: Binding(
             get: { !model.logsContainerName.isEmpty },
