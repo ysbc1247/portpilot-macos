@@ -3,7 +3,9 @@ import XCTest
 
 final class DockerTests: XCTestCase {
     func testFoundationCommandRunnerDrainsOutputLargerThanPipeCapacity() async throws {
-        let payload = String(repeating: "x", count: 65_536)
+        let payload = (0..<8_192)
+            .map { String(format: "%08d\n", $0) }
+            .joined()
 
         let result = try await FoundationCommandRunner().run(
             executable: URL(fileURLWithPath: "/usr/bin/printf"),
@@ -11,7 +13,7 @@ final class DockerTests: XCTestCase {
         )
 
         XCTAssertEqual(result.exitCode, 0)
-        XCTAssertEqual(result.stdout.count, payload.utf8.count)
+        XCTAssertEqual(result.stdoutString, payload)
         XCTAssertTrue(result.stderr.isEmpty)
     }
 
