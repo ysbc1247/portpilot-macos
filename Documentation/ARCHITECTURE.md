@@ -215,6 +215,8 @@ Performance instrumentation is a shared service rather than view-specific loggin
 
 `PerformanceDiagnostics` is the non-secret in-process metrics owner. It retains aggregate scan latency/count, coalescing, cache size/hit rate, Docker latency, active health/background work, and at most 20 reviewed warning summaries. It never stores commands, paths, environment values, HTTP bodies, log contents, or Keychain material. Feature code must use this owner instead of creating independent performance timers or diagnostic buffers.
 
+Settings presents that bounded snapshot in a dismissible internal Performance Diagnostics sheet. The sheet refreshes once per second only while visible and reports monitoring mode/interval, scan last/average/maximum/count, coalescing, cache size/hit rate, Docker duration, active health/background counts, and reviewed warnings. It reads no commands, paths, listener details, logs, environment values, or secrets.
+
 Managed stdout/stderr readability callbacks enqueue bytes synchronously into `ServiceLogIngress`; one delayed task combines all chunks received during a 50 ms window per profile/stream before actor redaction, line splitting, bounded storage, and one file append. The visible log view polls a lightweight revision twice per second and copies/renders the bounded entry list only when that revision changes.
 
 - Command execution and discovery run in detached/background work.

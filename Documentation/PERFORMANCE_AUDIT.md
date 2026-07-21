@@ -114,7 +114,9 @@ This chain explains both the background CPU result and the additional visible-wi
 - MCP request; and
 - lifecycle operation.
 
-The same component retains bounded, non-secret diagnostic counters for scan latency/count, coalescing, cache size/hit rate, Docker latency, health checks, background tasks, and recent performance warnings. The internal UI is added in a separate review shard.
+The same component retains bounded, non-secret diagnostic counters for scan latency/count, coalescing, cache size/hit rate, Docker latency, health checks, background tasks, and recent performance warnings.
+
+Settings now exposes those counters in an internal Performance Diagnostics sheet. It polls the bounded aggregate snapshot once per second only while open, supports explicit refresh and Escape/Cancel dismissal, and never displays listener details, paths, commands, logs, environment values, or secrets.
 
 ## Runtime scheduling and semantic fixes
 
