@@ -4,7 +4,7 @@ This plan follows the evidence in `PHASE_2_AUDIT.md`. Each slice must preserve t
 
 ## Delivery slices
 
-Current status on 2026-07-21: slices 1–10 are implemented and locally validated. A detached clean checkout passed all 149 unit, migration, integration, and UI tests; the four-pass soak and static analysis are green. The dedicated branch remains to be pushed. The optional alias router and signed-release-only gates documented in `PHASE_2_VALIDATION.md` remain deliberately deferred.
+Current status on 2026-07-21: slices 1–10 are implemented and locally validated. A detached clean checkout passed all 149 unit, migration, integration, and UI tests; the four-pass soak and static analysis are green. The dedicated `phase-2-differentiation` branch is published to the existing private origin. The optional alias router and signed-release-only gates documented in `PHASE_2_VALIDATION.md` remain deliberately deferred.
 
 1. **Audit and plan**
    - Freeze the baseline, gaps, measurements, removals, and acceptance evidence.
