@@ -49,7 +49,7 @@
 
 ## The `save` Handoff Command
 
-The explicit handoff keyword is `save`, case-insensitive. Treat it as invoked only when the user's message is exactly `save` or starts with `save:`. Do not trigger it merely because a user discusses the word or defines this rule.
+The explicit handoff keyword is `save`, case-insensitive. Treat it as invoked when the user uses `save` as an actionable command, whether alone, as `save: <context>`, or combined with other requested actions such as `save and merge`, `save, push, and merge`, or `please save then merge`. Do not trigger it when the user merely discusses, quotes, or defines the word or this rule. When combined with other actions, run the complete save protocol at the requested point in the sequence; the other actions remain separately authorized by the same message.
 
 When `save` is invoked:
 
