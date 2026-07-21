@@ -1,6 +1,6 @@
 import Foundation
 
-actor DockerAssociationProvider {
+actor DockerAssociationProvider: RuntimeListenerCorrelating {
     private let client: any DockerServing
     private let lifecycleRecorder: (any RuntimeLifecycleRecording)?
     private var mappings: [String: DockerAssociation] = [:]

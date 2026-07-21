@@ -3,18 +3,32 @@ import Foundation
 actor LocalPortDiscovery: PortDiscovering {
     private let runner: any CommandRunning
     private let metadataProvider: ObservedProcessProvider
+    private let identityReader: any ProcessCacheIdentityReading
     private var firstDetected: [String: Date] = [:]
     private struct CachedMetadata {
         let value: ObservedProcess
         let lsofProcessName: String
+        let identity: ProcessCacheIdentity?
         let cachedAt: Date
     }
     private var metadataCache: [Int32: CachedMetadata] = [:]
-    private let metadataCacheLifetime: TimeInterval = 30
-    private let metadataRefreshBudget = 3
+    private let metadataCacheLifetime: TimeInterval
+    private let metadataRefreshBudget: Int
+    private let maximumMetadataCacheCount: Int
 
-    init(runner: any CommandRunning, includeProjectInference: Bool = true) {
+    init(
+        runner: any CommandRunning,
+        includeProjectInference: Bool = true,
+        identityReader: any ProcessCacheIdentityReading = SystemProcessCacheIdentityReader(),
+        metadataCacheLifetime: TimeInterval = 300,
+        metadataRefreshBudget: Int = 3,
+        maximumMetadataCacheCount: Int = 512
+    ) {
         self.runner = runner
+        self.identityReader = identityReader
+        self.metadataCacheLifetime = max(1, metadataCacheLifetime)
+        self.metadataRefreshBudget = max(1, metadataRefreshBudget)
+        self.maximumMetadataCacheCount = max(1, maximumMetadataCacheCount)
         self.metadataProvider = ObservedProcessProvider(
             runner: runner,
             inferer: includeProjectInference ? ProjectInferer() : nil
@@ -55,10 +69,14 @@ actor LocalPortDiscovery: PortDiscovering {
         let grouped = Dictionary(grouping: raw, by: \.pid)
         var metadata: [Int32: ObservedProcess] = [:]
         let now = Date()
+        let currentIdentities = Dictionary(uniqueKeysWithValues: grouped.keys.compactMap { pid in
+            identityReader.identity(pid: pid).map { (pid, $0) }
+        })
         let refreshPIDs = Set(
             grouped.keys.compactMap { pid -> (Int32, Date)? in
                 guard let cached = metadataCache[pid],
                       cached.lsofProcessName == grouped[pid]?.first?.processName,
+                      cached.identity == currentIdentities[pid],
                       now.timeIntervalSince(cached.cachedAt) >= metadataCacheLifetime else { return nil }
                 return (pid, cached.cachedAt)
             }
@@ -70,7 +88,9 @@ actor LocalPortDiscovery: PortDiscovering {
         for (pid, listeners) in grouped {
             if let cached = metadataCache[pid],
                !refreshPIDs.contains(pid),
-               cached.lsofProcessName == listeners[0].processName {
+               cached.lsofProcessName == listeners[0].processName,
+               let currentIdentity = currentIdentities[pid],
+               cached.identity == currentIdentity {
                 metadata[pid] = cached.value
             }
         }
@@ -94,6 +114,7 @@ actor LocalPortDiscovery: PortDiscovering {
                 metadataCache[pid] = CachedMetadata(
                     value: value,
                     lsofProcessName: grouped[pid]?.first?.processName ?? value.name,
+                    identity: currentIdentities[pid],
                     cachedAt: now
                 )
             }
@@ -101,6 +122,13 @@ actor LocalPortDiscovery: PortDiscovering {
         DevBerthPerformance.end(enrichmentInterval)
 
         metadataCache = metadataCache.filter { grouped[$0.key] != nil }
+        if metadataCache.count > maximumMetadataCacheCount {
+            let evictedPIDs = metadataCache
+                .sorted { $0.value.cachedAt < $1.value.cachedAt }
+                .prefix(metadataCache.count - maximumMetadataCacheCount)
+                .map(\.key)
+            for pid in evictedPIDs { metadataCache.removeValue(forKey: pid) }
+        }
         await PerformanceDiagnostics.shared.recordProcessCache(
             count: metadataCache.count,
             hits: cacheHits,

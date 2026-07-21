@@ -1,12 +1,13 @@
+import AppKit
 import Combine
 import Foundation
 import OSLog
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published private(set) var listeners: [ObservedListener] = []
+    private(set) var listeners: [ObservedListener] = []
     @Published private(set) var recentChanges: [ObservedListener] = []
-    @Published private(set) var lastRefresh: Date?
+    private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
     @Published var isMonitoring = true
     @Published var searchText = ""
@@ -47,7 +48,6 @@ final class AppModel: ObservableObject {
     private let projectOrchestrator: ProjectOrchestrator
     private let workspaceSessions: WorkspaceSessionCoordinator
     private let notifier: any PortNotifying
-    private let dockerAssociations: DockerAssociationProvider
     let dockerService: any DockerServing
     let lifecycleEventRecorder: (any RuntimeLifecycleRecording)?
     private let projectDiscovery: any ProjectDiscoveryServing
@@ -58,6 +58,7 @@ final class AppModel: ObservableObject {
     private var monitoringTask: Task<Void, Never>?
     private var lifecycleTask: Task<Void, Never>?
     private var exitTask: Task<Void, Never>?
+    private var powerNotificationObservers: [NSObjectProtocol] = []
     private var automaticRestartLimiters: [UUID: AutomaticRestartLimiter] = [:]
     var refreshInterval: Double = 2
 
@@ -117,9 +118,13 @@ final class AppModel: ObservableObject {
             verifier: ProcessFingerprintVerifier(runner: runner)
         )
         let dockerClient = DockerCLIClient(runner: runner)
+        let dockerAssociator = DockerAssociationProvider(
+            client: dockerClient,
+            lifecycleRecorder: lifecycleRecorder
+        )
         self.dockerService = dockerClient
         self.lifecycleEventRecorder = lifecycleRecorder
-        self.monitor = PortMonitor(discoverer: service)
+        self.monitor = PortMonitor(discoverer: service, correlator: dockerAssociator)
         self.lifecycleRouter = lifecycleRouter ?? OwnerAwareLifecycleRouter(
             processController: resolvedProcessController,
             managedServiceController: coordinator,
@@ -153,10 +158,6 @@ final class AppModel: ObservableObject {
         )
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
-        self.dockerAssociations = DockerAssociationProvider(
-            client: dockerClient,
-            lifecycleRecorder: lifecycleRecorder
-        )
         self.projectDiscovery = projectDiscovery ?? LocalProjectDiscoveryService()
         self.projectManifest = projectManifest ?? LocalProjectManifestService()
         self.processResourceReader = processResourceReader ?? SystemProcessResourceUsageReader(runner: runner)
@@ -175,12 +176,33 @@ final class AppModel: ObservableObject {
                 await handleManagedExit(notice)
             }
         }
+        let workspaceNotifications = NSWorkspace.shared.notificationCenter
+        powerNotificationObservers = [
+            workspaceNotifications.addObserver(
+                forName: NSWorkspace.willSleepNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.setSystemSuspended(true) }
+            },
+            workspaceNotifications.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.setSystemSuspended(false) }
+            }
+        ]
     }
 
     deinit {
         monitoringTask?.cancel()
         lifecycleTask?.cancel()
         exitTask?.cancel()
+        let workspaceNotifications = NSWorkspace.shared.notificationCenter
+        for observer in powerNotificationObservers {
+            workspaceNotifications.removeObserver(observer)
+        }
     }
 
     var filteredListeners: [ObservedListener] {
@@ -200,32 +222,47 @@ final class AppModel: ObservableObject {
     }
 
     func startMonitoring() {
-        monitoringTask?.cancel()
-        isMonitoring = true
-        isRefreshing = true
+        if !isMonitoring { isMonitoring = true }
+        if let monitoringTask, !monitoringTask.isCancelled {
+            Task { await monitor.setActiveInterval(refreshInterval) }
+            return
+        }
+        if !isRefreshing { isRefreshing = true }
         monitoringTask = Task { [weak self] in
             guard let self else { return }
             let stream = await monitor.updates(every: refreshInterval)
             for await update in stream {
                 guard !Task.isCancelled else { break }
-                let correlatedListeners = await dockerAssociations.correlate(update.snapshot.listeners)
-                let listenerPublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
-                listeners = correlatedListeners
-                DevBerthPerformance.end(listenerPublishInterval)
+                let listenersChanged = !update.diff.added.isEmpty
+                    || !update.diff.updated.isEmpty
+                    || !update.diff.removed.isEmpty
+                if listenersChanged {
+                    let listenerPublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
+                    objectWillChange.send()
+                    listeners = update.snapshot.listeners
+                    DevBerthPerformance.end(listenerPublishInterval)
+                } else {
+                    listeners = update.snapshot.listeners
+                }
                 let resourceUsage = (try? await processResourceReader.read(
-                    pids: Set(listeners.map { $0.process.fingerprint.pid })
+                    pids: Set(update.snapshot.listeners.map { $0.process.fingerprint.pid })
                 )) ?? [:]
                 let statePublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
-                processResourceUsage = resourceUsage
-                let currentListenerIDs = Set(listeners.map(\.id))
-                ownershipGraphs = ownershipGraphs.filter { currentListenerIDs.contains($0.key) }
-                recentChanges = Array((update.diff.added + update.diff.removed).prefix(12))
+                if resourceUsage.isMeaningfullyDifferent(from: processResourceUsage) {
+                    processResourceUsage = resourceUsage
+                }
+                if listenersChanged {
+                    let currentListenerIDs = Set(listeners.map(\.id))
+                    ownershipGraphs = ownershipGraphs.filter { currentListenerIDs.contains($0.key) }
+                    recentChanges = Array((update.diff.added + update.diff.removed).prefix(12))
+                }
                 lastRefresh = update.snapshot.capturedAt
-                isRefreshing = false
+                if isRefreshing { isRefreshing = false }
                 if let error = update.error { presentedError = error }
                 recordPortChanges(update.diff)
                 DevBerthPerformance.end(statePublishInterval)
             }
+            monitoringTask = nil
         }
     }
 
@@ -238,7 +275,20 @@ final class AppModel: ObservableObject {
     }
 
     func refreshNow() {
-        startMonitoring()
+        guard isMonitoring else {
+            startMonitoring()
+            return
+        }
+        if !isRefreshing { isRefreshing = true }
+        Task { await monitor.requestRefresh() }
+    }
+
+    func setMonitoringSurface(_ surface: MonitoringSurface, visible: Bool) {
+        Task { await monitor.setSurface(surface, visible: visible) }
+    }
+
+    private func setSystemSuspended(_ suspended: Bool) {
+        Task { await monitor.setSuspended(suspended) }
     }
 
     func navigate(to section: AppSection) {

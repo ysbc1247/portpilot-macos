@@ -28,6 +28,10 @@ protocol PortDiscovering: Sendable {
     func discover() async throws -> [ObservedListener]
 }
 
+protocol RuntimeListenerCorrelating: Sendable {
+    func correlate(_ listeners: [ObservedListener]) async -> [ObservedListener]
+}
+
 protocol ProcessFingerprintVerifying: Sendable {
     func verify(_ expected: ProcessFingerprint) async throws -> ProcessFingerprintVerification
 }

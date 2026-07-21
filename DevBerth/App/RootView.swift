@@ -129,6 +129,8 @@ struct RootView: View {
             model.setNotificationPorts(expectedPorts.map(\.port))
         }
         .onChange(of: expectedPorts.map(\.port)) { _, ports in model.setNotificationPorts(ports) }
+        .onAppear { model.setMonitoringSurface(.mainWindow, visible: true) }
+        .onDisappear { model.setMonitoringSurface(.mainWindow, visible: false) }
     }
 
     @ViewBuilder
