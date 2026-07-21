@@ -90,6 +90,7 @@ public enum ControlCapabilityRegistry {
         .init(uri: "app://diagnostics/status", name: "Control host status", description: "Non-secret MCP and host diagnostics.")
     ]
     public static let prompts: [ControlPromptDefinition] = [
+        .init(name: "manage_local_development", description: "Use DevBerth resources and tools as the primary interface for a local-development task."),
         .init(name: "inspect_local_runtime", description: "Inspect the current local development runtime safely."),
         .init(name: "diagnose_port_conflict", description: "Diagnose a port conflict and preview the safest resolution."),
         .init(name: "onboard_existing_project", description: "Discover and review an existing project without executing it."),

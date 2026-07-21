@@ -6,12 +6,19 @@ struct MCPIntegrationSnapshot: Equatable, Sendable {
     let installedVersion: String?
     let bundledHelperURL: URL?
     let bundledVersion: String?
+    let globalConfigurationReady: Bool
+    let globalConfigurationMessage: String
 
     var canInstall: Bool { bundledHelperURL != nil }
     var needsUpdate: Bool {
         guard let installedVersion, let bundledVersion else { return false }
         return installedVersion != bundledVersion
     }
+}
+
+struct MCPSetupResult: Equatable, Sendable {
+    let snapshot: MCPIntegrationSnapshot
+    let configurationPreview: CodexConfigurationPreview
 }
 
 enum CodexConfigurationScope: Equatable, Sendable {
@@ -38,6 +45,7 @@ struct CodexConfigurationPreview: Equatable, Sendable {
 protocol MCPIntegrationManaging: AnyObject {
     func inspect() async -> MCPIntegrationSnapshot
     func installOrRepair() async throws -> MCPIntegrationSnapshot
+    func setUpGlobalCodex() async throws -> MCPSetupResult
     func uninstall() async throws -> MCPIntegrationSnapshot
     func previewCodexConfiguration(scope: CodexConfigurationScope) throws -> CodexConfigurationPreview
     func applyCodexConfiguration(_ preview: CodexConfigurationPreview) throws
@@ -61,11 +69,22 @@ final class MCPIntegrationManager: MCPIntegrationManaging {
     func inspect() async -> MCPIntegrationSnapshot {
         let installed = fileManager.isExecutableFile(atPath: Self.stableHelperURL.path) ? Self.stableHelperURL : nil
         let bundled = bundledHelperURL()
+        let configuration: (ready: Bool, message: String)
+        do {
+            let preview = try previewCodexConfiguration(scope: .global)
+            configuration = preview.changed
+                ? (false, "Setup required")
+                : (true, "Configured")
+        } catch {
+            configuration = (false, error.localizedDescription)
+        }
         return MCPIntegrationSnapshot(
             installedHelperURL: installed,
             installedVersion: installed.flatMap(helperVersion),
             bundledHelperURL: bundled,
-            bundledVersion: bundled.flatMap(helperVersion)
+            bundledVersion: bundled.flatMap(helperVersion),
+            globalConfigurationReady: configuration.ready,
+            globalConfigurationMessage: configuration.message
         )
     }
 
@@ -104,6 +123,16 @@ final class MCPIntegrationManager: MCPIntegrationManaging {
             throw error
         }
         return await inspect()
+    }
+
+    func setUpGlobalCodex() async throws -> MCPSetupResult {
+        _ = try await installOrRepair()
+        let preview = try previewCodexConfiguration(scope: .global)
+        if preview.changed { try applyCodexConfiguration(preview) }
+        return MCPSetupResult(
+            snapshot: await inspect(),
+            configurationPreview: preview
+        )
     }
 
     func uninstall() async throws -> MCPIntegrationSnapshot {
