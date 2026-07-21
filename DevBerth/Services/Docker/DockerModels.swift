@@ -83,6 +83,7 @@ struct DockerContainer: Hashable, Sendable, Identifiable {
 protocol DockerServing: Sendable {
     func availability() async -> DockerAvailability
     func runningContainers() async throws -> [DockerContainer]
+    func observedRunningContainers() async throws -> [DockerContainer]
     func stop(containerID: String) async throws
     func restart(containerID: String) async throws
     func remove(containerID: String) async throws
@@ -93,6 +94,10 @@ protocol DockerServing: Sendable {
 }
 
 extension DockerServing {
+    func observedRunningContainers() async throws -> [DockerContainer] {
+        try await runningContainers()
+    }
+
     func remove(containerID: String) async throws {
         throw DevBerthError.ownerActionUnavailable(
             owner: containerID,

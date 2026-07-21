@@ -142,10 +142,9 @@ actor SwiftDataStore: HistoryRecording, OwnershipRecording, RestartTrustStoring,
     }
 
     private func pruneLifecycleEvents(retaining limit: Int) throws {
-        var descriptor = FetchDescriptor<LifecycleEventRecord>(
+        let descriptor = FetchDescriptor<LifecycleEventRecord>(
             sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
         )
-        descriptor.fetchLimit = limit + 100
         let events = try modelContext.fetch(descriptor)
         let removedIDs = Set(events.dropFirst(limit).map(\.id))
         guard !removedIDs.isEmpty else { return }

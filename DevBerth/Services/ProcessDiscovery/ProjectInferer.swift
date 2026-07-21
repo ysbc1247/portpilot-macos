@@ -21,7 +21,7 @@ struct ProjectInferer: @unchecked Sendable {
                 fileManager.fileExists(atPath: candidate.appendingPathComponent($0).path)
             }) {
                 return ProjectInference(
-                    name: packageName(at: candidate) ?? candidate.lastPathComponent,
+                    name: candidate.lastPathComponent,
                     rootPath: candidate.path,
                     evidence: marker
                 )
@@ -32,16 +32,5 @@ struct ProjectInferer: @unchecked Sendable {
             candidate = parent
         }
         return nil
-    }
-
-    private func packageName(at directory: URL) -> String? {
-        let url = directory.appendingPathComponent("package.json")
-        guard
-            let data = try? Data(contentsOf: url),
-            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let name = object["name"] as? String,
-            !name.isEmpty
-        else { return nil }
-        return name
     }
 }

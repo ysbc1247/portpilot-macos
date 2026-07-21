@@ -18,7 +18,12 @@ struct ExecutableResolver: @unchecked Sendable {
         self.fileManager = fileManager
     }
 
-    func resolve(_ command: String, environment: [String: String], workingDirectory: String) -> URL? {
+    func resolve(
+        _ command: String,
+        environment: [String: String],
+        workingDirectory: String,
+        additionalSearchDirectories: [String] = []
+    ) -> URL? {
         if command.hasPrefix("/") {
             return fileManager.isExecutableFile(atPath: command) ? URL(fileURLWithPath: command) : nil
         }
@@ -26,10 +31,22 @@ struct ExecutableResolver: @unchecked Sendable {
             let path = URL(fileURLWithPath: workingDirectory).appendingPathComponent(String(command.dropFirst(2))).path
             return fileManager.isExecutableFile(atPath: path) ? URL(fileURLWithPath: path) : nil
         }
-        let path = environment["PATH"] ?? ProcessInfo.processInfo.environment["PATH"] ?? "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-        return path.split(separator: ":")
-            .map { URL(fileURLWithPath: String($0)).appendingPathComponent(command) }
+        let environmentPath = environment["PATH"] ?? ProcessInfo.processInfo.environment["PATH"] ?? ""
+        let standardDirectories = [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin"
+        ]
+        var seen = Set<String>()
+        let searchDirectories = environmentPath.split(separator: ":").map(String.init)
+            + additionalSearchDirectories
+            + standardDirectories
+        return searchDirectories
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
+            .map { URL(fileURLWithPath: $0).appendingPathComponent(command) }
             .first { fileManager.isExecutableFile(atPath: $0.path) }
     }
 }
-

@@ -22,7 +22,7 @@ final class DockerViewModel: ObservableObject {
         isLoadingContainers = true
         defer { isLoadingContainers = false }
         do {
-            containers = try await client.runningContainers()
+            containers = try await client.observedRunningContainers()
         } catch {
             handle(error)
         }

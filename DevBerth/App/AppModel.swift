@@ -411,6 +411,30 @@ final class AppModel: ObservableObject {
 
     var managedRunningServiceIDs: Set<UUID> { currentRunningServiceIDs }
 
+    func managedServiceActivity(
+        for profile: ManagedServiceConfiguration
+    ) -> ManagedServiceActivityEvidence {
+        ManagedServiceActivityResolver.resolve(
+            profile: profile,
+            listeners: listeners,
+            runningProfileIDs: runningProfileIDs,
+            runtimeStatus: runtimeStatuses[profile.id]
+        )
+    }
+
+    func isManagedServiceRunning(_ profileID: UUID) -> Bool {
+        runningProfileIDs.contains(profileID) || runtimeStatuses[profileID]?.processRunning == true
+    }
+
+    func inspectObservedRuntime(for profile: ManagedServiceConfiguration) {
+        let activity = managedServiceActivity(for: profile)
+        guard activity.state == .observed,
+              let listener = listeners.first(where: { activity.matchingListenerIDs.contains($0.id) })
+        else { return }
+        selectedListenerID = listener.id
+        requestedSection = .runtime
+    }
+
     private func persistOwnership(
         _ conclusion: OwnershipConclusion,
         reportsError: Bool

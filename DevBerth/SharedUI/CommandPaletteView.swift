@@ -83,7 +83,7 @@ struct CommandPaletteView: View {
     private var projectActions: [Action] {
         projects.flatMap { project -> [Action] in
             let services = configurations.filter { $0.projectID == project.id }
-            let isRunning = services.contains { model.runningProfileIDs.contains($0.id) }
+            let isRunning = services.contains { model.isManagedServiceRunning($0.id) }
             var values = [
                 action("project-open-\(project.id)", "Open Project — \(project.name)", project.folderPath, "folder.fill", "project") {
                     model.navigate(to: .projects)
@@ -108,8 +108,7 @@ struct CommandPaletteView: View {
 
     private var serviceActions: [Action] {
         configurations.flatMap { service -> [Action] in
-            let running = model.runningProfileIDs.contains(service.id)
-                || model.runtimeStatuses[service.id]?.processRunning == true
+            let running = model.isManagedServiceRunning(service.id)
             let validation = validationRecords.first { $0.managedServiceID == service.id }?.result
             let trust = RestartTrustEvaluator.summary(for: service, validation: validation)
             var values = [

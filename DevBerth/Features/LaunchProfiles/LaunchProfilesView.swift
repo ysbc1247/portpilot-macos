@@ -51,10 +51,16 @@ struct LaunchProfilesView: View {
                     }
                     .width(min: 155, ideal: 185)
                     TableColumn("Status") { profile in
-                        if let status = model.runtimeStatuses[profile.id] {
+                        let configuration = configuration(for: profile)
+                        let activity = configuration.map { model.managedServiceActivity(for: $0) }
+                        if let status = model.runtimeStatuses[profile.id], status.processRunning {
                             RuntimeStatusLabel(status: status)
                         } else if model.profileFailures[profile.id] != nil {
                             Label("Failed", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                        } else if activity?.state == .controlled {
+                            Label("Running", systemImage: "play.circle.fill").foregroundStyle(.green)
+                        } else if activity?.state == .observed {
+                            Label("Observed", systemImage: "eye").foregroundStyle(.orange)
                         } else {
                             Text("Stopped").foregroundStyle(.secondary)
                         }
@@ -62,10 +68,13 @@ struct LaunchProfilesView: View {
                     .width(min: 85, ideal: 100)
                     TableColumn("Actions") { profile in
                         if let configuration = configuration(for: profile) {
+                            let activity = model.managedServiceActivity(for: configuration)
                             HStack {
                                 Button("Logs") { logsProfile = profile }
-                                if model.runningProfileIDs.contains(profile.id) {
+                                if activity.state == .controlled {
                                     Button("Stop") { Task { await model.stopProfile(configuration) } }
+                                } else if activity.state == .observed {
+                                    Button("Inspect") { model.inspectObservedRuntime(for: configuration) }
                                 } else if trustSummary(for: profile)?.state == .verifiedRestartable {
                                     Button("Start") { Task { await model.launchProfile(configuration) } }
                                 } else {
@@ -76,7 +85,7 @@ struct LaunchProfilesView: View {
                             Button("Repair") { editingProfile = profile }
                         }
                     }
-                    .width(min: 145, ideal: 190)
+                    .width(min: 155, ideal: 210)
                 }
                 .contextMenu(forSelectionType: UUID.self) { ids in
                     Button("Edit") { editingProfile = profiles.first { ids.contains($0.id) } }

@@ -77,9 +77,10 @@ struct ProjectsView: View {
             } else {
                 ForEach(projectProfiles) { profile in
                     let configuration = configurations.first { $0.id == profile.id }
+                    let activity = configuration.map { model.managedServiceActivity(for: $0) }
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            StatusDot(status: visualStatus(for: profile.id))
+                            StatusDot(status: visualStatus(for: profile.id, activity: activity))
                             Image(systemName: "play.square")
                             Text(profile.name).font(.headline)
                             Spacer()
@@ -88,11 +89,23 @@ struct ProjectsView: View {
                                     .font(.system(.caption, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
+                            if let configuration, let activity {
+                                switch activity.state {
+                                case .controlled:
+                                    Button("Stop") { Task { await model.stopProfile(configuration) } }
+                                case .observed:
+                                    Button("Inspect") { model.inspectObservedRuntime(for: configuration) }
+                                        .help("Inspect the observed owner before taking control.")
+                                case .stopped:
+                                    Button("Start") { Task { await model.launchProfile(configuration) } }
+                                }
+                            }
                             Button("Remove from Project") {
                                 profile.projectID = nil
                                 try? context.save()
                             }
                         }
+                        .buttonStyle(.borderless)
                         HStack(spacing: DevBerthSpacing.medium) {
                             if let configuration, !configuration.dependencyServiceIDs.isEmpty {
                                 Label(
@@ -107,9 +120,13 @@ struct ProjectsView: View {
                                     "\(humanized(status.lifecycleState.rawValue)) · \(humanized(status.healthState.rawValue))",
                                     systemImage: "waveform.path.ecg"
                                 )
+                            } else if let activity, activity.state == .observed {
+                                Label(observedStatusText(activity), systemImage: "eye")
                             }
-                            if let docker = model.listeners.first(where: {
-                                $0.process.managedServiceID == profile.id && $0.process.docker != nil
+                            if let docker = model.listeners.first(where: { listener in
+                                (listener.process.managedServiceID == profile.id
+                                    || activity?.matchingListenerIDs.contains(listener.id) == true)
+                                    && listener.process.docker != nil
                             })?.process.docker {
                                 Label(docker.composeService ?? docker.containerName, systemImage: "shippingbox.fill")
                             }
@@ -170,9 +187,9 @@ struct ProjectsView: View {
                     }
                 }
                 if !configurations.isEmpty {
-                    let active = configurations.filter { model.runningProfileIDs.contains($0.id) }.count
+                    let active = configurations.filter { model.managedServiceActivity(for: $0).isActive }.count
                     ProgressView(value: Double(active), total: Double(configurations.count)) {
-                        Text("\(active) of \(configurations.count) services running").font(.caption)
+                        Text("\(active) of \(configurations.count) services active").font(.caption)
                     }
                 }
             }
@@ -248,9 +265,16 @@ struct ProjectsView: View {
         }
     }
 
-    private func visualStatus(for profileID: UUID) -> StatusDot.Status {
+    private func visualStatus(
+        for profileID: UUID,
+        activity: ManagedServiceActivityEvidence?
+    ) -> StatusDot.Status {
         guard let status = model.runtimeStatuses[profileID] else {
-            return model.runningProfileIDs.contains(profileID) ? .healthy : .stopped
+            switch activity?.state {
+            case .controlled: return .healthy
+            case .observed: return .warning
+            case .stopped, nil: return .stopped
+            }
         }
         if status.lifecycleState == .failed || status.healthState == .unhealthy { return .failed }
         if status.healthState == .degraded { return .warning }
@@ -259,6 +283,15 @@ struct ProjectsView: View {
             || status.lifecycleState == .waitingForPort
             || status.lifecycleState == .waitingForReadiness { return .warning }
         return status.processRunning ? .healthy : .stopped
+    }
+
+    private func observedStatusText(_ activity: ManagedServiceActivityEvidence) -> String {
+        if activity.expectedPortCount <= 1 {
+            return String(localized: "Observed on expected port")
+        }
+        return String(
+            localized: "Observed on \(activity.openExpectedPortCount) of \(activity.expectedPortCount) expected ports"
+        )
     }
 }
 

@@ -62,9 +62,9 @@ struct MenuBarView: View {
                             Image(systemName: "star.fill").foregroundStyle(.yellow)
                             Text(profile.name).lineLimit(1)
                             Spacer()
-                            Button(model.runningProfileIDs.contains(profile.id) ? "Stop" : "Start") {
+                            Button(model.isManagedServiceRunning(profile.id) ? "Stop" : "Start") {
                                 Task {
-                                    if model.runningProfileIDs.contains(profile.id) { await model.stopProfile(profile) }
+                                    if model.isManagedServiceRunning(profile.id) { await model.stopProfile(profile) }
                                     else { await model.launchProfile(profile) }
                                 }
                             }
@@ -88,7 +88,7 @@ struct MenuBarView: View {
                     HStack {
                         Label(project.name, systemImage: "folder.fill")
                         Spacer()
-                        let isRunning = values.contains { model.runningProfileIDs.contains($0.id) }
+                        let isRunning = values.contains { model.isManagedServiceRunning($0.id) }
                         Button(isRunning ? "Stop" : "Start") {
                             Task {
                                 if isRunning { await model.stopProject(values) }

@@ -6,11 +6,11 @@ private enum HistoryGrouping: String, CaseIterable { case none = "No Grouping", 
 private enum HistoryTimeline: String, CaseIterable { case lifecycle = "Lifecycle", actions = "Ports & Actions" }
 
 struct HistoryView: View {
+    private static let fetchLimit = 500
     @EnvironmentObject private var model: AppModel
     @Environment(\.modelContext) private var context
-    @Query(sort: \ProcessHistoryEventRecord.timestamp, order: .reverse) private var events: [ProcessHistoryEventRecord]
-    @Query(sort: \LifecycleEventRecord.timestamp, order: .reverse) private var lifecycleEvents: [LifecycleEventRecord]
-    @Query private var lifecycleContexts: [LifecycleEventContextRecord]
+    @Query private var events: [ProcessHistoryEventRecord]
+    @Query private var lifecycleEvents: [LifecycleEventRecord]
     @Query(sort: \RuntimeIncidentSummaryRecord.generatedAt, order: .reverse) private var incidents: [RuntimeIncidentSummaryRecord]
     @Query private var profiles: [LaunchProfileRecord]
     @Query private var dependencies: [ProfileDependencyRecord]
@@ -25,6 +25,21 @@ struct HistoryView: View {
     @State private var searchText = ""
     @State private var selection = Set<UUID>()
     @State private var confirmsClearAll = false
+    @State private var lifecycleContextSnapshots: [LifecycleHistoryContextSnapshot] = []
+
+    init() {
+        var processDescriptor = FetchDescriptor<ProcessHistoryEventRecord>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        processDescriptor.fetchLimit = Self.fetchLimit
+        _events = Query(processDescriptor)
+
+        var lifecycleDescriptor = FetchDescriptor<LifecycleEventRecord>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+        )
+        lifecycleDescriptor.fetchLimit = Self.fetchLimit
+        _lifecycleEvents = Query(lifecycleDescriptor)
+    }
 
     private var filtered: [ProcessHistoryEventRecord] {
         events.filter { event in
@@ -44,22 +59,23 @@ struct HistoryView: View {
         }
     }
 
-    private var filteredLifecycle: [LifecycleEventRecord] {
-        lifecycleEvents.filter { event in
-            let context = lifecycleContexts.first { $0.lifecycleEventID == event.id }
-            let matchesSeverity = severity == nil || context?.severityRawValue == severity?.rawValue
-            let matchesDate = cutoff.map { event.timestamp >= $0 } ?? true
-            let haystack = [
-                event.categoryRawValue,
-                event.outcomeRawValue,
-                event.summary,
-                context?.sourceRawValue ?? "",
-                context?.severityRawValue ?? ""
-            ].joined(separator: " ")
-            return matchesSeverity
-                && matchesDate
-                && (searchText.isEmpty || haystack.localizedCaseInsensitiveContains(searchText))
-        }
+    private var filteredLifecycle: [LifecycleHistoryRow] {
+        LifecycleHistoryPresentation.rows(
+            events: lifecycleEvents.map {
+                LifecycleHistoryEventSnapshot(
+                    id: $0.id,
+                    timestamp: $0.timestamp,
+                    managedServiceID: $0.managedServiceID,
+                    categoryRawValue: $0.categoryRawValue,
+                    outcomeRawValue: $0.outcomeRawValue,
+                    summary: $0.summary
+                )
+            },
+            contexts: lifecycleContextSnapshots,
+            severity: severity,
+            cutoff: cutoff,
+            searchText: searchText
+        )
     }
 
     private var cutoff: Date? {
@@ -71,16 +87,23 @@ struct HistoryView: View {
         }
     }
 
+    private var displayedPageIsLimited: Bool {
+        timeline == .lifecycle
+            ? lifecycleEvents.count == Self.fetchLimit
+            : events.count == Self.fetchLimit
+    }
+
     var body: some View {
+        let lifecycleRows = filteredLifecycle
         Group {
-            if timeline == .lifecycle && filteredLifecycle.isEmpty {
+            if timeline == .lifecycle && lifecycleRows.isEmpty {
                 EmptyStateView(
                     symbol: searchText.isEmpty ? "waveform.path.ecg" : "magnifyingglass",
                     title: searchText.isEmpty ? "No lifecycle events" : "No matching lifecycle events",
                     message: "Managed launches, readiness, health, exits, restarts, and incidents appear here."
                 )
             } else if timeline == .lifecycle {
-                lifecycleTimeline
+                lifecycleTimeline(lifecycleRows)
             } else if filtered.isEmpty {
                 EmptyStateView(
                     symbol: searchText.isEmpty ? "clock.arrow.circlepath" : "magnifyingglass",
@@ -94,9 +117,16 @@ struct HistoryView: View {
             }
         }
         .navigationTitle("History")
+        .task(id: lifecycleEvents.map(\.id)) {
+            loadLifecycleContexts()
+        }
         .toolbar {
             Picker("Timeline", selection: $timeline) {
                 ForEach(HistoryTimeline.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            if displayedPageIsLimited {
+                Text("Latest \(Self.fetchLimit)")
+                    .foregroundStyle(.secondary)
             }
             TextField("Search history", text: $searchText).textFieldStyle(.roundedBorder).frame(width: 180)
             Picker("Date range", selection: $range) { ForEach(HistoryRange.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
@@ -125,26 +155,22 @@ struct HistoryView: View {
         }
         .confirmationDialog("Clear all DevBerth history?", isPresented: $confirmsClearAll, titleVisibility: .visible) {
             Button("Clear All History", role: .destructive) {
-                events.forEach(context.delete)
-                lifecycleEvents.forEach(context.delete)
-                lifecycleContexts.forEach(context.delete)
-                incidents.forEach(context.delete)
-                try? context.save()
+                clearAllHistory()
                 selection.removeAll()
             }
             Button("Cancel", role: .cancel) {}
         } message: { Text("Projects and managed services will not be deleted. This history cannot be recovered.") }
     }
 
-    private var lifecycleTimeline: some View {
+    private func lifecycleTimeline(_ rows: [LifecycleHistoryRow]) -> some View {
         HSplitView {
-            Table(filteredLifecycle, selection: $selection) {
+            Table(rows, selection: $selection) {
                 TableColumn("Time") {
                     Text($0.timestamp, format: .dateTime.month().day().hour().minute().second())
                 }
                 .width(min: 125, ideal: 150)
                 TableColumn("Severity") { event in
-                    let value = lifecycleContext(for: event)?.severityRawValue ?? "info"
+                    let value = event.severityRawValue
                     Label(value.capitalized, systemImage: severitySymbol(value))
                         .foregroundStyle(severityColor(value))
                 }
@@ -154,7 +180,7 @@ struct HistoryView: View {
                     Text(profileName(for: event.managedServiceID))
                 }
                 TableColumn("Source") { event in
-                    Text(humanized(lifecycleContext(for: event)?.sourceRawValue ?? "system"))
+                    Text(humanized(event.sourceRawValue))
                 }
                 TableColumn("Summary", value: \.summary)
                 TableColumn("Result") { Text($0.outcomeRawValue.capitalized) }
@@ -241,12 +267,46 @@ struct HistoryView: View {
         if timeline == .lifecycle {
             let ids = selection
             lifecycleEvents.filter { ids.contains($0.id) }.forEach(context.delete)
-            lifecycleContexts.filter { ids.contains($0.lifecycleEventID) }.forEach(context.delete)
+            let descriptor = FetchDescriptor<LifecycleEventContextRecord>(
+                predicate: #Predicate { ids.contains($0.lifecycleEventID) }
+            )
+            (try? context.fetch(descriptor))?.forEach(context.delete)
         } else {
             events.filter { selection.contains($0.id) }.forEach(context.delete)
         }
         try? context.save()
         selection.removeAll()
+    }
+
+    private func loadLifecycleContexts() {
+        let ids = Set(lifecycleEvents.map(\.id))
+        guard !ids.isEmpty else {
+            lifecycleContextSnapshots = []
+            return
+        }
+        let descriptor = FetchDescriptor<LifecycleEventContextRecord>(
+            predicate: #Predicate { ids.contains($0.lifecycleEventID) }
+        )
+        lifecycleContextSnapshots = ((try? context.fetch(descriptor)) ?? []).map {
+            LifecycleHistoryContextSnapshot(
+                lifecycleEventID: $0.lifecycleEventID,
+                severityRawValue: $0.severityRawValue,
+                sourceRawValue: $0.sourceRawValue
+            )
+        }
+    }
+
+    private func clearAllHistory() {
+        do {
+            try context.delete(model: ProcessHistoryEventRecord.self, where: #Predicate { _ in true })
+            try context.delete(model: LifecycleEventRecord.self, where: #Predicate { _ in true })
+            try context.delete(model: LifecycleEventContextRecord.self, where: #Predicate { _ in true })
+            try context.delete(model: RuntimeIncidentSummaryRecord.self, where: #Predicate { _ in true })
+            try context.save()
+            lifecycleContextSnapshots = []
+        } catch {
+            model.presentedError = .unexpected(error.localizedDescription)
+        }
     }
 
     private var selectedIncident: RuntimeIncidentSummary? {
@@ -256,10 +316,6 @@ struct HistoryView: View {
             $0.managedServiceID == serviceID
                 && ($0.summary?.relatedEventIDs.contains(selectedEvent.id) == true)
         }?.summary ?? incidents.first { $0.managedServiceID == serviceID }?.summary
-    }
-
-    private func lifecycleContext(for event: LifecycleEventRecord) -> LifecycleEventContextRecord? {
-        lifecycleContexts.first { $0.lifecycleEventID == event.id }
     }
 
     private func profileName(for id: UUID?) -> String {

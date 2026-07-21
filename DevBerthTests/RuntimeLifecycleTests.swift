@@ -134,7 +134,7 @@ final class RuntimeLifecycleTests: XCTestCase {
         )
         let context = ModelContext(container)
         let serviceID = UUID()
-        for index in 0..<121 {
+        for index in 0..<321 {
             let event = LifecycleEvent(
                 timestamp: Date(timeIntervalSince1970: Double(index)),
                 managedServiceID: serviceID,

@@ -41,6 +41,75 @@ struct HistoryEvent: Hashable, Codable, Sendable, Identifiable {
     let durationSeconds: Double?
 }
 
+struct LifecycleHistoryEventSnapshot: Hashable, Sendable, Identifiable {
+    let id: UUID
+    let timestamp: Date
+    let managedServiceID: UUID?
+    let categoryRawValue: String
+    let outcomeRawValue: String
+    let summary: String
+}
+
+struct LifecycleHistoryContextSnapshot: Hashable, Sendable {
+    let lifecycleEventID: UUID
+    let severityRawValue: String
+    let sourceRawValue: String
+}
+
+struct LifecycleHistoryRow: Hashable, Sendable, Identifiable {
+    let id: UUID
+    let timestamp: Date
+    let managedServiceID: UUID?
+    let categoryRawValue: String
+    let outcomeRawValue: String
+    let summary: String
+    let severityRawValue: String
+    let sourceRawValue: String
+}
+
+enum LifecycleHistoryPresentation {
+    static func rows(
+        events: [LifecycleHistoryEventSnapshot],
+        contexts: [LifecycleHistoryContextSnapshot],
+        severity: LifecycleEventSeverity?,
+        cutoff: Date?,
+        searchText: String
+    ) -> [LifecycleHistoryRow] {
+        var contextsByEventID: [UUID: LifecycleHistoryContextSnapshot] = [:]
+        contextsByEventID.reserveCapacity(contexts.count)
+        for context in contexts {
+            contextsByEventID[context.lifecycleEventID] = context
+        }
+
+        return events.compactMap { event in
+            let context = contextsByEventID[event.id]
+            let matchesSeverity = severity == nil || context?.severityRawValue == severity?.rawValue
+            let matchesDate = cutoff.map { event.timestamp >= $0 } ?? true
+            let haystack = [
+                event.categoryRawValue,
+                event.outcomeRawValue,
+                event.summary,
+                context?.sourceRawValue ?? "",
+                context?.severityRawValue ?? ""
+            ].joined(separator: " ")
+            guard matchesSeverity,
+                  matchesDate,
+                  searchText.isEmpty || haystack.localizedCaseInsensitiveContains(searchText)
+            else { return nil }
+            return LifecycleHistoryRow(
+                id: event.id,
+                timestamp: event.timestamp,
+                managedServiceID: event.managedServiceID,
+                categoryRawValue: event.categoryRawValue,
+                outcomeRawValue: event.outcomeRawValue,
+                summary: event.summary,
+                severityRawValue: context?.severityRawValue ?? LifecycleEventSeverity.info.rawValue,
+                sourceRawValue: context?.sourceRawValue ?? LifecycleEventSource.system.rawValue
+            )
+        }
+    }
+}
+
 struct PortConflict: Hashable, Sendable, Identifiable {
     var id: String { listener.id }
     let expectedPort: ExpectedListenerConfiguration

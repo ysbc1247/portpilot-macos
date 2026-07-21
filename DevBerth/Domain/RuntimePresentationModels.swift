@@ -72,3 +72,62 @@ enum RuntimePresentation {
         return "Observed host process"
     }
 }
+
+enum ManagedServiceActivityState: Hashable, Sendable {
+    case controlled
+    case observed
+    case stopped
+}
+
+struct ManagedServiceActivityEvidence: Hashable, Sendable {
+    let state: ManagedServiceActivityState
+    let matchingListenerIDs: Set<String>
+    let openExpectedPortCount: Int
+    let expectedPortCount: Int
+
+    var isActive: Bool { state != .stopped }
+    var isControlled: Bool { state == .controlled }
+}
+
+enum ManagedServiceActivityResolver {
+    static func resolve(
+        profile: ManagedServiceConfiguration,
+        listeners: [ObservedListener],
+        runningProfileIDs: Set<UUID>,
+        runtimeStatus: ManagedServiceRuntimeStatus?
+    ) -> ManagedServiceActivityEvidence {
+        if runningProfileIDs.contains(profile.id) || runtimeStatus?.processRunning == true {
+            return ManagedServiceActivityEvidence(
+                state: .controlled,
+                matchingListenerIDs: runtimeStatus?.openListenerIDs ?? [],
+                openExpectedPortCount: profile.expectedPorts.count,
+                expectedPortCount: profile.expectedPorts.count
+            )
+        }
+
+        let matchingListeners = listeners.filter { listener in
+            profile.expectedPorts.contains {
+                $0.port == listener.port && $0.protocolKind == listener.protocolKind
+            }
+        }
+        guard !matchingListeners.isEmpty else {
+            return ManagedServiceActivityEvidence(
+                state: .stopped,
+                matchingListenerIDs: [],
+                openExpectedPortCount: 0,
+                expectedPortCount: profile.expectedPorts.count
+            )
+        }
+        let openExpectedPortCount = profile.expectedPorts.filter { expected in
+            matchingListeners.contains {
+                $0.port == expected.port && $0.protocolKind == expected.protocolKind
+            }
+        }.count
+        return ManagedServiceActivityEvidence(
+            state: .observed,
+            matchingListenerIDs: Set(matchingListeners.map(\.id)),
+            openExpectedPortCount: openExpectedPortCount,
+            expectedPortCount: profile.expectedPorts.count
+        )
+    }
+}

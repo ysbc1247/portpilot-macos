@@ -2,6 +2,38 @@ import XCTest
 @testable import DevBerth
 
 final class DockerTests: XCTestCase {
+    func testFoundationCommandRunnerDrainsOutputLargerThanPipeCapacity() async throws {
+        let payload = String(repeating: "x", count: 65_536)
+
+        let result = try await FoundationCommandRunner().run(
+            executable: URL(fileURLWithPath: "/usr/bin/printf"),
+            arguments: ["%s", payload]
+        )
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout.count, payload.utf8.count)
+        XCTAssertTrue(result.stderr.isEmpty)
+    }
+
+    func testExecutableResolverUsesAdditionalGUISearchDirectories() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DevBerthExecutableResolver-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("docker")
+        try Data("#!/bin/sh\n".utf8).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+
+        let resolved = ExecutableResolver().resolve(
+            "docker",
+            environment: ["PATH": "/usr/bin:/bin"],
+            workingDirectory: "/",
+            additionalSearchDirectories: [directory.path]
+        )
+
+        XCTAssertEqual(resolved?.path, executable.path)
+    }
+
     func testParsesIPv4IPv6PublishedPortsAndSkipsUnpublishedPorts() {
         let value = "127.0.0.1:5432->5432/tcp, [::]:8080->80/tcp, 6379/tcp, 0.0.0.0:5353->5353/udp"
         let mappings = DockerPortParser.parse(value)
@@ -61,6 +93,24 @@ final class DockerTests: XCTestCase {
         XCTAssertEqual(runner.invocations.filter { $0.arguments.first == "inspect" }.count, 2)
         XCTAssertEqual(runner.invocations.filter { $0.arguments.contains("config") }.count, 1)
         XCTAssertEqual(runner.invocations.filter { $0.arguments.contains("ps") && $0.arguments.first == "compose" }.count, 1)
+    }
+
+    func testPassiveInspectionSkipsComposeControlVerification() async throws {
+        let fixture = try ComposeFixture()
+        let runner = MockCommandRunner { _, arguments in
+            try fixture.result(for: arguments)
+        }
+        let client = DockerCLIClient(runner: runner, executable: URL(fileURLWithPath: "/usr/local/bin/docker"))
+
+        let containers = try await client.observedRunningContainers()
+        let container = try XCTUnwrap(containers.first)
+
+        XCTAssertEqual(container.composeProject, "demo")
+        XCTAssertEqual(container.composeService, "api")
+        XCTAssertNil(container.composeContext)
+        XCTAssertEqual(container.composeContextIssue, "Compose control scope is not verified during passive inspection.")
+        XCTAssertFalse(runner.invocations.contains { $0.arguments.contains("config") })
+        XCTAssertFalse(runner.invocations.contains { $0.arguments.contains("--format") && $0.arguments.contains("json") })
     }
 
     func testComposeHashMismatchLeavesContainerInspectionOnly() async throws {

@@ -31,7 +31,7 @@ actor DockerAssociationProvider {
 
     private func refresh() async {
         lastRefresh = Date()
-        guard case .available = await client.availability(), let containers = try? await client.runningContainers() else {
+        guard case .available = await client.availability(), let containers = try? await client.observedRunningContainers() else {
             mappings = [:]
             return
         }
