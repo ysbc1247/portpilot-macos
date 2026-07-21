@@ -69,6 +69,13 @@ struct ProjectsView: View {
                 serviceChecks: serviceChecks
             )
         }
+        let activities = configurations.reduce(into: [UUID: ManagedServiceActivityEvidence]()) { values, configuration in
+            values[configuration.id] = model.managedServiceActivity(for: configuration)
+        }
+        let startableCount = activities.values.filter { $0.state == .stopped }.count
+        let stoppableCount = activities.values.filter { $0.state == .controlled }.count
+        let operation = model.projectOperations[project.id]
+        let projectIsBusy = operation?.isRunning == true
         return Section {
             if projectProfiles.isEmpty {
                 Text("Add an existing managed service to orchestrate this project.")
@@ -77,7 +84,7 @@ struct ProjectsView: View {
             } else {
                 ForEach(projectProfiles) { profile in
                     let configuration = configurations.first { $0.id == profile.id }
-                    let activity = configuration.map { model.managedServiceActivity(for: $0) }
+                    let activity = activities[profile.id]
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             StatusDot(status: visualStatus(for: profile.id, activity: activity))
@@ -93,11 +100,13 @@ struct ProjectsView: View {
                                 switch activity.state {
                                 case .controlled:
                                     Button("Stop") { Task { await model.stopProfile(configuration) } }
+                                        .disabled(projectIsBusy)
                                 case .observed:
                                     Button("Inspect") { model.inspectObservedRuntime(for: configuration) }
                                         .help("Inspect the observed owner before taking control.")
                                 case .stopped:
                                     Button("Start") { Task { await model.launchProfile(configuration) } }
+                                        .disabled(projectIsBusy)
                                 }
                             }
                             Button("Remove from Project") {
@@ -154,10 +163,36 @@ struct ProjectsView: View {
                         if let path = project.folderPath { Text(path).font(.caption).foregroundStyle(.secondary) }
                     }
                     Spacer()
-                    Button("Start All") { Task { await model.startProject(configurations) } }
-                        .disabled(configurations.isEmpty)
-                    Button("Stop All") { Task { await model.stopProject(configurations) } }
-                        .disabled(configurations.isEmpty)
+                    Button {
+                        Task { await model.startProject(configurations) }
+                    } label: {
+                        Label(
+                            operation?.isRunning == true && operation?.kind == .start
+                                ? "Starting…"
+                                : "Start All",
+                            systemImage: "play.fill"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(configurations.isEmpty || projectIsBusy)
+                    .help(startableCount == 0
+                        ? "Every service is already active or externally observed."
+                        : "Start \(startableCount) stopped service(s) in dependency order.")
+
+                    Button {
+                        Task { await model.stopProject(configurations) }
+                    } label: {
+                        Label(
+                            operation?.isRunning == true && operation?.kind == .stop
+                                ? "Stopping…"
+                                : "Stop All",
+                            systemImage: "stop.fill"
+                        )
+                    }
+                    .disabled(configurations.isEmpty || projectIsBusy)
+                    .help(stoppableCount == 0
+                        ? "No DevBerth-controlled project services are running."
+                        : "Stop \(stoppableCount) controlled service(s) in reverse dependency order.")
                     Button("Discover Services", systemImage: "sparkle.magnifyingglass") {
                         discoveryProject = project
                     }
@@ -187,14 +222,71 @@ struct ProjectsView: View {
                     }
                 }
                 if !configurations.isEmpty {
-                    let active = configurations.filter { model.managedServiceActivity(for: $0).isActive }.count
+                    let active = activities.values.filter(\.isActive).count
                     ProgressView(value: Double(active), total: Double(configurations.count)) {
                         Text("\(active) of \(configurations.count) services active").font(.caption)
                     }
                 }
+                if let operation {
+                    projectOperationBanner(operation)
+                }
             }
             .textCase(nil)
             .padding(.top, DevBerthSpacing.small)
+        }
+    }
+
+    private func projectOperationBanner(_ operation: ProjectOperationStatus) -> some View {
+        let color = projectOperationColor(operation.phase)
+        return HStack(spacing: DevBerthSpacing.medium) {
+            if operation.isRunning {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: operation.phase == .succeeded ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                    .foregroundStyle(color)
+            }
+            VStack(alignment: .leading, spacing: DevBerthSpacing.xSmall) {
+                Text(operation.message)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(operation.phase == .failed ? color : .primary)
+                if operation.isRunning {
+                    ProgressView(
+                        value: operation.fractionCompleted,
+                        total: 1
+                    )
+                    .tint(color)
+                }
+            }
+            Spacer(minLength: DevBerthSpacing.small)
+            if operation.isRunning {
+                Text("\(operation.completedServiceCount) / \(operation.totalServiceCount)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            } else {
+                Button("Dismiss Status", systemImage: "xmark.circle.fill") {
+                    model.dismissProjectOperation(operation.projectID)
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(DevBerthSpacing.medium)
+        .background(color.opacity(0.09), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(color.opacity(0.28))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(operation.message)
+    }
+
+    private func projectOperationColor(_ phase: ProjectOperationPhase) -> Color {
+        switch phase {
+        case .running: .accentColor
+        case .succeeded: .green
+        case .failed: .red
         }
     }
 
@@ -318,7 +410,9 @@ private struct ProjectDiscoveryReviewView: View {
                         .textSelection(.enabled)
                 }
                 Spacer()
-                Button("Close") { dismiss() }
+                Button("Close", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(isImporting)
             }
             .padding()
 
@@ -339,6 +433,9 @@ private struct ProjectDiscoveryReviewView: View {
         }
         .frame(minWidth: 760, minHeight: 600)
         .task { await discover() }
+        .onExitCommand {
+            if !isImporting { dismiss() }
+        }
     }
 
     @ViewBuilder
@@ -515,6 +612,7 @@ private struct NewProjectView: View {
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
                 Button("Create") {
                     context.insert(ProjectRecord(
                         name: name,
@@ -530,5 +628,6 @@ private struct NewProjectView: View {
             .padding().background(.bar)
         }
         .frame(width: 520, height: 300)
+        .onExitCommand { dismiss() }
     }
 }

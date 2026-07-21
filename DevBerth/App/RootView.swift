@@ -173,7 +173,8 @@ private struct PortConflictResolutionView: View {
                     .foregroundStyle(.red)
             }
             HStack {
-                Button("Cancel", role: .cancel) { model.pendingLaunchConflict = nil; dismiss() }
+                Button("Cancel", role: .cancel) { cancel() }
+                    .keyboardShortcut(.cancelAction)
                 Button("Inspect Process") { model.inspectPendingConflict(); dismiss() }
                 Button("Edit Expected Port") { model.editProfileForPendingConflict(); dismiss() }
                 Spacer()
@@ -186,5 +187,11 @@ private struct PortConflictResolutionView: View {
         }
         .padding(DevBerthSpacing.xLarge)
         .frame(width: 680)
+        .onExitCommand { cancel() }
+    }
+
+    private func cancel() {
+        model.pendingLaunchConflict = nil
+        dismiss()
     }
 }

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct ProfileLogsView: View {
     @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
     let profileID: UUID
     let profileName: String
     @State private var entries: [ServiceLogEntry] = []
@@ -27,6 +28,8 @@ struct ProfileLogsView: View {
                 Button("Copy", systemImage: "doc.on.doc") { copyLogs() }.disabled(filtered.isEmpty)
                 Button("Export", systemImage: "square.and.arrow.up") { exportsDocument = LogTextDocument(text: rendered(filtered)) }
                     .disabled(filtered.isEmpty)
+                Button("Close", systemImage: "xmark") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
             }
             .padding()
             Divider()
@@ -62,6 +65,7 @@ struct ProfileLogsView: View {
             contentType: .plainText,
             defaultFilename: "\(profileName)-logs.txt"
         ) { _ in exportsDocument = nil }
+        .onExitCommand { dismiss() }
     }
 
     private func rendered(_ values: [ServiceLogEntry]) -> String {

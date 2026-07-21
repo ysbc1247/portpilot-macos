@@ -939,6 +939,8 @@ private struct DiscoveredProfileReviewView: View {
             HStack {
                 if isWorking { ProgressView().controlSize(.small) }
                 Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(isWorking)
                 Spacer()
                 if step > 0 {
                     Button("Back") { step -= 1; errorMessage = nil }
@@ -961,6 +963,9 @@ private struct DiscoveredProfileReviewView: View {
         }
         .frame(width: 700, height: 680)
         .interactiveDismissDisabled(isWorking)
+        .onExitCommand {
+            if !isWorking { dismiss() }
+        }
     }
 
     @ViewBuilder

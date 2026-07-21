@@ -75,6 +75,54 @@ final class LaunchCoordinatorTests: XCTestCase {
     }
 }
 
+final class ProjectOrchestratorTests: XCTestCase {
+    func testBulkOperationsKeepFullDependencyGraphWhileSkippingUntargetedServices() async throws {
+        let projectID = UUID()
+        let database = ManagedServiceConfiguration(
+            name: "Database",
+            projectID: projectID,
+            command: "/usr/bin/true",
+            workingDirectory: "/tmp"
+        )
+        let web = ManagedServiceConfiguration(
+            name: "Web",
+            projectID: projectID,
+            command: "/usr/bin/true",
+            workingDirectory: "/tmp",
+            dependencyServiceIDs: [database.id]
+        )
+        let launcher = RecordingProjectLauncher()
+        let progress = RecordingProjectProgress()
+        let orchestrator = ProjectOrchestrator(launcher: launcher)
+
+        let result = try await orchestrator.start(
+            profiles: [web, database],
+            skippingProfileIDs: [database.id]
+        ) { completed, total in
+            await progress.record(completed: completed, total: total)
+        }
+
+        XCTAssertEqual(result.startedProfileIDs, [web.id])
+        let launchedProfileIDs = await launcher.launchedProfileIDs()
+        let startProgress = await progress.values()
+        XCTAssertEqual(launchedProfileIDs, [web.id])
+        XCTAssertEqual(startProgress, ["0/1", "1/1"])
+
+        await progress.reset()
+        try await orchestrator.stop(
+            profiles: [web, database],
+            skippingProfileIDs: [database.id]
+        ) { completed, total in
+            await progress.record(completed: completed, total: total)
+        }
+
+        let stoppedProfileIDs = await launcher.stoppedProfileIDs()
+        let stopProgress = await progress.values()
+        XCTAssertEqual(stoppedProfileIDs, [web.id])
+        XCTAssertEqual(stopProgress, ["0/1", "1/1"])
+    }
+}
+
 private struct FixedDiscovery: PortDiscovering {
     let listeners: [ObservedListener]
     func discover() async throws -> [ObservedListener] { listeners }
@@ -93,6 +141,33 @@ private actor RecordingManagedLauncher: ManagedProcessLaunching {
     private(set) var launches = 0
     func launch(_ profile: ManagedServiceConfiguration) async throws { launches += 1 }
     func stop(profileID: UUID, timeoutSeconds: Double) async throws {}
+}
+
+private actor RecordingProjectLauncher: LaunchProfileServing {
+    private var launched: [UUID] = []
+    private var stopped: [UUID] = []
+
+    func launch(_ profile: ManagedServiceConfiguration) async throws {
+        launched.append(profile.id)
+    }
+
+    func stop(profileID: UUID, timeoutSeconds: Double) async throws {
+        stopped.append(profileID)
+    }
+
+    func launchedProfileIDs() -> [UUID] { launched }
+    func stoppedProfileIDs() -> [UUID] { stopped }
+}
+
+private actor RecordingProjectProgress {
+    private var recordedValues: [String] = []
+
+    func record(completed: Int, total: Int) {
+        recordedValues.append("\(completed)/\(total)")
+    }
+
+    func values() -> [String] { recordedValues }
+    func reset() { recordedValues = [] }
 }
 
 private struct PassingHealthChecker: HealthChecking {

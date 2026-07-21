@@ -669,6 +669,8 @@ private struct LaunchProfileEditor: View {
                 if isSaving { ProgressView().controlSize(.small) }
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(isSaving)
                 Button("Save Draft") { Task { await save(.draft) } }
                     .disabled(!canSave || isSaving)
                 Button("Test & Save Verified") { Task { await save(.validate) } }
@@ -679,6 +681,9 @@ private struct LaunchProfileEditor: View {
         }
         .frame(width: 720, height: 780)
         .interactiveDismissDisabled(isSaving)
+        .onExitCommand {
+            if !isSaving { dismiss() }
+        }
     }
 
     private var canSave: Bool {

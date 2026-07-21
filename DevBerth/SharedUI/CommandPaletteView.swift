@@ -228,6 +228,9 @@ struct CommandPaletteView: View {
                 run(action)
             }
         }
+        .onExitCommand {
+            isPresented = false
+        }
     }
 
     private func action(

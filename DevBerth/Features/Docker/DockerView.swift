@@ -223,7 +223,15 @@ struct DockerView: View {
             set: { if !$0 { model.logsContainerName = "" } }
         )) {
             VStack(alignment: .leading, spacing: 0) {
-                Text("Recent logs — \(model.logsContainerName)").font(.headline).padding()
+                HStack {
+                    Text("Recent logs — \(model.logsContainerName)").font(.headline)
+                    Spacer()
+                    Button("Close", systemImage: "xmark") {
+                        model.logsContainerName = ""
+                    }
+                    .keyboardShortcut(.cancelAction)
+                }
+                .padding()
                 Divider()
                 ScrollView([.horizontal, .vertical]) {
                     Text(model.logs)
@@ -233,6 +241,9 @@ struct DockerView: View {
                 }
             }
             .frame(width: 760, height: 480)
+            .onExitCommand {
+                model.logsContainerName = ""
+            }
         }
         .alert(item: $model.error) { value in
             Alert(

@@ -67,6 +67,36 @@ struct RuntimeLifecycleSnapshot: Sendable {
     let incidents: [UUID: RuntimeIncidentSummary]
 }
 
+enum ProjectOperationKind: String, Hashable, Sendable {
+    case start
+    case stop
+}
+
+enum ProjectOperationPhase: String, Hashable, Sendable {
+    case running
+    case succeeded
+    case failed
+}
+
+struct ProjectOperationStatus: Hashable, Sendable, Identifiable {
+    var id: UUID { projectID }
+    let projectID: UUID
+    let kind: ProjectOperationKind
+    let phase: ProjectOperationPhase
+    let completedServiceCount: Int
+    let totalServiceCount: Int
+    let message: String
+    let startedAt: Date
+    let finishedAt: Date?
+
+    var isRunning: Bool { phase == .running }
+
+    var fractionCompleted: Double {
+        guard totalServiceCount > 0 else { return phase == .running ? 0 : 1 }
+        return min(1, Double(completedServiceCount) / Double(totalServiceCount))
+    }
+}
+
 enum RestartPolicyEvaluator {
     static func shouldRestart(
         policy: RestartPolicy,

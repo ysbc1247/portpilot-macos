@@ -30,6 +30,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var runtimeStatuses: [UUID: ManagedServiceRuntimeStatus] = [:]
     @Published private(set) var runtimeIncidents: [UUID: RuntimeIncidentSummary] = [:]
     @Published private(set) var processResourceUsage: [Int32: ProcessResourceUsage] = [:]
+    @Published private(set) var projectOperations: [UUID: ProjectOperationStatus] = [:]
 
     private let monitor: PortMonitor
     private let lifecycleRouter: any OwnerAwareLifecycleRouting
@@ -728,14 +729,68 @@ final class AppModel: ObservableObject {
     }
 
     func startProject(_ profiles: [ManagedServiceConfiguration]) async {
+        guard let projectID = exactProjectID(for: profiles) else {
+            presentedError = .unexpected(String(localized: "Project startup requires one non-empty project definition."))
+            return
+        }
+        guard projectOperations[projectID]?.isRunning != true else { return }
+
+        let targets = profiles.filter { managedServiceActivity(for: $0).state == .stopped }
+        let targetIDs = Set(targets.map(\.id))
+        let skippedIDs = Set(profiles.map(\.id)).subtracting(targetIDs)
         let startedAt = Date()
+        guard !targets.isEmpty else {
+            projectOperations[projectID] = ProjectOperationStatus(
+                projectID: projectID,
+                kind: .start,
+                phase: .succeeded,
+                completedServiceCount: 0,
+                totalServiceCount: 0,
+                message: String(localized: "All project services are already active or externally observed."),
+                startedAt: startedAt,
+                finishedAt: Date()
+            )
+            return
+        }
+        projectOperations[projectID] = ProjectOperationStatus(
+            projectID: projectID,
+            kind: .start,
+            phase: .running,
+            completedServiceCount: 0,
+            totalServiceCount: targets.count,
+            message: String(localized: "Checking exact restart trust before starting \(targets.count) service(s)…"),
+            startedAt: startedAt,
+            finishedAt: nil
+        )
         do {
-            for profile in profiles {
+            for profile in targets {
+                updateProjectOperation(
+                    projectID: projectID,
+                    kind: .start,
+                    completed: 0,
+                    total: targets.count,
+                    message: String(localized: "Checking restart trust for \(profile.name)…"),
+                    startedAt: startedAt
+                )
                 try await requireVerifiedRestartTrust(for: profile)
             }
-            let result = try await projectOrchestrator.start(profiles: profiles)
+            let result = try await projectOrchestrator.start(
+                profiles: profiles,
+                skippingProfileIDs: skippedIDs
+            ) { [weak self] completed, total in
+                await self?.updateProjectOperation(
+                    projectID: projectID,
+                    kind: .start,
+                    completed: completed,
+                    total: total,
+                    message: completed == 0
+                        ? String(localized: "Starting the first dependency layer…")
+                        : String(localized: "Started \(completed) of \(total) service(s)…"),
+                    startedAt: startedAt
+                )
+            }
             runningProfileIDs.formUnion(result.startedProfileIDs)
-            for profile in profiles where result.startedProfileIDs.contains(profile.id) {
+            for profile in targets where result.startedProfileIDs.contains(profile.id) {
                 await record(HistoryEvent(
                     id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
                     processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
@@ -743,8 +798,34 @@ final class AppModel: ObservableObject {
                     errorDetails: nil, durationSeconds: result.durationSeconds
                 ))
             }
+            let skippedMessage = skippedIDs.isEmpty
+                ? ""
+                : String(localized: " \(skippedIDs.count) already-active service(s) were left unchanged.")
+            projectOperations[projectID] = ProjectOperationStatus(
+                projectID: projectID,
+                kind: .start,
+                phase: .succeeded,
+                completedServiceCount: result.startedProfileIDs.count,
+                totalServiceCount: targets.count,
+                message: String(localized: "Started \(result.startedProfileIDs.count) service(s) in \(result.durationSeconds.formatted(.number.precision(.fractionLength(1)))) seconds.\(skippedMessage)"),
+                startedAt: startedAt,
+                finishedAt: Date()
+            )
+            refreshNow()
         } catch {
-            presentedError = .unexpected("Project startup stopped because a dependency failed: \(error.localizedDescription)")
+            let completed = projectOperations[projectID]?.completedServiceCount ?? 0
+            let message = String(localized: "Project startup stopped after \(completed) of \(targets.count) service(s): \(error.localizedDescription)")
+            projectOperations[projectID] = ProjectOperationStatus(
+                projectID: projectID,
+                kind: .start,
+                phase: .failed,
+                completedServiceCount: completed,
+                totalServiceCount: targets.count,
+                message: message,
+                startedAt: startedAt,
+                finishedAt: Date()
+            )
+            presentedError = .unexpected(message)
         }
     }
 
@@ -793,12 +874,119 @@ final class AppModel: ObservableObject {
     }
 
     func stopProject(_ profiles: [ManagedServiceConfiguration]) async {
-        do {
-            try await projectOrchestrator.stop(profiles: profiles)
-            runningProfileIDs.subtract(profiles.map(\.id))
-        } catch {
-            presentedError = .unexpected("One or more project services could not stop: \(error.localizedDescription)")
+        guard let projectID = exactProjectID(for: profiles) else {
+            presentedError = .unexpected(String(localized: "Project shutdown requires one non-empty project definition."))
+            return
         }
+        guard projectOperations[projectID]?.isRunning != true else { return }
+
+        let targets = profiles.filter { managedServiceActivity(for: $0).state == .controlled }
+        let targetIDs = Set(targets.map(\.id))
+        let skippedIDs = Set(profiles.map(\.id)).subtracting(targetIDs)
+        let startedAt = Date()
+        guard !targets.isEmpty else {
+            projectOperations[projectID] = ProjectOperationStatus(
+                projectID: projectID,
+                kind: .stop,
+                phase: .succeeded,
+                completedServiceCount: 0,
+                totalServiceCount: 0,
+                message: String(localized: "No DevBerth-controlled project services are running."),
+                startedAt: startedAt,
+                finishedAt: Date()
+            )
+            return
+        }
+        projectOperations[projectID] = ProjectOperationStatus(
+            projectID: projectID,
+            kind: .stop,
+            phase: .running,
+            completedServiceCount: 0,
+            totalServiceCount: targets.count,
+            message: String(localized: "Stopping \(targets.count) controlled service(s) in reverse dependency order…"),
+            startedAt: startedAt,
+            finishedAt: nil
+        )
+        do {
+            try await projectOrchestrator.stop(
+                profiles: profiles,
+                skippingProfileIDs: skippedIDs
+            ) { [weak self] completed, total in
+                await self?.updateProjectOperation(
+                    projectID: projectID,
+                    kind: .stop,
+                    completed: completed,
+                    total: total,
+                    message: completed == 0
+                        ? String(localized: "Stopping the first reverse dependency layer…")
+                        : String(localized: "Stopped \(completed) of \(total) service(s)…"),
+                    startedAt: startedAt
+                )
+            }
+            runningProfileIDs.subtract(targetIDs)
+            let duration = Date().timeIntervalSince(startedAt)
+            let skippedMessage = skippedIDs.isEmpty
+                ? ""
+                : String(localized: " \(skippedIDs.count) stopped or observed service(s) were left unchanged.")
+            projectOperations[projectID] = ProjectOperationStatus(
+                projectID: projectID,
+                kind: .stop,
+                phase: .succeeded,
+                completedServiceCount: targets.count,
+                totalServiceCount: targets.count,
+                message: String(localized: "Stopped \(targets.count) service(s) in \(duration.formatted(.number.precision(.fractionLength(1)))) seconds.\(skippedMessage)"),
+                startedAt: startedAt,
+                finishedAt: Date()
+            )
+            refreshNow()
+        } catch {
+            let completed = projectOperations[projectID]?.completedServiceCount ?? 0
+            let message = String(localized: "Project shutdown stopped after \(completed) of \(targets.count) service(s): \(error.localizedDescription)")
+            projectOperations[projectID] = ProjectOperationStatus(
+                projectID: projectID,
+                kind: .stop,
+                phase: .failed,
+                completedServiceCount: completed,
+                totalServiceCount: targets.count,
+                message: message,
+                startedAt: startedAt,
+                finishedAt: Date()
+            )
+            presentedError = .unexpected(message)
+        }
+    }
+
+    func dismissProjectOperation(_ projectID: UUID) {
+        guard projectOperations[projectID]?.isRunning != true else { return }
+        projectOperations.removeValue(forKey: projectID)
+    }
+
+    private func exactProjectID(for profiles: [ManagedServiceConfiguration]) -> UUID? {
+        guard
+            let projectID = profiles.first?.projectID,
+            profiles.allSatisfy({ $0.projectID == projectID })
+        else { return nil }
+        return projectID
+    }
+
+    private func updateProjectOperation(
+        projectID: UUID,
+        kind: ProjectOperationKind,
+        completed: Int,
+        total: Int,
+        message: String,
+        startedAt: Date
+    ) {
+        projectOperations[projectID] = ProjectOperationStatus(
+            projectID: projectID,
+            kind: kind,
+            phase: .running,
+            completedServiceCount: completed,
+            totalServiceCount: total,
+            message: message,
+            startedAt: startedAt,
+            finishedAt: nil
+        )
     }
 
     private func recordPortChanges(_ diff: RuntimeDiff) {

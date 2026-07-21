@@ -177,7 +177,9 @@ The sidebar order is Runtime, Projects, Sessions, Managed Services, History, Doc
 
 The first-run guide is local and account-free. It states visibility limits, observation versus management, exact destructive revalidation, Keychain-only secrets, and non-upload behavior before routing into Runtime, project import, managed-service creation, or session capture. The menu bar and command palette invoke `AppModel` request/action boundaries; they do not bypass trust checks. Palette restart is offered only for an exact verified definition. See `PRODUCT_SURFACE.md`.
 
-Projects and Managed Services share the same managed-service activity resolver. Project rows provide independent Start for stopped definitions, Stop for live DevBerth-managed runtimes, and Inspect for expected-port observations that are not control authority. Project progress uses the broader active count while lifecycle actions continue to use only verified managed runtime state.
+Projects and Managed Services share the same managed-service activity resolver. Project rows provide independent Start for stopped definitions, Stop for live DevBerth-managed runtimes, and Inspect for expected-port observations that are not control authority. Bulk Start retains the complete dependency graph but launches only stopped definitions; bulk Stop walks that graph in reverse while controlling only live DevBerth-managed runtimes. AppModel publishes bounded per-project operation progress and terminal results, rejects overlap, and requests an immediate runtime refresh on success. Project progress uses the broader active count while lifecycle actions continue to use only verified managed runtime state.
+
+Dismissible custom sheets and the command palette handle Escape explicitly and provide a cancel/close control with the native cancel keyboard shortcut. Editors and restore flows ignore Escape only while a protected in-flight mutation is executing. The mandatory first-run safety guide remains intentionally non-dismissible.
 
 ## Persistence and migrations
 

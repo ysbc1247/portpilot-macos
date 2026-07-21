@@ -66,6 +66,44 @@ final class DevBerthUITests: XCTestCase {
         XCTAssertTrue(app.buttons["New Managed Service"].waitForExistence(timeout: 3))
     }
 
+    func testEscapeDismissesCommandPaletteAndCustomSheets() {
+        let app = launchApp(onboardingCompleted: true)
+        XCTAssertTrue(app.staticTexts["Runtime"].waitForExistence(timeout: 8))
+
+        app.typeKey("k", modifierFlags: .command)
+        let commandSearch = app.textFields["Open, search, or run a safe action"]
+        XCTAssertTrue(commandSearch.waitForExistence(timeout: 3))
+        app.typeKey(.escape, modifierFlags: [])
+        assertDisappears(commandSearch)
+
+        app.staticTexts["Projects"].firstMatch.click()
+        let newProject = app.buttons["New Project"].firstMatch
+        XCTAssertTrue(newProject.waitForExistence(timeout: 3))
+        newProject.click()
+        let createProject = app.buttons["Create"].firstMatch
+        XCTAssertTrue(createProject.waitForExistence(timeout: 3))
+        app.typeKey(.escape, modifierFlags: [])
+        assertDisappears(createProject)
+
+        app.staticTexts["Sessions"].firstMatch.click()
+        let captureSession = app.buttons["Capture Session"].firstMatch
+        XCTAssertTrue(captureSession.waitForExistence(timeout: 3))
+        captureSession.click()
+        let capture = app.buttons["Capture"].firstMatch
+        XCTAssertTrue(capture.waitForExistence(timeout: 3))
+        app.typeKey(.escape, modifierFlags: [])
+        assertDisappears(capture)
+
+        app.staticTexts["Managed Services"].firstMatch.click()
+        let newService = app.buttons["New Managed Service"].firstMatch
+        XCTAssertTrue(newService.waitForExistence(timeout: 3))
+        newService.click()
+        let saveDraft = app.buttons["Save Draft"].firstMatch
+        XCTAssertTrue(saveDraft.waitForExistence(timeout: 3))
+        app.typeKey(.escape, modifierFlags: [])
+        assertDisappears(saveDraft)
+    }
+
     private func launchApp(onboardingCompleted: Bool) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["DEVBERTH_UI_TESTING"] = "1"
@@ -75,5 +113,23 @@ final class DevBerthUITests: XCTestCase {
         ]
         app.launch()
         return app
+    }
+
+    private func assertDisappears(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 3,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: element
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [expectation], timeout: timeout),
+            .completed,
+            file: file,
+            line: line
+        )
     }
 }

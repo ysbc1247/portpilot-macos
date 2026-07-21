@@ -427,6 +427,8 @@ private struct SessionCaptureView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(isCapturing)
                 Button("Capture") { capture() }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
@@ -440,6 +442,9 @@ private struct SessionCaptureView: View {
                 services.contains { $0.projectID == project.id }
             }.map(\.id))
             if name.isEmpty { name = "Workspace \(Date().formatted(date: .abbreviated, time: .omitted))" }
+        }
+        .onExitCommand {
+            if !isCapturing { dismiss() }
         }
     }
 
@@ -498,7 +503,9 @@ private struct SessionRestorePreviewView: View {
                     Text(session.name).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Close") { dismiss() }
+                Button("Close", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(isExecuting)
             }
             .padding()
             Divider()
@@ -518,6 +525,10 @@ private struct SessionRestorePreviewView: View {
         }
         .frame(minWidth: 820, minHeight: 680)
         .task { await loadPlan() }
+        .interactiveDismissDisabled(isExecuting)
+        .onExitCommand {
+            if !isExecuting { dismiss() }
+        }
     }
 
     private func previewContent(_ plan: SessionRestorePlan) -> some View {
