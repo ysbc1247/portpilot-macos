@@ -51,7 +51,9 @@ No live Docker daemon with a disposable canonical Compose project was available 
 - Debug and Release `DevBerthMCP` scheme builds: passed.
 - `DevBerthMCPTests`: 19 passed, 0 failed, 0 skipped.
 - `DevBerthTests` + `DevBerthIntegrationTests` + `DevBerthMCPTests`: 164 passed, 0 failed, 0 skipped.
-- Exact full `DevBerth` scheme, including four UI tests: 168 passed, 0 failed, 0 skipped. An earlier attempt timed out while enabling Xcode automation mode; the final retry completed successfully.
+- Xcode 16.4 CI run [29827104339](https://github.com/ysbc1247/portpilot-macos/actions/runs/29827104339): application build, isolated UI-test target compilation, and all 164 non-UI tests passed.
+- UI execution baseline before the final response-envelope-only correction: exact full `DevBerth` scheme passed 167 tests, including four UI tests. The correction added one MCP contract test, which passed in the 19-test MCP target and in CI; it did not change UI code.
+- A post-correction exact full local rerun was attempted, but local Xcode 26.4 repeatedly timed out before injecting XCTest into app-hosted targets. This was recorded as a local test-runner infrastructure failure, not reported as a 168-test single-run pass.
 - Release helper development-mode gate: exited 64, wrote zero bytes to stdout, and reported that development mode is absent.
 - Visual QA: the real Settings → Integrations · Codex & MCP interface was exercised with Computer Use and captured at [Screenshots/mcp-codex-settings.png](Screenshots/mcp-codex-settings.png). This pass also found and fixed a missing `ControlHostStatusModel` injection on the in-app Settings navigation route.
 - GitHub repository visibility: `PRIVATE`.
