@@ -70,6 +70,16 @@ extension ApplicationControlPlane {
                 let service = try store.service(id: id)
                 ports.formUnion(service.expectedPorts.map(\.port))
                 dependencies.formUnion(service.dependencyServiceIDs.map(\.uuidString))
+                if type == "stop_service" || type == "restart_service" {
+                    for listener in model.observedServiceStopTargets(for: service) {
+                        let route = await model.resolveOwnership(of: listener)
+                        try validateRoute(route, for: "stop_service")
+                        fingerprints[listener.id] = listener.process.fingerprint
+                        routes[listener.id] = route
+                        ports.insert(listener.port)
+                        unrelatedProcesses = true
+                    }
+                }
                 for session in try store.sessions(includeArchived: true) where session.serviceSnapshots.contains(where: { $0.managedServiceID == id }) {
                     let sessionValue = try store.sessionValue(session)
                     revisions["session:\(session.id.uuidString)"] = sessionValue["revision"]?.intValue ?? 1
@@ -83,11 +93,27 @@ extension ApplicationControlPlane {
                 revisions["project:\(target)"] = project["revision"]?.intValue ?? 1
                 evidence[target] = project
                 let projectServices = try store.services(includeArchived: true).filter { $0.projectID == id }
+                let selectedServiceIDs = Set(
+                    arguments["options"]?["service_ids"]?.arrayValue?.compactMap {
+                        $0.stringValue.flatMap(UUID.init(uuidString:))
+                    } ?? []
+                )
                 for service in projectServices {
                     let value = try store.serviceValue(service)
                     revisions["service:\(service.id.uuidString)"] = value["revision"]?.intValue ?? 1
                     ports.formUnion(service.expectedPorts.map(\.port))
                     dependencies.formUnion(service.dependencyServiceIDs.map(\.uuidString))
+                    if type == "stop_project" || type == "restart_project"
+                        || (type == "stop_selected_project_services" && selectedServiceIDs.contains(service.id)) {
+                        for listener in model.observedServiceStopTargets(for: service) {
+                            let route = await model.resolveOwnership(of: listener)
+                            try validateRoute(route, for: "stop_service")
+                            fingerprints[listener.id] = listener.process.fingerprint
+                            routes[listener.id] = route
+                            ports.insert(listener.port)
+                            unrelatedProcesses = true
+                        }
+                    }
                 }
                 let projectServiceIDs = Set(projectServices.map(\.id))
                 for session in try store.sessions(includeArchived: true)
@@ -272,12 +298,16 @@ extension ApplicationControlPlane {
             return .object(["restarted": .bool(true), "listener_id": .string(target)])
         case "stop_service":
             let service = try store.service(id: stableUUID(target, kind: "service"))
-            try await performModelAction { await model.stopProfile(service) }
+            try await performModelAction {
+                await model.stopProfile(service, confirmsObservedProcess: true)
+            }
             return .object(["stopped": .bool(true), "service_id": .string(target)])
         case "restart_service":
             let service = try store.service(id: stableUUID(target, kind: "service"))
-            if model.managedRunningServiceIDs.contains(service.id) {
-                try await performModelAction { await model.stopProfile(service) }
+            if model.managedServiceActivity(for: service).state != .stopped {
+                try await performModelAction {
+                    await model.stopProfile(service, confirmsObservedProcess: true)
+                }
             }
             try await performModelAction { await model.launchProfile(service) }
             return .object(["restarted": .bool(true), "service_id": .string(target)])
@@ -289,7 +319,9 @@ extension ApplicationControlPlane {
             if lease.type == "stop_selected_project_services", services.count != requestedIDs.count {
                 throw ControlFailure(code: .entityChanged, message: "The selected project service set changed after preview.")
             }
-            try await performModelAction { await model.stopProject(services) }
+            try await performModelAction {
+                await model.stopProject(services, confirmsObservedProcesses: true)
+            }
             if lease.type == "restart_project" {
                 try await performModelAction { await model.startProject(services) }
             }
@@ -528,7 +560,11 @@ extension ApplicationControlPlane {
             guard let old = lease.ownershipRoutes[target], ownershipSignature(graph) == ownershipSignature(old) else {
                 throw ControlFailure(code: .ownershipChanged, message: "The controlling owner for \(target) changed after preview.")
             }
-            try validateRoute(graph, for: lease.type)
+            let routeOperation = Self.serviceOperationTypes.contains(lease.type)
+                || Self.projectOperationTypes.contains(lease.type)
+                ? "stop_service"
+                : lease.type
+            try validateRoute(graph, for: routeOperation)
         }
         if Self.dockerOperationTypes.contains(lease.type) {
             for target in lease.targets {
