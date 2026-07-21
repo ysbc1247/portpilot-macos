@@ -208,10 +208,15 @@ final class AppModel: ObservableObject {
             let stream = await monitor.updates(every: refreshInterval)
             for await update in stream {
                 guard !Task.isCancelled else { break }
-                listeners = await dockerAssociations.correlate(update.snapshot.listeners)
-                processResourceUsage = (try? await processResourceReader.read(
+                let correlatedListeners = await dockerAssociations.correlate(update.snapshot.listeners)
+                let listenerPublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
+                listeners = correlatedListeners
+                DevBerthPerformance.end(listenerPublishInterval)
+                let resourceUsage = (try? await processResourceReader.read(
                     pids: Set(listeners.map { $0.process.fingerprint.pid })
                 )) ?? [:]
+                let statePublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
+                processResourceUsage = resourceUsage
                 let currentListenerIDs = Set(listeners.map(\.id))
                 ownershipGraphs = ownershipGraphs.filter { currentListenerIDs.contains($0.key) }
                 recentChanges = Array((update.diff.added + update.diff.removed).prefix(12))
@@ -219,6 +224,7 @@ final class AppModel: ObservableObject {
                 isRefreshing = false
                 if let error = update.error { presentedError = error }
                 recordPortChanges(update.diff)
+                DevBerthPerformance.end(statePublishInterval)
             }
         }
     }

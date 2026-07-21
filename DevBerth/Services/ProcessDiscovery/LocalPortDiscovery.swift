@@ -26,6 +26,8 @@ actor LocalPortDiscovery: PortDiscovering {
     }
 
     func discover(allowedProcessIDs: Set<Int32>?) async throws -> [ObservedListener] {
+        let discoveryInterval = DevBerthPerformance.begin(.listenerDiscovery)
+        defer { DevBerthPerformance.end(discoveryInterval) }
         if let allowedProcessIDs, allowedProcessIDs.isEmpty { return [] }
         let processSelection = allowedProcessIDs.map { processIDs in
             ["-a", "-p", processIDs.sorted().map(String.init).joined(separator: ",")]
@@ -73,6 +75,8 @@ actor LocalPortDiscovery: PortDiscovering {
             }
         }
 
+        let cacheHits = metadata.count
+        let enrichmentInterval = DevBerthPerformance.begin(.processEnrichment)
         await withTaskGroup(of: (Int32, ObservedProcess).self) { group in
             for (pid, listeners) in grouped where metadata[pid] == nil {
                 let fallback = listeners[0]
@@ -94,8 +98,14 @@ actor LocalPortDiscovery: PortDiscovering {
                 )
             }
         }
+        DevBerthPerformance.end(enrichmentInterval)
 
         metadataCache = metadataCache.filter { grouped[$0.key] != nil }
+        await PerformanceDiagnostics.shared.recordProcessCache(
+            count: metadataCache.count,
+            hits: cacheHits,
+            misses: max(0, grouped.count - cacheHits)
+        )
         let listeners = raw.compactMap { item -> ObservedListener? in
             guard let process = metadata[item.pid] else { return nil }
             let id = "\(item.pid):\(item.protocolKind.rawValue):\(item.address):\(item.port)"

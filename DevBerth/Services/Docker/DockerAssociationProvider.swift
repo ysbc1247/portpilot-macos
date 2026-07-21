@@ -30,9 +30,15 @@ actor DockerAssociationProvider {
     }
 
     private func refresh() async {
+        let startedAt = Date()
+        let interval = DevBerthPerformance.begin(.dockerRefresh)
+        defer { DevBerthPerformance.end(interval) }
         lastRefresh = Date()
         guard case .available = await client.availability(), let containers = try? await client.observedRunningContainers() else {
             mappings = [:]
+            await PerformanceDiagnostics.shared.recordDockerRefresh(
+                durationSeconds: Date().timeIntervalSince(startedAt)
+            )
             return
         }
         await recordTransitions(to: containers)
@@ -55,6 +61,9 @@ actor DockerAssociationProvider {
             }
         }
         mappings = values
+        await PerformanceDiagnostics.shared.recordDockerRefresh(
+            durationSeconds: Date().timeIntervalSince(startedAt)
+        )
     }
 
     private func recordTransitions(to containers: [DockerContainer]) async {

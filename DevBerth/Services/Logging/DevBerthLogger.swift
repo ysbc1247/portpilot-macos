@@ -62,6 +62,8 @@ actor ServiceLogBuffer {
     }
 
     func append(profileID: UUID, stream: LogStream, data: Data) {
+        let interval = DevBerthPerformance.begin(.logProcessing)
+        defer { DevBerthPerformance.end(interval) }
         guard !data.isEmpty else { return }
         let key = StreamKey(profileID: profileID, stream: stream)
         let decoded = (pendingRedactionSuffixes.removeValue(forKey: key) ?? "")

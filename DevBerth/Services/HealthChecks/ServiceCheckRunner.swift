@@ -28,15 +28,25 @@ actor ServiceCheckRunner: ServiceCheckRunning {
     }
 
     func run(_ checks: [ServiceCheckConfiguration]) async throws -> [ServiceCheckResult] {
-        var results: [ServiceCheckResult] = []
-        for check in checks {
-            let result = try await run(check)
-            results.append(result)
-            guard result.succeeded else {
-                throw DevBerthError.launchValidation(result.summary)
+        let interval = DevBerthPerformance.begin(.healthCheckBatch)
+        await PerformanceDiagnostics.shared.healthCheckStarted()
+        do {
+            var results: [ServiceCheckResult] = []
+            for check in checks {
+                let result = try await run(check)
+                results.append(result)
+                guard result.succeeded else {
+                    throw DevBerthError.launchValidation(result.summary)
+                }
             }
+            DevBerthPerformance.end(interval)
+            await PerformanceDiagnostics.shared.healthCheckFinished()
+            return results
+        } catch {
+            DevBerthPerformance.end(interval)
+            await PerformanceDiagnostics.shared.healthCheckFinished()
+            throw error
         }
-        return results
     }
 
     private func run(_ check: ServiceCheckConfiguration) async throws -> ServiceCheckResult {

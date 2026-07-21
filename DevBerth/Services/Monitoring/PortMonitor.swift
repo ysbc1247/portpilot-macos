@@ -18,14 +18,21 @@ actor PortMonitor {
         monitoringTask?.cancel()
         let (stream, continuation) = AsyncStream<MonitoringUpdate>.makeStream(bufferingPolicy: .bufferingNewest(1))
         monitoringTask = Task { [discoverer] in
+            await PerformanceDiagnostics.shared.backgroundTaskStarted()
+            await PerformanceDiagnostics.shared.setMonitoring(mode: .active, intervalSeconds: intervalSeconds)
             var previous: [ObservedListener] = []
             while !Task.isCancelled {
+                let scanStartedAt = Date()
+                let scanInterval = DevBerthPerformance.begin(.runtimeScan)
                 do {
                     let listeners = try await discoverer.discover()
                     let snapshot = RuntimeSnapshot(listeners: listeners, capturedAt: Date())
+                    let diffInterval = DevBerthPerformance.begin(.runtimeDiff)
+                    let diff = RuntimeDiffer.diff(previous: previous, current: listeners)
+                    DevBerthPerformance.end(diffInterval)
                     continuation.yield(MonitoringUpdate(
                         snapshot: snapshot,
-                        diff: RuntimeDiffer.diff(previous: previous, current: listeners),
+                        diff: diff,
                         error: nil
                     ))
                     previous = listeners
@@ -42,12 +49,17 @@ actor PortMonitor {
                         error: .unexpected(error.localizedDescription)
                     ))
                 }
+                DevBerthPerformance.end(scanInterval)
+                await PerformanceDiagnostics.shared.recordScan(
+                    durationSeconds: Date().timeIntervalSince(scanStartedAt)
+                )
                 do {
                     try await Task.sleep(for: .seconds(max(0.5, intervalSeconds)))
                 } catch {
                     break
                 }
             }
+            await PerformanceDiagnostics.shared.backgroundTaskFinished()
             continuation.finish()
         }
         return stream
@@ -58,4 +70,3 @@ actor PortMonitor {
         monitoringTask = nil
     }
 }
-
