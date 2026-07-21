@@ -2,8 +2,8 @@
 set -euo pipefail
 
 repository_root="${0:A:h:h}"
-source_artwork="$repository_root/Documentation/Artwork/PortPilotIconSource.png"
-destination="$repository_root/PortPilot/Resources/Assets.xcassets/AppIcon.appiconset"
+source_artwork="$repository_root/Documentation/Artwork/DevBerthIconSource.png"
+destination="$repository_root/DevBerth/Resources/Assets.xcassets/AppIcon.appiconset"
 
 if [[ ! -f "$source_artwork" ]]; then
   print -u2 "Missing source artwork: $source_artwork"

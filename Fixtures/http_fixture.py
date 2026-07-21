@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Development-only harmless HTTP listener for PortPilot integration tests."""
+"""Development-only harmless HTTP listener for DevBerth integration tests."""
 
 import argparse
 import http.server
+import json
+import os
 import signal
 import socketserver
 import sys
@@ -40,7 +42,7 @@ def main():
     if args.delay:
         time.sleep(args.delay)
     with socketserver.TCPServer(("127.0.0.1", args.port), Handler) as server:
-        print(f"READY {args.port}", flush=True)
+        print(json.dumps({"event": "ready", "pid": os.getpid(), "port": server.server_address[1]}), flush=True)
         server.serve_forever()
 
 

@@ -1,0 +1,49 @@
+#!/bin/zsh
+set -euo pipefail
+
+script_directory="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+repository_root="$(CDPATH= cd -- "${script_directory}/.." && pwd)"
+derived_data="${repository_root}/.build/mcp-development"
+temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/devberth-mcp-development.XXXXXX")"
+application_pid=""
+
+cleanup() {
+    if [[ -n "${application_pid}" ]] && kill -0 "${application_pid}" 2>/dev/null; then
+        kill -TERM "${application_pid}" 2>/dev/null || true
+        wait "${application_pid}" 2>/dev/null || true
+    fi
+    /bin/rm -rf -- "${temporary_directory}"
+}
+trap cleanup EXIT INT TERM
+
+DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}" \
+    /usr/bin/xcodebuild \
+    -quiet \
+    -project "${repository_root}/DevBerth.xcodeproj" \
+    -scheme DevBerth \
+    -configuration Debug \
+    -destination 'platform=macOS' \
+    -derivedDataPath "${derived_data}" \
+    build >&2
+
+application="${derived_data}/Build/Products/Debug/DevBerth.app"
+helper="${application}/Contents/Resources/devberth-mcp"
+guard_file="${application}/Contents/MacOS/DevBerth"
+if [[ ! -x "${guard_file}" || ! -x "${helper}" ]]; then
+    print -u2 -- "DevBerth development products are missing after a successful build."
+    exit 70
+fi
+
+DEVBERTH_DEVELOPMENT_CONTROL=1 \
+DEVBERTH_DEVELOPMENT_WORKSPACE="${repository_root}" \
+    "${guard_file}" --development-control-host \
+    >"${temporary_directory}/app.stdout" \
+    2>"${temporary_directory}/app.stderr" &
+application_pid=$!
+
+export DEVBERTH_APP_PATH="${application}"
+set +e
+"${helper}" serve --stdio --development --workspace "${repository_root}"
+helper_status=$?
+set -e
+exit "${helper_status}"

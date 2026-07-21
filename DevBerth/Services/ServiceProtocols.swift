@@ -1,0 +1,187 @@
+import Foundation
+
+struct CommandResult: Sendable, Equatable {
+    let stdout: Data
+    let stderr: Data
+    let exitCode: Int32
+
+    var stdoutString: String { String(decoding: stdout, as: UTF8.self) }
+    var stderrString: String { String(decoding: stderr, as: UTF8.self) }
+}
+
+protocol CommandRunning: Sendable {
+    func run(
+        executable: URL,
+        arguments: [String],
+        environment: [String: String]?,
+        currentDirectory: URL?
+    ) async throws -> CommandResult
+}
+
+extension CommandRunning {
+    func run(executable: URL, arguments: [String]) async throws -> CommandResult {
+        try await run(executable: executable, arguments: arguments, environment: nil, currentDirectory: nil)
+    }
+}
+
+protocol PortDiscovering: Sendable {
+    func discover() async throws -> [ObservedListener]
+}
+
+protocol ProcessFingerprintVerifying: Sendable {
+    func verify(_ expected: ProcessFingerprint) async throws -> ProcessFingerprintVerification
+}
+
+protocol ListenerOwnershipVerifying: Sendable {
+    func verify(
+        _ expectation: ListenerOwnershipExpectation,
+        isOwnedBy fingerprint: ProcessFingerprint
+    ) async throws -> Bool
+}
+
+enum TerminationMode: Sendable { case graceful(timeoutSeconds: Double), force(confirmed: Bool) }
+
+enum TerminationCompletion: String, Sendable, Equatable {
+    case exited
+    case fingerprintChangedAfterSignal
+    case timedOut
+}
+
+struct TerminationOutcome: Sendable, Equatable {
+    let pid: Int32
+    let mode: String
+    let completion: TerminationCompletion
+    let durationSeconds: Double
+
+    var didExit: Bool { completion != .timedOut }
+}
+
+protocol ProcessControlling: Sendable {
+    func terminate(_ target: ProcessActionTarget, mode: TerminationMode) async throws -> TerminationOutcome
+}
+
+protocol SecretStoring: Sendable {
+    func save(value: String, reference: UUID) async throws
+    func value(for reference: UUID) async throws -> String?
+    func delete(reference: UUID) async throws
+}
+
+protocol HealthChecking: Sendable {
+    func waitUntilHealthy(configuration: HealthCheckConfiguration, timeoutSeconds: Double) async throws
+}
+
+struct HTTPProbeResponse: Sendable, Equatable {
+    let statusCode: Int
+    let body: String
+}
+
+protocol HTTPProbing: Sendable {
+    func probe(url: URL, timeoutSeconds: Double) async throws -> HTTPProbeResponse
+}
+
+protocol DockerHealthInspecting: Sendable {
+    func healthStatus(containerID: String) async throws -> String
+}
+
+protocol DependencyReadinessProviding: Sendable {
+    func isReady(managedServiceID: UUID) async -> Bool
+}
+
+protocol ServiceCheckRunning: Sendable {
+    func run(_ checks: [ServiceCheckConfiguration]) async throws -> [ServiceCheckResult]
+}
+
+protocol HistoryRecording: Sendable {
+    func record(_ event: HistoryEvent) async throws
+    func record(_ events: [HistoryEvent]) async throws
+}
+
+extension HistoryRecording {
+    func record(_ events: [HistoryEvent]) async throws {
+        for event in events { try await record(event) }
+    }
+}
+
+protocol OwnershipRecording: Sendable {
+    func record(_ conclusion: OwnershipConclusion) async throws
+}
+
+protocol RestartTrustStoring: Sendable {
+    func record(_ validation: ManagedServiceValidationResult) async throws
+    func record(_ assessment: RestartTrustAssessment) async throws
+    func latestValidation(for managedServiceID: UUID) async throws -> ManagedServiceValidationResult?
+}
+
+protocol ManagedServiceValidating: Sendable {
+    func validate(_ profile: ManagedServiceConfiguration) async -> ManagedServiceValidationResult
+}
+
+protocol RuntimeLifecycleRecording: Sendable {
+    func record(_ runtime: RuntimeInstance) async throws
+    func record(_ event: LifecycleEvent) async throws
+    func record(_ events: [LifecycleEvent]) async throws
+    func record(_ incident: RuntimeIncidentSummary) async throws
+}
+
+extension RuntimeLifecycleRecording {
+    func record(_ events: [LifecycleEvent]) async throws {
+        for event in events { try await record(event) }
+    }
+}
+
+protocol RuntimeLifecycleObserving: Sendable {
+    func transition(_ update: RuntimeLifecycleUpdate) async
+    func transition(_ updates: [RuntimeLifecycleUpdate]) async
+    func snapshots() async -> AsyncStream<RuntimeLifecycleSnapshot>
+}
+
+extension RuntimeLifecycleObserving {
+    func transition(_ updates: [RuntimeLifecycleUpdate]) async {
+        for update in updates { await transition(update) }
+    }
+}
+
+protocol ManagedProcessExitObserving: Sendable {
+    func managedProcessDidExit(_ notice: ManagedProcessExitNotice) async
+}
+
+protocol OwnerAwareLifecycleRouting: Sendable {
+    func perform(
+        _ action: LifecycleActionKind,
+        on graph: RuntimeOwnershipGraph,
+        forceConfirmed: Bool
+    ) async throws -> OwnerAwareLifecycleResult
+}
+
+protocol LaunchProfileServing: Sendable {
+    func launch(_ profile: ManagedServiceConfiguration) async throws
+    func stop(profileID: UUID, timeoutSeconds: Double) async throws
+    func runtimeDidExit(profileID: UUID) async
+}
+
+extension LaunchProfileServing {
+    func runtimeDidExit(profileID: UUID) async {}
+}
+
+protocol ManagedProcessLaunching: Sendable {
+    func launch(_ profile: ManagedServiceConfiguration) async throws
+    func stop(profileID: UUID, timeoutSeconds: Double) async throws
+}
+
+protocol ProjectDiscoveryServing: Sendable {
+    func discover(at rootURL: URL) async throws -> ProjectDiscoveryReport
+}
+
+protocol ProjectManifestServing: Sendable {
+    func export(
+        projectName: String,
+        projectRoot: URL,
+        services: [ManagedServiceConfiguration],
+        destination: URL
+    ) async throws
+}
+
+protocol WorkspaceSessionRecording: Sendable {
+    func record(_ session: WorkspaceSession) async throws
+    func record(_ result: SessionRestoreResult) async throws
+}

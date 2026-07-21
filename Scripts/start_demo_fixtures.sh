@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repository_root="${0:A:h:h}"
-runtime_directory="$repository_root/.portpilot-fixtures"
+runtime_directory="$repository_root/.devberth-fixtures"
 mkdir -p "$runtime_directory"
 
 function start_fixture() {
@@ -21,6 +21,5 @@ start_fixture delayed-health "$repository_root/Fixtures/http_fixture.py" --port 
 (/bin/sleep 0.2; /usr/bin/false) >"$runtime_directory/exits-during-startup.log" 2>&1 &
 print $! >"$runtime_directory/exits-during-startup.pid"
 
-print "Started PortPilot demo fixtures on ports 49151–49156."
+print "Started DevBerth demo fixtures on ports 49151–49156."
 print "Runtime files: $runtime_directory"
-

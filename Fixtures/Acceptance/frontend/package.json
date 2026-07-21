@@ -1,0 +1,10 @@
+{
+  "name": "devberth-acceptance-frontend",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 43101"
+  },
+  "devDependencies": {
+    "vite": "5.4.0"
+  }
+}

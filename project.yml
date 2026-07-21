@@ -1,4 +1,4 @@
-name: PortPilot
+name: DevBerth
 options:
   minimumXcodeGenVersion: 2.46.0
   deploymentTarget:
@@ -6,7 +6,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    SWIFT_VERSION: 5.10
+    SWIFT_VERSION: "5.0"
     MACOSX_DEPLOYMENT_TARGET: 14.0
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
@@ -19,61 +19,131 @@ settings:
 configs:
   Debug: debug
   Release: release
+packages:
+  MCP:
+    url: https://github.com/modelcontextprotocol/swift-sdk.git
+    exactVersion: 0.12.1
 targets:
-  PortPilot:
+  DevBerthControlContracts:
+    type: library.static
+    platform: macOS
+    sources:
+      - path: DevBerthControlContracts
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.control-contracts
+        PRODUCT_NAME: DevBerthControlContracts
+        # Xcode's generated static-library header copy phase writes through a
+        # temporary directory that is not declared to the user-script sandbox.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+  DevBerth:
     type: application
     platform: macOS
     sources:
-      - path: PortPilot
+      - path: DevBerth
+      - path: Fixtures
+        buildPhase: resources
+    dependencies:
+      - target: DevBerthControlContracts
+      - target: DevBerthMCP
+        embed: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.portpilot
-        PRODUCT_NAME: PortPilot
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth
+        PRODUCT_NAME: DevBerth
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: PortPilot
+        INFOPLIST_KEY_CFBundleDisplayName: DevBerth
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         INFOPLIST_KEY_LSMinimumSystemVersion: "14.0"
-        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © 2026 PortPilot contributors.
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © 2026 DevBerth contributors.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGN_ENTITLEMENTS: PortPilot/Resources/PortPilot.entitlements
+        CODE_SIGN_ENTITLEMENTS: DevBerth/Resources/DevBerth.entitlements
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: YES
-  PortPilotTests:
+  DevBerthMCP:
+    type: tool
+    platform: macOS
+    sources:
+      - path: DevBerthMCP
+    dependencies:
+      - target: DevBerthControlContracts
+      - package: MCP
+    settings:
+      base:
+        PRODUCT_NAME: devberth-mcp
+        SWIFT_VERSION: "6.0"
+  DevBerthTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: PortPilotTests
+      - path: DevBerthTests
     dependencies:
-      - target: PortPilot
+      - target: DevBerth
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.portpilot.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.tests
         GENERATE_INFOPLIST_FILE: YES
-  PortPilotIntegrationTests:
+  DevBerthIntegrationTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: PortPilotIntegrationTests
+      - path: DevBerthIntegrationTests
+      - path: Fixtures
+        buildPhase: resources
     dependencies:
-      - target: PortPilot
+      - target: DevBerth
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.portpilot.integration-tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.integration-tests
+        GENERATE_INFOPLIST_FILE: YES
+  DevBerthMCPTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: DevBerthMCPTests
+    dependencies:
+      - target: DevBerth
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.mcp-tests
+        GENERATE_INFOPLIST_FILE: YES
+  DevBerthUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: DevBerthUITests
+    dependencies:
+      - target: DevBerth
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.ui-tests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
-  PortPilot:
+  DevBerthMCP:
     build:
       targets:
-        PortPilot: all
-        PortPilotTests: [test]
-        PortPilotIntegrationTests: [test]
+        DevBerthMCP: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  DevBerth:
+    build:
+      targets:
+        DevBerth: all
+        DevBerthTests: [test]
+        DevBerthIntegrationTests: [test]
     test:
       gatherCoverageData: true
       targets:
-        - name: PortPilotTests
+        - name: DevBerthTests
           parallelizable: true
           randomExecutionOrder: true
-        - name: PortPilotIntegrationTests
+        - name: DevBerthIntegrationTests
+          parallelizable: false
+        - name: DevBerthMCPTests
+          parallelizable: false
+        - name: DevBerthUITests
           parallelizable: false
     run:
       config: Debug

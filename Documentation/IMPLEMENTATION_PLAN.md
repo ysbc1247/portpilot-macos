@@ -1,4 +1,4 @@
-# PortPilot implementation plan
+# DevBerth implementation plan
 
 ## Delivery sequence
 
@@ -13,12 +13,11 @@
 
 ## Product truthfulness
 
-PortPilot distinguishes verified operating-system metadata from heuristics. A discovered command is never executed automatically. Reliable restarts require a reviewed launch profile because an arbitrary process's original environment and shell state cannot be reconstructed safely.
+DevBerth distinguishes verified operating-system metadata from heuristics. A discovered command is never executed automatically. Reliable restarts require a reviewed launch profile because an arbitrary process's original environment and shell state cannot be reconstructed safely.
 
 ## Toolchain
 
 - Xcode 26.4 at `/Applications/Xcode.app`
-- Swift 6.2.4 toolchain, compiling the project in Swift 5.10 language mode
+- Swift 6.3 toolchain, compiling the project in Swift 5 language mode
 - Deployment target macOS 14.0
 - XcodeGen 2.46.0 generates the committed Xcode project from `project.yml`
-

@@ -1,0 +1,5 @@
+[mcp_servers.devberth-development]
+command = "./Scripts/run-mcp-development"
+args = []
+startup_timeout_sec = 180
+tool_timeout_sec = 300
