@@ -101,6 +101,39 @@ final class ProcessGroupTests: XCTestCase {
         XCTAssertFalse(groupOperator.signals().contains { $0.target == .process(102) })
     }
 
+    func testManagedLauncherRevalidatesBeforeForceEscalation() async throws {
+        let serviceID = UUID()
+        let leader = groupFingerprint(pid: 150, parentPID: 1)
+        let snapshot = groupSnapshot(
+            serviceID: serviceID,
+            leader: leader,
+            members: [groupMember(leader, groupID: 150, role: .leader, controlled: true)]
+        )
+        let groupOperator = RecordingProcessGroupOperator(
+            processGroupID: 150,
+            stoppingSignal: SIGKILL
+        )
+        let launcher = ManagedProcessLauncher(
+            secrets: EmptySecretStore(),
+            logs: ServiceLogBuffer(persistsToDisk: false),
+            runner: successfulGroupRunner(),
+            spawner: FixedControlledSpawner(pid: 150, processGroupID: 150),
+            processInspector: MappedProcessInspector(fingerprints: [150: leader]),
+            fingerprintVerifier: MatchingKnownFingerprintVerifier(fingerprints: [150: leader]),
+            groupInspector: SequencedProcessGroupInspector(snapshots: [snapshot, snapshot]),
+            groupOperator: groupOperator,
+            listenerDiscoverer: EmptyPortDiscoverer()
+        )
+
+        try await launcher.launch(managedFixtureProfile(id: serviceID))
+        try await launcher.stop(profileID: serviceID, timeoutSeconds: 0.2)
+
+        XCTAssertEqual(groupOperator.signals(), [
+            .init(signal: SIGTERM, target: .group(150)),
+            .init(signal: SIGKILL, target: .group(150))
+        ])
+    }
+
     func testManagedLauncherRefusesUnknownReplacementGroupMember() async throws {
         let serviceID = UUID()
         let leader = groupFingerprint(pid: 200, parentPID: 1)
@@ -307,11 +340,13 @@ private final class RecordingProcessGroupOperator: ProcessGroupOperating, @unche
 
     private let lock = NSLock()
     private let assignedProcessGroupID: Int32
+    private let stoppingSignal: Int32
     private var recordedSignals: [Signal] = []
     private var groupAlive = true
 
-    init(processGroupID: Int32) {
+    init(processGroupID: Int32, stoppingSignal: Int32 = SIGTERM) {
         assignedProcessGroupID = processGroupID
+        self.stoppingSignal = stoppingSignal
     }
 
     func processGroupID(for pid: Int32) -> Int32? { assignedProcessGroupID }
@@ -320,7 +355,7 @@ private final class RecordingProcessGroupOperator: ProcessGroupOperating, @unche
     func send(signal: Int32, toProcessGroup processGroupID: Int32) throws {
         lock.withLock {
             recordedSignals.append(.init(signal: signal, target: .group(processGroupID)))
-            groupAlive = false
+            if signal == stoppingSignal { groupAlive = false }
         }
     }
 
