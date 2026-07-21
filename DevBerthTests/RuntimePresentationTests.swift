@@ -126,6 +126,84 @@ final class RuntimePresentationTests: XCTestCase {
         XCTAssertEqual(model.serviceOperations[profile.id]?.completedTargetCount, 1)
     }
 
+    @MainActor
+    func testObservedServiceStopForceEscalatesAfterGracefulTimeout() async {
+        let observed = listener(port: 3100, pid: 31)
+        let router = RecordingObservedStopRouter(gracefulDidStop: false)
+        let model = AppModel(
+            discoverer: FixedRuntimeDiscoverer(listeners: [observed]),
+            ownershipResolver: ObservedStopOwnershipResolver(),
+            lifecycleRouter: router
+        )
+        model.refreshInterval = 0.01
+        model.startMonitoring()
+        defer { model.pauseMonitoring() }
+        for _ in 0..<100 where model.listeners.isEmpty {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let profile = ManagedServiceConfiguration(
+            name: "Escalating Web",
+            command: "web",
+            workingDirectory: "/tmp",
+            expectedPorts: [
+                ExpectedListenerConfiguration(id: UUID(), port: 3100, protocolKind: .tcp, required: true)
+            ]
+        )
+
+        await model.stopProfile(profile, confirmsObservedProcess: true)
+        let actions = await router.actions()
+
+        XCTAssertEqual(actions, [.gracefulStop, .forceStop])
+        XCTAssertEqual(model.serviceOperations[profile.id]?.phase, .succeeded)
+    }
+
+    @MainActor
+    func testProjectStopAttemptsEveryServiceAfterOneTargetFails() async {
+        let first = listener(port: 3200, pid: 32)
+        let second = listener(port: 3201, pid: 33)
+        let router = RecordingObservedStopRouter(failingPorts: [3200])
+        let model = AppModel(
+            discoverer: FixedRuntimeDiscoverer(listeners: [first, second]),
+            ownershipResolver: ObservedStopOwnershipResolver(),
+            lifecycleRouter: router
+        )
+        model.refreshInterval = 0.01
+        model.startMonitoring()
+        defer { model.pauseMonitoring() }
+        for _ in 0..<100 where model.listeners.count != 2 {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        let projectID = UUID()
+        let failed = ManagedServiceConfiguration(
+            name: "Failed Web",
+            projectID: projectID,
+            command: "failed-web",
+            workingDirectory: "/tmp",
+            expectedPorts: [
+                ExpectedListenerConfiguration(id: UUID(), port: 3200, protocolKind: .tcp, required: true)
+            ]
+        )
+        let stopped = ManagedServiceConfiguration(
+            name: "Stopped Web",
+            projectID: projectID,
+            command: "stopped-web",
+            workingDirectory: "/tmp",
+            expectedPorts: [
+                ExpectedListenerConfiguration(id: UUID(), port: 3201, protocolKind: .tcp, required: true)
+            ]
+        )
+
+        await model.stopProject([failed, stopped], confirmsObservedProcesses: true)
+        let attemptedPorts = await router.ports()
+
+        XCTAssertEqual(Set(attemptedPorts), [3200, 3201])
+        XCTAssertEqual(model.serviceOperations[failed.id]?.phase, .failed)
+        XCTAssertEqual(model.serviceOperations[stopped.id]?.phase, .succeeded)
+        XCTAssertEqual(model.projectOperations[projectID]?.phase, .failed)
+        XCTAssertEqual(model.projectOperations[projectID]?.completedServiceCount, 1)
+        XCTAssertTrue(model.projectOperations[projectID]?.message.contains("Stopped 1 of 2") == true)
+    }
+
     func testLifecycleHistoryPresentationIndexesLargeContextSetAndFilters() {
         let selectedID = UUID()
         var events: [LifecycleHistoryEventSnapshot] = []
@@ -235,7 +313,7 @@ private struct ObservedStopOwnershipResolver: RuntimeOwnershipResolving {
                 controllerKind: .guardedExternalProcess,
                 title: "Stop exact process",
                 reason: "Test fixture",
-                supportedActions: [.inspect, .gracefulStop]
+                supportedActions: [.inspect, .gracefulStop, .forceStop]
             ),
             resolvedAt: Date()
         )
@@ -244,6 +322,14 @@ private struct ObservedStopOwnershipResolver: RuntimeOwnershipResolving {
 
 private actor RecordingObservedStopRouter: OwnerAwareLifecycleRouting {
     private var recordedActions: [LifecycleActionKind] = []
+    private var recordedPorts: [UInt16] = []
+    private let gracefulDidStop: Bool
+    private let failingPorts: Set<UInt16>
+
+    init(gracefulDidStop: Bool = true, failingPorts: Set<UInt16> = []) {
+        self.gracefulDidStop = gracefulDidStop
+        self.failingPorts = failingPorts
+    }
 
     func perform(
         _ action: LifecycleActionKind,
@@ -251,14 +337,19 @@ private actor RecordingObservedStopRouter: OwnerAwareLifecycleRouting {
         forceConfirmed: Bool
     ) async throws -> OwnerAwareLifecycleResult {
         recordedActions.append(action)
+        recordedPorts.append(graph.listener.port)
+        if failingPorts.contains(graph.listener.port) {
+            throw DevBerthError.unexpected("Fixture stop failure on port \(graph.listener.port).")
+        }
         return OwnerAwareLifecycleResult(
             controllerKind: graph.recommendation.controllerKind,
             action: action,
-            didStop: true,
+            didStop: action != .gracefulStop || gracefulDidStop,
             summary: "Stopped fixture",
             durationSeconds: 0
         )
     }
 
     func actions() -> [LifecycleActionKind] { recordedActions }
+    func ports() -> [UInt16] { recordedPorts }
 }

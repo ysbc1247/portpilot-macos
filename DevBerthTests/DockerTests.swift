@@ -84,7 +84,7 @@ final class DockerTests: XCTestCase {
             .init(hostAddress: "127.0.0.1", hostPort: 8080, containerPort: 3000, protocolKind: .tcp),
             .init(hostAddress: "::", hostPort: 8443, containerPort: 3000, protocolKind: .tcp)
         ])
-        let context = try XCTUnwrap(container.composeContext)
+        let context = try XCTUnwrap(container.composeContext, container.composeContextIssue ?? "Missing Compose context")
         XCTAssertEqual(context.projectName, "demo")
         XCTAssertEqual(context.serviceName, "api")
         XCTAssertEqual(context.workingDirectory.path, fixture.directory.path)
@@ -95,6 +95,43 @@ final class DockerTests: XCTestCase {
         XCTAssertEqual(runner.invocations.filter { $0.arguments.first == "inspect" }.count, 2)
         XCTAssertEqual(runner.invocations.filter { $0.arguments.contains("config") }.count, 1)
         XCTAssertEqual(runner.invocations.filter { $0.arguments.contains("ps") && $0.arguments.first == "compose" }.count, 1)
+    }
+
+    func testComposeContextAcceptsCaseOnlyPathSpellingOnCaseInsensitiveVolume() async throws {
+        let fixture = try ComposeFixture()
+        let caseVariant = fixture.directory.deletingLastPathComponent()
+            .appendingPathComponent(fixture.directory.lastPathComponent.lowercased(), isDirectory: true)
+        guard FileManager.default.fileExists(atPath: caseVariant.path),
+              caseVariant.path != fixture.directory.path else {
+            throw XCTSkip("This test requires a case-insensitive volume and a case-varying fixture name.")
+        }
+        fixture.useLabelRoot(caseVariant)
+        let runner = MockCommandRunner { _, arguments in try fixture.result(for: arguments) }
+        let client = DockerCLIClient(runner: runner, executable: URL(fileURLWithPath: "/usr/local/bin/docker"))
+
+        let containers = try await client.runningContainers()
+        let container = try XCTUnwrap(containers.first)
+        let context = try XCTUnwrap(container.composeContext)
+
+        XCTAssertEqual(context.workingDirectory.path, caseVariant.path)
+        XCTAssertNil(container.composeContextIssue)
+    }
+
+    func testComposeContextRejectsRealSymlinkComponent() async throws {
+        let fixture = try ComposeFixture()
+        let link = fixture.directory.deletingLastPathComponent()
+            .appendingPathComponent("DevBerthDockerLink-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: fixture.directory)
+        defer { try? FileManager.default.removeItem(at: link) }
+        fixture.useLabelRoot(link)
+        let runner = MockCommandRunner { _, arguments in try fixture.result(for: arguments) }
+        let client = DockerCLIClient(runner: runner, executable: URL(fileURLWithPath: "/usr/local/bin/docker"))
+
+        let containers = try await client.runningContainers()
+        let container = try XCTUnwrap(containers.first)
+
+        XCTAssertNil(container.composeContext)
+        XCTAssertTrue(try XCTUnwrap(container.composeContextIssue).contains("symbolic links"))
     }
 
     func testPassiveInspectionSkipsComposeControlVerification() async throws {
@@ -242,9 +279,10 @@ private final class ComposeFixture: @unchecked Sendable {
     let containerID = String(repeating: "a", count: 64)
     let configurationHashOutput: String
     let oneOff: Bool
+    private var labelRoot: URL?
 
     init(configurationHashOutput: String = "api compose-hash-123\n", oneOff: Bool = false) throws {
-        directory = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+        directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("DevBerthDockerTests-\(UUID().uuidString)", isDirectory: true)
         composeFile = directory.appendingPathComponent("compose.yaml")
         environmentFile = directory.appendingPathComponent(".env")
@@ -257,6 +295,10 @@ private final class ComposeFixture: @unchecked Sendable {
 
     deinit {
         try? FileManager.default.removeItem(at: directory)
+    }
+
+    func useLabelRoot(_ root: URL) {
+        labelRoot = root
     }
 
     func result(for arguments: [String]) throws -> CommandResult {
@@ -288,13 +330,14 @@ private final class ComposeFixture: @unchecked Sendable {
     }
 
     private func inspectData() throws -> Data {
+        let labeledDirectory = labelRoot ?? directory
         var labels = [
             "com.docker.compose.project": "demo",
             "com.docker.compose.service": "api",
             "com.docker.compose.config-hash": "compose-hash-123",
-            "com.docker.compose.project.working_dir": directory.path,
-            "com.docker.compose.project.config_files": composeFile.path,
-            "com.docker.compose.project.environment_file": environmentFile.path
+            "com.docker.compose.project.working_dir": labeledDirectory.path,
+            "com.docker.compose.project.config_files": labeledDirectory.appendingPathComponent(composeFile.lastPathComponent).path,
+            "com.docker.compose.project.environment_file": labeledDirectory.appendingPathComponent(environmentFile.lastPathComponent).path
         ]
         if oneOff { labels["com.docker.compose.oneoff"] = "True" }
         return try JSONSerialization.data(withJSONObject: [[

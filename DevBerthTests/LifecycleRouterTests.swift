@@ -89,6 +89,43 @@ final class LifecycleRouterTests: XCTestCase {
         XCTAssertTrue(dockerActions.isEmpty)
     }
 
+    func testUnverifiedComposeScopeFallsBackToExactContainerWithoutHostPIDSignal() async throws {
+        let processController = RecordingProcessController()
+        let dockerController = RecordingDockerController()
+        let router = OwnerAwareLifecycleRouter(
+            processController: processController,
+            managedServiceController: RecordingLaunchController(),
+            dockerController: dockerController,
+            runtimeRegistry: ManagedRuntimeRegistry()
+        )
+        let graph = lifecycleGraph(
+            controller: .dockerContainer,
+            supportedActions: [.inspect, .gracefulStop, .restart],
+            category: .dockerComposeService,
+            docker: .init(
+                containerID: "compose-container-123",
+                containerName: "demo-api-1",
+                image: "demo/api:latest",
+                composeProject: "demo",
+                composeService: "api",
+                containerPort: 8080,
+                composeContext: nil,
+                composeContextIssue: "Fixture context is unavailable."
+            )
+        )
+
+        _ = try await router.perform(.gracefulStop, on: graph, forceConfirmed: false)
+        _ = try await router.perform(.restart, on: graph, forceConfirmed: false)
+        let dockerActions = await dockerController.actions()
+        let processActions = await processController.actions()
+
+        XCTAssertEqual(
+            dockerActions,
+            ["stop:compose-container-123", "restart:compose-container-123"]
+        )
+        XCTAssertTrue(processActions.isEmpty)
+    }
+
     func testVerifiedComposeRestartRoutesToExactContextWithoutHostPIDSignal() async throws {
         let processController = RecordingProcessController()
         let dockerController = RecordingDockerController()
