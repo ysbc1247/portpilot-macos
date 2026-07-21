@@ -244,7 +244,7 @@ private final class ComposeFixture: @unchecked Sendable {
     let oneOff: Bool
 
     init(configurationHashOutput: String = "api compose-hash-123\n", oneOff: Bool = false) throws {
-        directory = FileManager.default.temporaryDirectory.resolvingSymlinksInPath()
+        directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("DevBerthDockerTests-\(UUID().uuidString)", isDirectory: true)
         composeFile = directory.appendingPathComponent("compose.yaml")
         environmentFile = directory.appendingPathComponent(".env")

@@ -104,18 +104,15 @@ final class ManagedProcessGroupIntegrationTests: XCTestCase {
         try await waitForProcessExit(listener.process.fingerprint.pid)
     }
 
-    func testManagedGroupReportsTimeoutWhenLeaderIgnoresSIGTERM() async throws {
+    func testManagedGroupForceStopsAfterLeaderIgnoresSIGTERM() async throws {
         let context = try await makeContext(mode: "ignore-term")
         defer { forceCleanup(groupID: context.groupID, marker: context.marker) }
         _ = try await waitForListeners(marker: context.marker, count: 1)
 
-        do {
-            try await context.launcher.stop(profileID: context.profileID, timeoutSeconds: 0.25)
-            XCTFail("Expected the ignored graceful signal to time out")
-        } catch {
-            XCTAssertTrue(error.localizedDescription.contains("did not stop"))
-        }
-        XCTAssertTrue(processGroupExists(context.groupID))
+        try await context.launcher.stop(profileID: context.profileID, timeoutSeconds: 0.25)
+
+        try await waitForProcessGroupExit(context.groupID)
+        XCTAssertFalse(processGroupExists(context.groupID))
     }
 
     private struct ManagedContext {
