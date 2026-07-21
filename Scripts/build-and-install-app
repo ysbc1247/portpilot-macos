@@ -1,0 +1,150 @@
+#!/bin/zsh
+set -euo pipefail
+
+script_directory="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+repository_root="$(CDPATH= cd -- "${script_directory}/.." && pwd)"
+derived_data="${DEVBERTH_DERIVED_DATA_PATH:-${repository_root}/.build/app-release}"
+destination="${DEVBERTH_APP_INSTALL_PATH:-/Applications/DevBerth.app}"
+open_full_disk_access=false
+
+usage() {
+    print -u2 -- "Usage: Scripts/build-and-install-app [--open-full-disk-access]"
+}
+
+while (( $# > 0 )); do
+    case "$1" in
+        --open-full-disk-access) open_full_disk_access=true ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage; print -u2 -- "Unknown option: $1"; exit 64 ;;
+    esac
+    shift
+done
+
+if [[ "${destination}" != /* || "${destination:t}" != *.app ]]; then
+    print -u2 -- "DEVBERTH_APP_INSTALL_PATH must be an absolute .app path."
+    exit 64
+fi
+
+DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}" \
+    /usr/bin/xcodebuild \
+    -quiet \
+    -project "${repository_root}/DevBerth.xcodeproj" \
+    -scheme DevBerth \
+    -configuration Release \
+    -destination 'platform=macOS,arch=arm64' \
+    -derivedDataPath "${derived_data}" \
+    build >&2
+
+source_app="${derived_data}/Build/Products/Release/DevBerth.app"
+source_helper="${source_app}/Contents/Resources/devberth-mcp"
+if [[ ! -d "${source_app}" || ! -x "${source_app}/Contents/MacOS/DevBerth" ]]; then
+    print -u2 -- "The Release build did not produce a launchable DevBerth.app."
+    exit 70
+fi
+if [[ ! -x "${source_helper}" ]]; then
+    print -u2 -- "The Release application does not contain devberth-mcp."
+    exit 70
+fi
+/usr/bin/codesign --verify --deep --strict "${source_app}"
+
+destination_parent="${destination:h}"
+/bin/mkdir -p -- "${destination_parent}"
+if [[ ! -w "${destination_parent}" ]]; then
+    print -u2 -- "The app destination is not writable: ${destination_parent}"
+    exit 77
+fi
+
+running_pids=()
+for pid in $(/usr/bin/pgrep -x DevBerth 2>/dev/null || true); do
+    command_path="$(/bin/ps -ww -p "${pid}" -o command= 2>/dev/null || true)"
+    if [[ "${command_path}" == "${destination}/Contents/MacOS/DevBerth"* ]]; then
+        running_pids+=("${pid}")
+    fi
+done
+
+relaunch_if_needed() {
+    if (( ${#running_pids[@]} > 0 )) && [[ -d "${destination}" ]]; then
+        /usr/bin/open "${destination}"
+    fi
+}
+
+if (( ${#running_pids[@]} > 0 )); then
+    /bin/kill -TERM "${running_pids[@]}"
+    for _ in {1..50}; do
+        still_running=false
+        for pid in "${running_pids[@]}"; do
+            if /bin/kill -0 "${pid}" 2>/dev/null; then still_running=true; break; fi
+        done
+        if [[ "${still_running}" == false ]]; then break; fi
+        /bin/sleep 0.1
+    done
+    for pid in "${running_pids[@]}"; do
+        if /bin/kill -0 "${pid}" 2>/dev/null; then
+            print -u2 -- "DevBerth did not quit cleanly; the existing app was left untouched."
+            exit 75
+        fi
+    done
+fi
+
+staging_root="$(/usr/bin/mktemp -d "${destination_parent}/.DevBerth-install.XXXXXX")"
+staged_app="${staging_root}/DevBerth.app"
+backup_app="${staging_root}/Previous.app"
+install_directory="${HOME}/Library/Application Support/DevBerth/bin"
+helper_destination="${install_directory}/devberth-mcp"
+/bin/mkdir -p -- "${install_directory}"
+/bin/chmod 700 "${install_directory}"
+helper_temporary="$(/usr/bin/mktemp "${install_directory}/.devberth-mcp.XXXXXX")"
+helper_backup="${install_directory}/.devberth-mcp-backup-$$"
+cleanup() {
+    /bin/rm -rf -- "${staging_root}"
+    /bin/rm -f -- "${helper_temporary}" "${helper_backup}"
+}
+trap cleanup EXIT INT TERM
+/usr/bin/ditto --noqtn "${source_app}" "${staged_app}"
+/usr/bin/codesign --verify --deep --strict "${staged_app}"
+/bin/cp -- "${source_helper}" "${helper_temporary}"
+/bin/chmod 700 "${helper_temporary}"
+"${helper_temporary}" --version 1>/dev/null
+
+had_existing=false
+if [[ -e "${destination}" ]]; then
+    had_existing=true
+    /bin/mv -- "${destination}" "${backup_app}"
+fi
+if ! /bin/mv -- "${staged_app}" "${destination}"; then
+    if [[ "${had_existing}" == true ]]; then /bin/mv -- "${backup_app}" "${destination}"; fi
+    relaunch_if_needed
+    exit 74
+fi
+
+if ! /usr/bin/codesign --verify --deep --strict "${destination}"; then
+    /bin/rm -rf -- "${destination}"
+    if [[ "${had_existing}" == true ]]; then /bin/mv -- "${backup_app}" "${destination}"; fi
+    relaunch_if_needed
+    exit 70
+fi
+
+had_existing_helper=false
+if [[ -e "${helper_destination}" ]]; then
+    had_existing_helper=true
+    /bin/mv -- "${helper_destination}" "${helper_backup}"
+fi
+if ! /bin/mv -- "${helper_temporary}" "${helper_destination}" \
+    || ! "${helper_destination}" --version 1>/dev/null; then
+    /bin/rm -f -- "${helper_destination}"
+    if [[ "${had_existing_helper}" == true ]]; then /bin/mv -- "${helper_backup}" "${helper_destination}"; fi
+    /bin/rm -rf -- "${destination}"
+    if [[ "${had_existing}" == true ]]; then /bin/mv -- "${backup_app}" "${destination}"; fi
+    relaunch_if_needed
+    exit 70
+fi
+
+relaunch_if_needed
+if [[ "${open_full_disk_access}" == true ]]; then
+    /usr/bin/open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+fi
+
+version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${destination}/Contents/Info.plist")"
+build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "${destination}/Contents/Info.plist")"
+print -u2 -- "Installed DevBerth ${version} (${build}) at ${destination}"
+print -u2 -- "Installed MCP helper at ${helper_destination}"
