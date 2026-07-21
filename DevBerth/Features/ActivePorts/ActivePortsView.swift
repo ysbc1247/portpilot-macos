@@ -185,12 +185,16 @@ private struct ProcessInspectorView: View {
                         InspectorRow(title: "Detected", value: listener.process.fingerprint.detectedAt.formatted())
                     }
                 }
-                GroupBox("Verified command") {
+                GroupBox("Observed command") {
                     Text(listener.process.commandLine)
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                OwnershipExplanationView(
+                    graph: model.ownershipGraphs[listener.id],
+                    isLoading: model.ownershipInspectionsInProgress.contains(listener.id)
+                )
                 if let project = listener.process.project {
                     GroupBox("Inferred project") {
                         VStack(spacing: 10) {
@@ -220,16 +224,19 @@ private struct ProcessInspectorView: View {
                     Button {
                         Task { await model.terminate(listener, mode: .graceful(timeoutSeconds: 5)) }
                     } label: {
-                        Label("Graceful Stop", systemImage: "stop.circle")
+                        Label(gracefulStopTitle, systemImage: "stop.circle")
                             .frame(maxWidth: .infinity)
                     }
-                    .disabled(listener.process.isSystemProcess || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
+                    .disabled(!canGracefullyStop || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
 
                     HStack {
                         Button("Save as Launch Profile") { showsProfileReview = true }
                         Spacer()
+                        if canRestart {
+                            Button("Restart") { Task { await model.restartOwnedRuntime(listener) } }
+                        }
                         Button("Force Stop", role: .destructive) { showsForceConfirmation = true }
-                            .disabled(listener.process.isSystemProcess || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
+                            .disabled(!canForceStop || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
                     }
                 }
             }
@@ -250,6 +257,157 @@ private struct ProcessInspectorView: View {
         }
         .sheet(isPresented: $showsProfileReview) {
             DiscoveredProfileReviewView(listener: listener)
+        }
+        .task(id: ownershipInspectionKey) {
+            await model.inspectOwnership(of: listener)
+        }
+    }
+
+    private var ownershipInspectionKey: String {
+        [
+            listener.id,
+            listener.process.fingerprint.commandLineDigest ?? "weak",
+            listener.process.docker?.containerID ?? "host"
+        ].joined(separator: ":")
+    }
+
+    private var ownershipGraph: RuntimeOwnershipGraph? {
+        model.ownershipGraphs[listener.id]
+    }
+
+    private var canGracefullyStop: Bool {
+        guard let graph = ownershipGraph else { return false }
+        if usesPIDController(graph.recommendation.controllerKind) && listener.process.isSystemProcess {
+            return false
+        }
+        return graph.recommendation.supportedActions.contains(.gracefulStop)
+    }
+
+    private var canForceStop: Bool {
+        guard let graph = ownershipGraph else { return false }
+        if listener.process.isSystemProcess { return false }
+        return graph.recommendation.supportedActions.contains(.forceStop)
+    }
+
+    private var canRestart: Bool {
+        ownershipGraph?.recommendation.supportedActions.contains(.restart) == true
+    }
+
+    private func usesPIDController(_ controller: LifecycleControllerKind) -> Bool {
+        switch controller {
+        case .guardedExternalProcess, .kubernetesPortForward, .sshTunnel:
+            true
+        case .managedProcess, .dockerContainer, .dockerComposeService, .homebrewService,
+             .launchdService, .unavailable:
+            false
+        }
+    }
+
+    private var gracefulStopTitle: String {
+        switch ownershipGraph?.recommendation.controllerKind {
+        case .managedProcess: "Stop Managed Service"
+        case .dockerContainer: "Stop Container"
+        case .kubernetesPortForward: "Stop Port Forward"
+        case .sshTunnel: "Stop SSH Tunnel"
+        default: "Graceful Stop"
+        }
+    }
+}
+
+private struct OwnershipExplanationView: View {
+    let graph: RuntimeOwnershipGraph?
+    let isLoading: Bool
+
+    var body: some View {
+        GroupBox("Why is this running?") {
+            if let graph {
+                VStack(alignment: .leading, spacing: DevBerthSpacing.medium) {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(graph.primaryConclusion.category.title).font(.headline)
+                            Text(graph.primaryConclusion.value).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(graph.primaryConclusion.confidence.title)
+                            .font(.caption.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.quaternary, in: Capsule())
+                    }
+                    InspectorRow(
+                        title: "Detection method",
+                        value: graph.primaryConclusion.detectionMethod.title
+                    )
+                    InspectorRow(
+                        title: "Process group",
+                        value: graph.processGroupID.map(String.init) ?? "Unavailable"
+                    )
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(graph.recommendation.title).font(.subheadline.bold())
+                        Text(graph.recommendation.reason)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !graph.processLineage.isEmpty {
+                        Divider()
+                        Text("Process lineage").font(.caption.bold()).foregroundStyle(.secondary)
+                        ForEach(Array(graph.processLineage.enumerated()), id: \.element.id) { index, node in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Image(systemName: index == 0 ? "circle.fill" : "arrow.turn.up.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(index == 0 ? .primary : .secondary)
+                                    .frame(width: 12)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("\(node.name) · PID \(node.fingerprint.pid)")
+                                        .font(.system(.caption, design: .monospaced))
+                                    if let command = node.commandLine {
+                                        Text(command)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if !graph.primaryConclusion.evidence.isEmpty {
+                        Divider()
+                        Text("Supporting evidence").font(.caption.bold()).foregroundStyle(.secondary)
+                        ForEach(graph.primaryConclusion.evidence) { evidence in
+                            VStack(alignment: .leading, spacing: 1) {
+                                HStack {
+                                    Image(systemName: evidence.isVerified ? "checkmark.seal.fill" : "questionmark.diamond")
+                                        .foregroundStyle(evidence.isVerified ? .green : .secondary)
+                                    Text(evidence.field.capitalized).font(.caption.bold())
+                                    Spacer()
+                                    Text(evidence.isVerified ? "Observed" : "Inferred")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(evidence.value).font(.caption)
+                                Text(evidence.source).font(.caption2).foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else if isLoading {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Resolving process lineage and controlling owner…")
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text("Ownership evidence has not been inspected yet.")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }

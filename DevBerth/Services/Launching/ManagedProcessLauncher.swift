@@ -21,6 +21,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
     private let groupInspector: any ProcessGroupInspecting
     private let groupOperator: any ProcessGroupOperating
     private let listenerDiscoverer: any PortDiscovering
+    private let runtimeRegistry: ManagedRuntimeRegistry
     private var running: [UUID: ManagedProcess] = [:]
 
     init(
@@ -33,7 +34,8 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         fingerprintVerifier: (any ProcessFingerprintVerifying)? = nil,
         groupInspector: (any ProcessGroupInspecting)? = nil,
         groupOperator: any ProcessGroupOperating = DarwinProcessGroupOperator(),
-        listenerDiscoverer: (any PortDiscovering)? = nil
+        listenerDiscoverer: (any PortDiscovering)? = nil,
+        runtimeRegistry: ManagedRuntimeRegistry = ManagedRuntimeRegistry()
     ) {
         let resolvedProcessInspector = processInspector ?? SystemProcessInspector(runner: runner)
         self.secrets = secrets
@@ -51,6 +53,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
             runner: runner,
             includeProjectInference: false
         )
+        self.runtimeRegistry = runtimeRegistry
     }
 
     func launch(_ profile: ManagedServiceConfiguration) async throws {
@@ -143,6 +146,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
                 latestSnapshot: snapshot,
                 leaderExitStatus: nil
             )
+            await runtimeRegistry.register(runtime: runtime, configuration: profile, snapshot: snapshot)
             startExitWatcher(profileID: profile.id, pid: spawned.pid)
             await logs.append(
                 profileID: profile.id,
@@ -168,7 +172,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
             listenerOwnerPIDs: listenerOwnerPIDs
         )
         guard !snapshot.liveControlledMembers.isEmpty else {
-            remove(profileID: profileID)
+            await remove(profileID: profileID)
             return
         }
 
@@ -178,6 +182,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         }
         managed.latestSnapshot = snapshot
         running[profileID] = managed
+        await runtimeRegistry.update(snapshot: snapshot, forServiceID: profileID)
 
         switch managed.runtime.processPolicy.terminationScope {
         case .controlledProcessGroup:
@@ -208,7 +213,7 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
                 }()
             }
             if stopped {
-                remove(profileID: profileID)
+                await remove(profileID: profileID)
                 return
             }
             try await Task.sleep(for: .milliseconds(100))
@@ -323,14 +328,15 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
         )
         if managed.runtime.processPolicy.terminationScope == .rootProcessOnly
             || !groupOperator.processGroupExists(managed.runtime.processGroupID) {
-            remove(profileID: profileID)
+            await remove(profileID: profileID)
         }
     }
 
-    private func remove(profileID: UUID) {
+    private func remove(profileID: UUID) async {
         if let managed = running.removeValue(forKey: profileID) {
             managed.standardOutput.readabilityHandler = nil
             managed.standardError.readabilityHandler = nil
+            await runtimeRegistry.remove(serviceID: profileID, runtimeID: managed.runtime.id)
         }
     }
 

@@ -17,8 +17,10 @@ struct DevBerthApp: App {
                 configurations: [configuration]
             )
             container = createdContainer
+            let store = SwiftDataStore(modelContainer: createdContainer)
             _model = StateObject(wrappedValue: AppModel(
-                historyRecorder: SwiftDataStore(modelContainer: createdContainer)
+                historyRecorder: store,
+                ownershipRecorder: store
             ))
         } catch {
             fatalError("Unable to initialize DevBerth's local database: \(error.localizedDescription)")

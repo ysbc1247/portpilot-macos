@@ -30,11 +30,13 @@ The existing “Launch Profiles” feature and `LaunchProfileRecord` class retai
 - An observed listener embeds an observed process only because `lsof` directly reports the listener-to-PID edge. It contains no launch or restart configuration.
 - A runtime instance references exactly one managed service and exactly one process fingerprint. A replacement process is a new runtime or a separately reconciled fingerprint, not an in-place PID update.
 - Ownership conclusions reference a listener ID, process fingerprint, or runtime ID and always include confidence, evidence, method, and timestamp.
+- `RuntimeOwnershipGraph` is transient reconciliation output. It carries the observed listener, process group, bounded lineage, primary/additional conclusions, managed/project/session references, and an owner-layer action recommendation; only its redacted conclusions are durable evidence.
 - A workspace session contains only managed-service expectations. An unmanaged observed process must be converted and reviewed before it can be restored.
 - Session service snapshots retain a configuration digest so restore preview can report drift rather than assuming the current definition matches the captured definition.
 - Project discovery evidence is inert. Detection never edits project files or creates a launchable service without review.
 - A dedicated managed process group is an application-created ownership boundary. An external PGID is observation only and never grants group-signal authority.
 - A descendant that leaves the controlled group remains ownership evidence but is excluded from group termination unless a separate reviewed controller claims it.
+- An inferred owner category is explanatory evidence, not action authority. Lifecycle requests must route through a controller whose exact context is available; otherwise the action is refused without falling back to a PID signal.
 
 ## V2 persistence migration
 
@@ -48,12 +50,13 @@ The local development store was also opened under V2. All 1,278 event UUIDs from
 
 `DevBerthSchemaV3` adds full fingerprint, managed process-policy, and process-group snapshot records without changing frozen V1/V2 entities. Automated validation materializes a genuine V2 store with a runtime record, opens it through the V2→V3 stage, proves that runtime unchanged, and proves the new tables begin empty. V3 persistence tests round-trip device/inode identity, UID, digest, parent, leader/group/member evidence, escaped descendants, and process policy.
 
-The local development store opened under V3 with 2,668 current history rows and the three V3 tables present. The genuine V2 fixture provides the before/after preservation proof; the local row count is only an additional smoke check. Continuous runtime persistence and retention remain part of the lifecycle-controller slice.
+The local development store opened under V3 with 2,668 current history rows and the three V3 tables present. The genuine V2 fixture provides the before/after preservation proof; the local row count is only an additional smoke check. Ownership conclusions now write through the production model actor with a newest-1,000 retention bound. Continuous runtime-instance and lifecycle-event persistence remain part of the runtime-lifecycle slice.
 
 ## Consequences
 
 - UI badges must say whether a value is observed, inferred, reviewed, or verified.
 - Lifecycle actions must route through an owner/controller and cannot be enabled merely because an observation has a PID.
+- Managed registration and exact Docker metadata may authorize their matching controller. Compose labels, Homebrew paths, launchd ancestry, supervisor ancestry, and other inference do not authorize service-manager actions without exact controller context.
 - Restart availability must come from `RestartTrustAssessment`, not from the presence of a command line.
 - Runtime, ownership, lifecycle, and discovery tables require explicit retention policies before they receive continuous production writes.
 - Adding records does not make the corresponding workflow complete. Controllers, reconciliation, retention, and UI remain required and must be verified independently.

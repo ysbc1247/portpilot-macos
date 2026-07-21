@@ -8,6 +8,7 @@ enum DevBerthError: LocalizedError, Identifiable, Sendable {
     case dockerUnavailable(String)
     case processFingerprintChanged(String)
     case listenerOwnershipChanged(UInt16)
+    case ownerActionUnavailable(owner: String, reason: String)
     case protectedProcess(String)
     case launchValidation(String)
     case portConflict(UInt16)
@@ -26,6 +27,7 @@ enum DevBerthError: LocalizedError, Identifiable, Sendable {
         case let .dockerUnavailable(details): "Docker is unavailable. \(details)"
         case let .processFingerprintChanged(details): "The process fingerprint changed before the action could be completed. \(details)"
         case let .listenerOwnershipChanged(port): "PID ownership of port \(port) changed before the action. DevBerth did not send a signal."
+        case let .ownerActionUnavailable(owner, reason): "The requested action is unavailable for \(owner). \(reason)"
         case let .protectedProcess(reason): "DevBerth protected this process from termination. \(reason)"
         case let .launchValidation(details): "The launch profile is not ready: \(details)"
         case let .portConflict(port): "Port \(port) is already occupied. Inspect the process before continuing."
@@ -39,6 +41,7 @@ enum DevBerthError: LocalizedError, Identifiable, Sendable {
         switch self {
         case .dockerUnavailable: "Start Docker or continue using DevBerth without container controls."
         case .processFingerprintChanged, .listenerOwnershipChanged: "Refresh Active Ports to select the current process and listener."
+        case .ownerActionUnavailable: "Inspect “Why is this running?” and use the controlling tool named there."
         case .protectedProcess: "Inspect the exact executable and owner. Use Terminal if you intentionally need an administrative action."
         case .portConflict: "Cancel, inspect or stop the occupying process, or edit the expected port."
         case .missingSecret: "Edit the launch profile and save the missing secret again."

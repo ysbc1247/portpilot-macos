@@ -10,7 +10,9 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 | Command execution | Direct executable URL plus discrete argument arrays | `FoundationCommandRunner` |
 | Process discovery | Tagged listener parsing and process enrichment | `LocalPortDiscovery`, `ObservedProcessProvider` |
 | Monitoring | Polling, snapshots, diffs, pause/resume | `PortMonitor` actor |
+| Ownership | Bounded lineage, managed-runtime reconciliation, confidence-labeled conclusions, safe controller choice | `SystemProcessLineageProvider`, `RuntimeOwnershipResolver`, `ManagedRuntimeRegistry` |
 | Process control | Protection, fingerprint and listener-edge verification, signals, wait state | `SafeProcessController` |
+| Lifecycle routing | Dispatch to the verified owner layer or refuse without signaling | `OwnerAwareLifecycleRouter` |
 | Launching | Reviewed profile execution, dedicated POSIX groups, descendants, and managed lifetime | `POSIXControlledProcessSpawner`, `ManagedProcessLauncher`, `LaunchCoordinator` |
 | Projects | Dependency-layer orchestration | `ProjectOrchestrator` |
 | Docker | Availability, container JSON, ports, actions, logs | `DockerCLIClient`, `DockerAssociationProvider` |
@@ -28,7 +30,8 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 5. `RuntimeDiffer` derives added, updated, and removed listeners by stable listener ID.
 6. Docker associations are refreshed on a five-second cache and joined by host port and protocol.
 7. `AppModel` publishes the correlated snapshot on the main actor, records relevant history, and optionally schedules configured-port notifications.
-8. SwiftUI renders the existing value graph instead of causing OS queries from view bodies.
+8. The selected listener is reconciled against the managed-runtime registry, Docker metadata, bounded process lineage, and deterministic external-owner rules. The result is a transient `RuntimeOwnershipGraph`; its primary conclusion is persisted with bounded retention.
+9. SwiftUI renders the existing value graph instead of causing OS queries from view bodies.
 
 The listener identity is `PID + protocol + address + port`. A process fingerprint contains PID, UID, executable path, executable device/inode when available, start time, command-line SHA-256 digest, parent PID, and detection time. First/last listener timestamps and fingerprint detection time are evidence timestamps, not authority to control a PID and not persisted live `Process` objects.
 
@@ -36,7 +39,21 @@ The listener identity is `PID + protocol + address + port`. A process fingerprin
 
 `ObservedListener` and `ObservedProcess` are transient facts reported by the operating system. An observed listener contains an observed process because the listener-to-process edge is direct evidence from `lsof`; neither type contains launch instructions or restart claims. `ManagedServiceConfiguration` is durable, reviewed user intent: launch mechanism, command, arguments, environment references, expected listeners, health/readiness, shutdown/restart policy, dependencies, and log settings. The existing `LaunchProfileRecord` name remains a V1 persistence compatibility detail and is converted at the boundary by `LaunchProfileRecord+Domain`.
 
-`RuntimeInstance`, `OwnershipConclusion`, `RestartTrustAssessment`, `WorkspaceSession`, `ProjectDiscoveryMetadata`, and `LifecycleEvent` now model the remaining Phase 2 concepts independently. Their V2 records exist, but controllers and UI are delivered in later slices; an empty table is not treated as a completed workflow. See `Documentation/DOMAIN_MODEL.md` for reference and persistence rules.
+`RuntimeInstance`, `OwnershipConclusion`, `RestartTrustAssessment`, `WorkspaceSession`, `ProjectDiscoveryMetadata`, and `LifecycleEvent` model the remaining Phase 2 concepts independently. Ownership resolution and safe lifecycle routing are now live; restart trust, session restoration, adapter import, and continuous runtime lifecycle persistence remain later slices. An empty table is never treated as a completed workflow. See `Documentation/DOMAIN_MODEL.md` for reference and persistence rules.
+
+## Ownership graph and lifecycle routing
+
+`ManagedRuntimeRegistry` is an actor-isolated, in-memory reconciliation index shared by the managed launcher, ownership resolver, and lifecycle router. A launch registers the exact runtime handle, reviewed managed-service configuration, and latest process-group snapshot. Resolution may match an exact strong fingerprint or a member of the registered group, but the later managed stop still revalidates an ownership anchor and group membership inside `ManagedProcessLauncher` before signaling.
+
+`SystemProcessLineageProvider` walks at most twelve ancestors by default, terminates on missing parents or cycles, and preserves the initially observed process as the first node. `RuntimeOwnershipResolver` applies a deterministic priority:
+
+1. live managed-runtime registration;
+2. exact Docker published-port/container metadata, including Compose labels;
+3. command and lineage rules for Kubernetes port forwards, SSH tunnels, coding agents, supervisors, Homebrew plus launchd, LaunchAgents/Daemons, IDEs, terminals, shells, standalone processes, and unknown owners.
+
+Every `OwnershipConclusion` includes value, confidence, evidence, detection method, and observation time. Managed registration and exact Docker metadata can be verified. Lineage and service-manager resemblance remain explicitly inferred even when several observations agree. The Active Ports inspector exposes the conclusion, evidence provenance, process group, lineage, and safe-action rationale under “Why is this running?”.
+
+`OwnerAwareLifecycleRouter` is the only presentation-level dispatch boundary for an observed listener action. It stops a live DevBerth-managed runtime through its reviewed service policy, stops or restarts an exact Docker container through Docker, and delegates standalone/Kubernetes-forward/SSH process stops to `SafeProcessController`. It never substitutes a host PID signal for a container action. Compose, Homebrew, launchd, and supervisor actions are inspection-only until exact project files/environment, service name/domain, or controlling label are verified; requests are refused with an actionable explanation and no signal. External observations never receive restart because no verified reconstruction recipe exists.
 
 ## Discovery strategy
 
@@ -101,6 +118,8 @@ SwiftData schema V1 contains `ProjectRecord`, `LaunchProfileRecord`, `ProfileDep
 
 `DevBerthMigrationPlan` contains frozen V1, V2, and V3 schemas. V2 adds separate runtime-instance, ownership-evidence, restart-trust, workspace-session, restore-result, project-discovery, and lifecycle-event records. V3 adds field-addressable full process fingerprints, managed-service process policies, and process-group snapshots. Both transitions are lightweight and additive; a genuine V2 store fixture proves V2→V3 while the product migration fixture proves V1→current. Future changes must add a new `VersionedSchema` and explicit migration stage rather than editing any shipped schema identifier.
 
+Production ownership inspection records only the redacted `OwnershipConclusion`, not raw environment values. `SwiftDataStore` retains the newest 1,000 ownership-evidence records and deletes the oldest on insertion; an in-memory production-store test proves both persistence and the bound.
+
 `ProductIdentity` is the single compatibility map for the former product name, bundle identifier, store, support directory, defaults domain, and Keychain service. Before constructing the production container, `ProductDataMigrator` uses SQLite's online-backup API to materialize a consistent snapshot of an absent current store, including committed legacy WAL data; it atomically promotes the completed snapshot, copies an absent service-log directory, and copies only whitelisted unset defaults. It never overwrites current data and retains the legacy store/WAL/SHM files as a recovery source. `KeychainSecretStore` reads the current service first, copies a successful legacy read forward, and deletes an intentionally removed reference from both services.
 
 ## Concurrency
@@ -119,7 +138,7 @@ See `SECURITY.md` and `PRIVACY.md` for operator-facing policy.
 
 ## Tests
 
-Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, validation, graph ordering/cycles, conflict detection, state transitions, Docker parsing/fallback, shell escaping, secret references, log redaction/bounds, health checks, SwiftData history, and migrations.
+Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, validation, graph ordering/cycles, conflict detection, state transitions, Docker parsing/fallback, shell escaping, secret references, log redaction/bounds, health checks, SwiftData history/migrations, bounded ownership evidence, bounded/cyclic lineage, deterministic owner classification, managed-runtime reconciliation, owner-aware dispatch, and explicit controller refusal.
 
 Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong fingerprints, listener ownership, graceful exit, graceful timeout, confirmed force-stop, dedicated POSIX groups, child/multi-listener shutdown, `exec` replacement, supervisor restart, ignored `SIGTERM`, and detached-descendant exclusion. Every test owns and cleans up its fixture process.
 

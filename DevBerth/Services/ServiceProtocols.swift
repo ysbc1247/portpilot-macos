@@ -74,6 +74,18 @@ protocol HistoryRecording: Sendable {
     func record(_ event: HistoryEvent) async throws
 }
 
+protocol OwnershipRecording: Sendable {
+    func record(_ conclusion: OwnershipConclusion) async throws
+}
+
+protocol OwnerAwareLifecycleRouting: Sendable {
+    func perform(
+        _ action: LifecycleActionKind,
+        on graph: RuntimeOwnershipGraph,
+        forceConfirmed: Bool
+    ) async throws -> OwnerAwareLifecycleResult
+}
+
 protocol LaunchProfileServing: Sendable {
     func launch(_ profile: ManagedServiceConfiguration) async throws
     func stop(profileID: UUID, timeoutSeconds: Double) async throws

@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import OSLog
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -16,10 +17,14 @@ final class AppModel: ObservableObject {
     @Published private(set) var profileFailures: [UUID: String] = [:]
     @Published var requestedSection: AppSection?
     @Published var pendingLaunchConflict: PendingLaunchConflict?
+    @Published private(set) var ownershipGraphs: [String: RuntimeOwnershipGraph] = [:]
+    @Published private(set) var ownershipInspectionsInProgress = Set<String>()
 
     private let monitor: PortMonitor
-    private let processController: any ProcessControlling
+    private let lifecycleRouter: any OwnerAwareLifecycleRouting
     private let historyRecorder: (any HistoryRecording)?
+    private let ownershipRecorder: (any OwnershipRecording)?
+    private let ownershipResolver: any RuntimeOwnershipResolving
     private let launchService: any LaunchProfileServing
     private let projectOrchestrator: ProjectOrchestrator
     private let notifier: any PortNotifying
@@ -32,35 +37,52 @@ final class AppModel: ObservableObject {
     init(
         discoverer: (any PortDiscovering)? = nil,
         processController: (any ProcessControlling)? = nil,
-        historyRecorder: (any HistoryRecording)? = nil
+        historyRecorder: (any HistoryRecording)? = nil,
+        ownershipRecorder: (any OwnershipRecording)? = nil,
+        ownershipResolver: (any RuntimeOwnershipResolving)? = nil,
+        lifecycleRouter: (any OwnerAwareLifecycleRouting)? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
         let logs = ServiceLogBuffer()
+        let runtimeRegistry = ManagedRuntimeRegistry()
         let managedLauncher = ManagedProcessLauncher(
             secrets: KeychainSecretStore(),
             logs: logs,
             runner: runner,
-            listenerDiscoverer: service
+            listenerDiscoverer: service,
+            runtimeRegistry: runtimeRegistry
         )
         let coordinator = LaunchCoordinator(
             discoverer: service,
             processLauncher: managedLauncher,
             healthChecker: HTTPHealthChecker()
         )
-        self.monitor = PortMonitor(discoverer: service)
-        self.processController = processController ?? SafeProcessController(
+        let resolvedProcessController = processController ?? SafeProcessController(
             runner: runner,
             verifier: ProcessFingerprintVerifier(runner: runner)
         )
+        let dockerClient = DockerCLIClient(runner: runner)
+        self.monitor = PortMonitor(discoverer: service)
+        self.lifecycleRouter = lifecycleRouter ?? OwnerAwareLifecycleRouter(
+            processController: resolvedProcessController,
+            managedServiceController: coordinator,
+            dockerController: dockerClient,
+            runtimeRegistry: runtimeRegistry
+        )
         self.historyRecorder = historyRecorder
+        self.ownershipRecorder = ownershipRecorder
+        self.ownershipResolver = ownershipResolver ?? RuntimeOwnershipResolver(
+            runtimeRegistry: runtimeRegistry,
+            lineageProvider: SystemProcessLineageProvider(
+                inspector: SystemProcessInspector(runner: runner)
+            )
+        )
         self.launchService = coordinator
         self.projectOrchestrator = ProjectOrchestrator(launcher: coordinator)
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
-        self.dockerAssociations = DockerAssociationProvider(
-            client: DockerCLIClient(runner: runner)
-        )
+        self.dockerAssociations = DockerAssociationProvider(client: dockerClient)
     }
 
     var filteredListeners: [ObservedListener] {
@@ -89,6 +111,8 @@ final class AppModel: ObservableObject {
             for await update in stream {
                 guard !Task.isCancelled else { break }
                 listeners = await dockerAssociations.correlate(update.snapshot.listeners)
+                let currentListenerIDs = Set(listeners.map(\.id))
+                ownershipGraphs = ownershipGraphs.filter { currentListenerIDs.contains($0.key) }
                 recentChanges = Array((update.diff.added + update.diff.removed).prefix(12))
                 lastRefresh = update.snapshot.capturedAt
                 isRefreshing = false
@@ -118,6 +142,32 @@ final class AppModel: ObservableObject {
         notificationPorts = Set(ports.compactMap { UInt16(exactly: $0) })
     }
 
+    func inspectOwnership(of listener: ObservedListener) async {
+        guard !ownershipInspectionsInProgress.contains(listener.id) else { return }
+        ownershipInspectionsInProgress.insert(listener.id)
+        defer { ownershipInspectionsInProgress.remove(listener.id) }
+        let graph = await ownershipResolver.resolve(listener: listener)
+        ownershipGraphs[listener.id] = graph
+        await persistOwnership(graph.primaryConclusion, reportsError: true)
+    }
+
+    private func persistOwnership(
+        _ conclusion: OwnershipConclusion,
+        reportsError: Bool
+    ) async {
+        guard let ownershipRecorder else { return }
+        do {
+            try await ownershipRecorder.record(conclusion)
+        } catch {
+            let message = "Ownership was resolved, but its local evidence record could not be saved: \(error.localizedDescription)"
+            if reportsError {
+                presentedError = .unexpected(message)
+            } else {
+                DevBerthLogger.persistence.error("\(message, privacy: .public)")
+            }
+        }
+    }
+
     func terminate(_ listener: ObservedListener, mode: TerminationMode) async {
         let pid = listener.process.fingerprint.pid
         guard !processesBeingControlled.contains(pid) else { return }
@@ -130,18 +180,35 @@ final class AppModel: ObservableObject {
             case .force: .forceStopRequested
             }
         }()
+        let lifecycleAction: LifecycleActionKind
+        let forceConfirmed: Bool
+        switch mode {
+        case .graceful:
+            lifecycleAction = .gracefulStop
+            forceConfirmed = false
+        case let .force(confirmed):
+            lifecycleAction = .forceStop
+            forceConfirmed = confirmed
+        }
         do {
-            let outcome = try await processController.terminate(ProcessActionTarget(listener: listener), mode: mode)
+            let graph = await ownershipResolver.resolve(listener: listener)
+            ownershipGraphs[listener.id] = graph
+            await persistOwnership(graph.primaryConclusion, reportsError: false)
+            let outcome = try await lifecycleRouter.perform(
+                lifecycleAction,
+                on: graph,
+                forceConfirmed: forceConfirmed
+            )
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: listener.port,
                 processFingerprint: listener.process.fingerprint, processName: listener.process.name,
-                projectID: nil, profileID: listener.process.managedServiceID, type: eventType,
-                result: outcome.didExit ? .succeeded : .failed,
-                errorDetails: outcome.didExit ? nil : "The process did not exit before the graceful shutdown timeout.",
+                projectID: graph.projectID, profileID: graph.managedServiceID, type: eventType,
+                result: outcome.didStop ? .succeeded : .failed,
+                errorDetails: outcome.didStop ? nil : outcome.summary,
                 durationSeconds: outcome.durationSeconds
             ))
-            if !outcome.didExit {
-                presentedError = .unexpected("\(listener.process.name) did not exit before the timeout. You can force stop it after reviewing the risk.")
+            if !outcome.didStop {
+                presentedError = .unexpected(outcome.summary)
             }
             refreshNow()
         } catch let error as DevBerthError {
@@ -151,6 +218,44 @@ final class AppModel: ObservableObject {
                 processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                 projectID: nil, profileID: listener.process.managedServiceID, type: eventType,
                 result: .failed, errorDetails: error.localizedDescription,
+                durationSeconds: Date().timeIntervalSince(startedAt)
+            ))
+        } catch {
+            presentedError = .unexpected(error.localizedDescription)
+        }
+    }
+
+    func restartOwnedRuntime(_ listener: ObservedListener) async {
+        let pid = listener.process.fingerprint.pid
+        guard !processesBeingControlled.contains(pid) else { return }
+        processesBeingControlled.insert(pid)
+        defer { processesBeingControlled.remove(pid) }
+        let startedAt = Date()
+        do {
+            let graph = await ownershipResolver.resolve(listener: listener)
+            ownershipGraphs[listener.id] = graph
+            await persistOwnership(graph.primaryConclusion, reportsError: false)
+            let outcome = try await lifecycleRouter.perform(
+                .restart,
+                on: graph,
+                forceConfirmed: false
+            )
+            await record(HistoryEvent(
+                id: UUID(), timestamp: startedAt, port: listener.port,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
+                projectID: graph.projectID, profileID: graph.managedServiceID,
+                type: .restartRequested, result: .succeeded,
+                errorDetails: outcome.summary, durationSeconds: outcome.durationSeconds
+            ))
+            refreshNow()
+        } catch let error as DevBerthError {
+            presentedError = error
+            await record(HistoryEvent(
+                id: UUID(), timestamp: startedAt, port: listener.port,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
+                projectID: nil, profileID: listener.process.managedServiceID,
+                type: .restartRequested, result: .failed,
+                errorDetails: error.localizedDescription,
                 durationSeconds: Date().timeIntervalSince(startedAt)
             ))
         } catch {
@@ -213,11 +318,15 @@ final class AppModel: ObservableObject {
         guard let pending = pendingLaunchConflict else { return }
         let listener = pending.conflict.listener
         do {
-            let outcome = try await processController.terminate(
-                ProcessActionTarget(listener: listener),
-                mode: .graceful(timeoutSeconds: pending.profile.shutdownTimeoutSeconds)
+            let graph = await ownershipResolver.resolve(listener: listener)
+            ownershipGraphs[listener.id] = graph
+            await persistOwnership(graph.primaryConclusion, reportsError: false)
+            let outcome = try await lifecycleRouter.perform(
+                .gracefulStop,
+                on: graph,
+                forceConfirmed: false
             )
-            guard outcome.didExit else {
+            guard outcome.didStop else {
                 presentedError = .unexpected("The conflicting process did not stop before the timeout. Inspect it before considering a force stop.")
                 return
             }
