@@ -205,6 +205,12 @@ Production ownership inspection records only the redacted `OwnershipConclusion`,
 
 ## Concurrency
 
+### Performance observability
+
+Performance instrumentation is a shared service rather than view-specific logging. `DevBerthPerformance` defines the stable Points of Interest names for runtime scans, discovery and enrichment, Docker refresh, project inference, semantic diffing, SwiftData writes, health batches, log processing, SwiftUI publication, MCP requests, and lifecycle operations. It first checks whether signposting is enabled, so normal Release execution does not pay formatting or payload-construction costs.
+
+`PerformanceDiagnostics` is the non-secret in-process metrics owner. It retains aggregate scan latency/count, coalescing, cache size/hit rate, Docker latency, active health/background work, and at most 20 reviewed warning summaries. It never stores commands, paths, environment values, HTTP bodies, log contents, or Keychain material. Feature code must use this owner instead of creating independent performance timers or diagnostic buffers.
+
 - Command execution and discovery run in detached/background work.
 - Discovery, monitoring, launching, lifecycle tracking, service checks, process control, Docker correlation, logs, and persistence are actor-isolated.
 - The main actor owns observable presentation state only.

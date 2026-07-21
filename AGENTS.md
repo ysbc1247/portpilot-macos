@@ -211,6 +211,7 @@ Create the required documentation directories and files if they do not yet exist
 - Keep verified process metadata separate from inferred classification or relaunch suggestions in the UI and domain models.
 - Add parser fixtures and tests when changing command formats. Tests must use mocks and must never terminate real user processes.
 - Collect resource usage through one bounded, batched `ps` reader per runtime refresh. Resource values are transient evidence; unavailable or malformed rows render as unavailable and never affect ownership or lifecycle authority.
+- Route performance intervals and diagnostic counters through `DevBerthPerformance` and `PerformanceDiagnostics`. Keep signposts OS-gated, counters bounded and secret-safe, and avoid ad-hoc performance timers or unbounded diagnostic history.
 - Localize user-facing strings with `String(localized:)` or `LocalizedStringKey`; keep business-logic errors actionable and non-secret.
 - Treat `ProductIdentity` and `ProductDataMigrator` as the compatibility boundary for the PortPilot-to-DevBerth rename. Never remove legacy identifiers or reset user storage without a tested migration and an explicit compatibility decision.
 - Treat `DevBerthSchemaV1` through `DevBerthSchemaV7` as shipped, immutable schemas. Add a new version and migration stage for later persistence changes, and validate from a previous-version fixture. V5 owns lifecycle context and incident summaries; V6 owns managed-service check sidecars; V7 owns control-plane revisions, organization records, and MCP audit metadata.

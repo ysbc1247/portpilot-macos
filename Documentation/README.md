@@ -14,6 +14,7 @@
 - [MCP troubleshooting](MCP_TROUBLESHOOTING.md)
 - [MCP performance](MCP_PERFORMANCE.md)
 - [MCP acceptance results](MCP_ACCEPTANCE_RESULTS.md)
+- [Performance audit](PERFORMANCE_AUDIT.md)
 
 Durable engineering and product decisions live in this directory. Temporary branch state and resume instructions do not.
 
@@ -30,6 +31,7 @@ Durable engineering and product decisions live in this directory. Temporary bran
 - `PRODUCT_SURFACE.md` — native information architecture, Runtime presentation, onboarding, menu bar, and command-palette contracts.
 - `SECURITY_THREAT_MODEL.md` — adversaries, protected assets, attack surfaces, mitigations, and residual limitations.
 - `PERFORMANCE_AND_SOAK_TEST.md` — current measurements, repeatable harness, bounds, and the extended-run release gate.
+- `PERFORMANCE_AUDIT.md` — measured CPU, memory, wakeup, process, persistence, rendering, and call-path baseline plus before/after evidence.
 - `PHASE_2_VALIDATION.md` — executed test/runtime evidence, acceptance-scenario coverage, and explicit release gaps.
 - `COMPETITIVE_DIFFERENTIATION.md` — factual category overlap, differentiators, intentional exclusions, and limitations.
 - `SECURITY.md` — local threat model, control boundaries, mitigations, and residual risks.
