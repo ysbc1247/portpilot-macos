@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		026E832E6BCC5A340778A8FC /* DockerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FB87E39B521ED6937502C4 /* DockerView.swift */; };
+		0559D9705B06C4EF7C854629 /* ListenerOwnershipVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DD386F472477BD78D82493 /* ListenerOwnershipVerifier.swift */; };
 		10C3ACE1EDBCBB2DC7692DCC /* lsof_udp.fields in Resources */ = {isa = PBXBuildFile; fileRef = FB6E64683074F3FCCC37A19F /* lsof_udp.fields */; };
 		13E91849FB34B8BF5564C194 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D4DEAD085C36875EDADDF3D /* OverviewView.swift */; };
 		14C750B212F0A1BDD7323551 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 172D267BDF4FFC28F247C9BC /* DesignSystem.swift */; };
@@ -42,7 +43,6 @@
 		7ECFF41AF02D51CC2B09C5DE /* HealthCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC785A7D1CE69D53A040B082 /* HealthCheckTests.swift */; };
 		7FC22B2A01C124E7BE5D0F2B /* HTTPHealthChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 106925A3C19AA914FD8A6C8E /* HTTPHealthChecker.swift */; };
 		8126BBFD7328CB533EC01E5F /* PersistentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7DE9AFA59A86FDD0E83BF82 /* PersistentModels.swift */; };
-		860C81C5EA2838923BBFEAB5 /* ProcessMetadataProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8BCE677521AA6E288AE533 /* ProcessMetadataProvider.swift */; };
 		87086294CA840C789FD855FA /* ProjectInferer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163E0483F03524B1EBF291C2 /* ProjectInferer.swift */; };
 		8981D7C9462A3A00F971679B /* SafeProcessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACCDD763B36B6FC4D4CECC4 /* SafeProcessController.swift */; };
 		8B6E683467E88FA2D1606141 /* LocalPortDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B1F87145BEAF4FCCD45701C /* LocalPortDiscovery.swift */; };
@@ -53,6 +53,7 @@
 		A076E3489901D7B7159CC7BC /* DockerAssociationProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150E72F36AB6C2577A8C22A9 /* DockerAssociationProvider.swift */; };
 		A09979F851CD90DF4CD9B14F /* ActivePortsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8725BE07E983E6E7233CCB1D /* ActivePortsView.swift */; };
 		A3916D1FF2F74D6FEBDCA8F8 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403A40D3191E8EE9A71BCCF8 /* CommandPaletteView.swift */; };
+		A66C76DA77FD6DE1A7C1B8F8 /* ObservedProcessProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A209B418CF83125E3636072 /* ObservedProcessProvider.swift */; };
 		ACAD6B504C1B9CA19A20F64E /* LsofFieldParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86686FD53004C1D8AECD25E2 /* LsofFieldParser.swift */; };
 		AF98D409ED0760A5F7DBE69B /* KeychainSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A4E35A45E34E86F62603B27 /* KeychainSecretStore.swift */; };
 		B318FEE0CA02452EB0F2D640 /* LifecycleModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D787963156C51A4B2FE2F2 /* LifecycleModels.swift */; };
@@ -61,7 +62,6 @@
 		BBC0CB99DAC609967629F47B /* PersistentModelsV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8ABD88DC29F2A1E8D26EDD2 /* PersistentModelsV2.swift */; };
 		BD4519287C0A3B915A935E97 /* PortMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4987E53746BE874B98C793B2 /* PortMonitor.swift */; };
 		BF6BAF31F6191695D8DC28A4 /* Phase2PersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F148689F29AC7554CCD97C85 /* Phase2PersistenceTests.swift */; };
-		C20B3CB7562A8E91042096EA /* ProcessIdentityVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1BC53E46D2D994B3E224D5 /* ProcessIdentityVerifier.swift */; };
 		C32AE5AD6EFAB7B982ED649E /* OwnershipModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD2065FE3FBAE1F295D1E1C /* OwnershipModels.swift */; };
 		CA990933C54365E663D73657 /* ProcessClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECEC00B35D17D8881C2DF46C /* ProcessClassifier.swift */; };
 		CEE2116FFFEDC64EAAB5ACF5 /* RestartTrustModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB7B40447F86160175D976AE /* RestartTrustModels.swift */; };
@@ -75,6 +75,7 @@
 		EA10F0597CF288E155FF13B3 /* ManagedServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD92C1B0DE5DD2B05A6EE25 /* ManagedServiceTests.swift */; };
 		EBC532BE0B28337BA147A07E /* ObservationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129DDEA3EB33CDF29BE2D394 /* ObservationModels.swift */; };
 		F14884E8E2A2ABD4C0B29DA2 /* LocalNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8107B48A7BB4AA5F8A2F9AAD /* LocalNotificationService.swift */; };
+		F27870D401CA9EAE27A41137 /* ProcessFingerprintVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62D8B0F6300A539B14980E7 /* ProcessFingerprintVerifier.swift */; };
 		F4E5FE5BF85B5DFEF5D893EE /* DockerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9AC72B7125A6F0F3BF2329 /* DockerTests.swift */; };
 		F7A3452DD487E67357A98017 /* ProductIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01B43A2EDCF87B1FCBE5C128 /* ProductIdentity.swift */; };
 		FAAF0AF480B39C38355C5A53 /* TerminationStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1817AFDC3300D91000276616 /* TerminationStateMachine.swift */; };
@@ -103,6 +104,7 @@
 		01B43A2EDCF87B1FCBE5C128 /* ProductIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductIdentity.swift; sourceTree = "<group>"; };
 		095103FBC28B05553E66EB5D /* RuntimeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeModels.swift; sourceTree = "<group>"; };
 		09908791980E99623C212B2E /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		0A209B418CF83125E3636072 /* ObservedProcessProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObservedProcessProvider.swift; sourceTree = "<group>"; };
 		0E611672C5ABD4799462FA7C /* HistoryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryModels.swift; sourceTree = "<group>"; };
 		1067AA0481A27FE05023A947 /* DevBerthLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevBerthLogger.swift; sourceTree = "<group>"; };
 		106925A3C19AA914FD8A6C8E /* HTTPHealthChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPHealthChecker.swift; sourceTree = "<group>"; };
@@ -126,7 +128,6 @@
 		403A40D3191E8EE9A71BCCF8 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPaletteView.swift; sourceTree = "<group>"; };
 		4987E53746BE874B98C793B2 /* PortMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortMonitor.swift; sourceTree = "<group>"; };
 		4AA688D4DBA71F83FD6A72BB /* RuntimeAndClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeAndClassificationTests.swift; sourceTree = "<group>"; };
-		4B1BC53E46D2D994B3E224D5 /* ProcessIdentityVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessIdentityVerifier.swift; sourceTree = "<group>"; };
 		66A098D081B90C4B4A84DC0A /* SessionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionModels.swift; sourceTree = "<group>"; };
 		685AE2D075F6DC31E9CAAB54 /* PersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceTests.swift; sourceTree = "<group>"; };
 		6D064E5E26BFD836A5F824A5 /* KeychainMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainMigrationTests.swift; sourceTree = "<group>"; };
@@ -143,11 +144,11 @@
 		8B63A7B6CB927DB17C1D18AE /* ManagedProcessLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedProcessLauncher.swift; sourceTree = "<group>"; };
 		8D4DEAD085C36875EDADDF3D /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
 		996099AC5AF505DEBBF80B04 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
-		9B8BCE677521AA6E288AE533 /* ProcessMetadataProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessMetadataProvider.swift; sourceTree = "<group>"; };
 		9B9AC72B7125A6F0F3BF2329 /* DockerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerTests.swift; sourceTree = "<group>"; };
 		A0EAB8131C3E48474673FA74 /* ProfileLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileLogsView.swift; sourceTree = "<group>"; };
 		A3960E28AF5CD1076F1FC187 /* LaunchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchCoordinator.swift; sourceTree = "<group>"; };
 		A526150CBE5099F1EF0D7DE0 /* multi_port_fixture.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = multi_port_fixture.py; sourceTree = "<group>"; };
+		A62D8B0F6300A539B14980E7 /* ProcessFingerprintVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessFingerprintVerifier.swift; sourceTree = "<group>"; };
 		A78D7D1A2732D94FE7AC87EC /* DockerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DockerModels.swift; sourceTree = "<group>"; };
 		AACCDD763B36B6FC4D4CECC4 /* SafeProcessController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeProcessController.swift; sourceTree = "<group>"; };
 		AE18BA5698BF0E0B1A10DCD4 /* ProjectInfererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectInfererTests.swift; sourceTree = "<group>"; };
@@ -157,6 +158,7 @@
 		BDED0BCA6B0E4D5386ED27FB /* DevBerth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DevBerth.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3DDE94D262FE7E5F2AB087A /* LaunchCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchCoordinatorTests.swift; sourceTree = "<group>"; };
 		C4C3F23F2B99866A79E60F74 /* SwiftDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataStore.swift; sourceTree = "<group>"; };
+		C9DD386F472477BD78D82493 /* ListenerOwnershipVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenerOwnershipVerifier.swift; sourceTree = "<group>"; };
 		CB7B40447F86160175D976AE /* RestartTrustModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestartTrustModels.swift; sourceTree = "<group>"; };
 		D1C89CE483BCC512A37FCE6F /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		D96434C1697DBD20EDEFBE12 /* LsofFieldParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LsofFieldParserTests.swift; sourceTree = "<group>"; };
@@ -314,7 +316,8 @@
 		61EF8C499BA0240D01258798 /* ProcessControl */ = {
 			isa = PBXGroup;
 			children = (
-				4B1BC53E46D2D994B3E224D5 /* ProcessIdentityVerifier.swift */,
+				C9DD386F472477BD78D82493 /* ListenerOwnershipVerifier.swift */,
+				A62D8B0F6300A539B14980E7 /* ProcessFingerprintVerifier.swift */,
 				AACCDD763B36B6FC4D4CECC4 /* SafeProcessController.swift */,
 				1817AFDC3300D91000276616 /* TerminationStateMachine.swift */,
 			);
@@ -445,8 +448,8 @@
 			children = (
 				1B1F87145BEAF4FCCD45701C /* LocalPortDiscovery.swift */,
 				86686FD53004C1D8AECD25E2 /* LsofFieldParser.swift */,
+				0A209B418CF83125E3636072 /* ObservedProcessProvider.swift */,
 				ECEC00B35D17D8881C2DF46C /* ProcessClassifier.swift */,
-				9B8BCE677521AA6E288AE533 /* ProcessMetadataProvider.swift */,
 				163E0483F03524B1EBF291C2 /* ProjectInferer.swift */,
 			);
 			path = ProcessDiscovery;
@@ -677,6 +680,7 @@
 				DF2B75278BA00F4012C527A4 /* LaunchProfileRecord+Domain.swift in Sources */,
 				66DE3EA6286B21F8B1CE07E3 /* LaunchProfilesView.swift in Sources */,
 				B318FEE0CA02452EB0F2D640 /* LifecycleModels.swift in Sources */,
+				0559D9705B06C4EF7C854629 /* ListenerOwnershipVerifier.swift in Sources */,
 				F14884E8E2A2ABD4C0B29DA2 /* LocalNotificationService.swift in Sources */,
 				8B6E683467E88FA2D1606141 /* LocalPortDiscovery.swift in Sources */,
 				ACAD6B504C1B9CA19A20F64E /* LsofFieldParser.swift in Sources */,
@@ -684,14 +688,14 @@
 				4858F56C3C193BA2C67ECFBF /* ManagedServiceModels.swift in Sources */,
 				3CA5BA103744C4F94C520C7E /* MenuBarView.swift in Sources */,
 				EBC532BE0B28337BA147A07E /* ObservationModels.swift in Sources */,
+				A66C76DA77FD6DE1A7C1B8F8 /* ObservedProcessProvider.swift in Sources */,
 				13E91849FB34B8BF5564C194 /* OverviewView.swift in Sources */,
 				C32AE5AD6EFAB7B982ED649E /* OwnershipModels.swift in Sources */,
 				8126BBFD7328CB533EC01E5F /* PersistentModels.swift in Sources */,
 				BBC0CB99DAC609967629F47B /* PersistentModelsV2.swift in Sources */,
 				BD4519287C0A3B915A935E97 /* PortMonitor.swift in Sources */,
 				CA990933C54365E663D73657 /* ProcessClassifier.swift in Sources */,
-				C20B3CB7562A8E91042096EA /* ProcessIdentityVerifier.swift in Sources */,
-				860C81C5EA2838923BBFEAB5 /* ProcessMetadataProvider.swift in Sources */,
+				F27870D401CA9EAE27A41137 /* ProcessFingerprintVerifier.swift in Sources */,
 				381783E9FC7AA375C496168B /* ProductDataMigrator.swift in Sources */,
 				F7A3452DD487E67357A98017 /* ProductIdentity.swift in Sources */,
 				DB303049EE00F34FCE1273C6 /* ProfileLogsView.swift in Sources */,

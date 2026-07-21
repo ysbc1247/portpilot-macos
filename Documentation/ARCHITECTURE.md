@@ -6,11 +6,11 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 
 | Boundary | Responsibility | Production implementation |
 | --- | --- | --- |
-| Domain | OS observations, durable managed-service intent, identity, dependency planning, conflicts, history | Value types in `DevBerth/Domain` |
+| Domain | OS observations, durable managed-service intent, process fingerprints, dependency planning, conflicts, history | Value types in `DevBerth/Domain` |
 | Command execution | Direct executable URL plus discrete argument arrays | `FoundationCommandRunner` |
-| Process discovery | Tagged listener parsing and process enrichment | `LocalPortDiscovery`, `ProcessMetadataProvider` |
+| Process discovery | Tagged listener parsing and process enrichment | `LocalPortDiscovery`, `ObservedProcessProvider` |
 | Monitoring | Polling, snapshots, diffs, pause/resume | `PortMonitor` actor |
-| Process control | Protection, identity verification, signals, wait state | `SafeProcessController` |
+| Process control | Protection, fingerprint and listener-edge verification, signals, wait state | `SafeProcessController` |
 | Launching | Reviewed profile execution and managed process lifetime | `ManagedProcessLauncher`, `LaunchCoordinator` |
 | Projects | Dependency-layer orchestration | `ProjectOrchestrator` |
 | Docker | Availability, container JSON, ports, actions, logs | `DockerCLIClient`, `DockerAssociationProvider` |
@@ -23,14 +23,14 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 
 1. `PortMonitor` asks `PortDiscovering` for a snapshot outside the main actor.
 2. `LocalPortDiscovery` runs separate TCP and UDP `lsof` calls with NUL-delimited tagged fields.
-3. Unique listener PIDs are enriched using fixed-shape `ps` identity data and tagged `lsof` `cwd`/`txt` paths.
+3. Unique listener PIDs are enriched using fixed-shape `ps` fingerprint data and tagged `lsof` `cwd`/`txt` paths.
 4. Process metadata is cached for 30 seconds. At most three stale entries are refreshed per poll, preventing synchronized command bursts; disappeared PIDs are evicted immediately.
 5. `RuntimeDiffer` derives added, updated, and removed listeners by stable listener ID.
 6. Docker associations are refreshed on a five-second cache and joined by host port and protocol.
 7. `AppModel` publishes the correlated snapshot on the main actor, records relevant history, and optionally schedules configured-port notifications.
 8. SwiftUI renders the existing value graph instead of causing OS queries from view bodies.
 
-The listener identity is `PID + protocol + address + port`. Process identity is `PID + executable path + start time`. First/last detection timestamps belong to transient listener state and history, not a persisted live `Process` object.
+The listener identity is `PID + protocol + address + port`. A process fingerprint contains PID, UID, executable path, executable device/inode when available, start time, command-line SHA-256 digest, parent PID, and detection time. First/last listener timestamps and fingerprint detection time are evidence timestamps, not authority to control a PID and not persisted live `Process` objects.
 
 ## Domain vocabulary
 
@@ -46,20 +46,20 @@ DevBerth invokes `/usr/sbin/lsof` using `-F0` machine fields, numeric hosts/port
 
 Project inference walks at most twelve parent directories from the verified CWD and looks for a small marker set. It never performs a recursive filesystem scan.
 
-## Process identity and termination
+## Process fingerprints and termination
 
 Termination is intentionally conservative:
 
 1. Reject root-owned, recognized system, `/System`, and `/usr/sbin` processes.
-2. Require a strong identity with executable and start time.
-3. Immediately re-query start time and tagged executable path.
-4. Compare all identity fields before signaling.
+2. Require a strong captured fingerprint with UID, executable, start time, command digest, and parent PID; compare executable device/inode when it was available at detection.
+3. Immediately re-query the full process fingerprint and the exact protocol/address/port listener edge.
+4. Abort with an actionable explanation if either the fingerprint or listener ownership changed.
 5. Invoke `/bin/kill` with `-TERM` or `-KILL` and the PID as separate arguments.
-6. Poll the same identity until exit or timeout.
-7. Require a UI confirmation before the force mode can be constructed with `confirmed: true`.
+6. Poll the same fingerprint until the original process exits, changes, or times out. A changed fingerprint means the original target is gone; the replacement is never signaled.
+7. Require UI confirmation and a fresh fingerprint plus listener-edge validation before a separate force escalation.
 8. Persist the request, result, error, and duration.
 
-A changed identity is never treated as the original process. This prevents PID-reuse termination bugs.
+A changed fingerprint is never treated as the original process. This prevents PID-reuse and stale-listener termination bugs.
 
 ## Managed service configuration
 
@@ -113,7 +113,7 @@ See `SECURITY.md` and `PRIVACY.md` for operator-facing policy.
 
 Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, validation, graph ordering/cycles, conflict detection, state transitions, Docker parsing/fallback, shell escaping, secret references, log redaction/bounds, health checks, SwiftData history, and migrations.
 
-Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong identity, graceful exit, graceful timeout, and confirmed force-stop. Every test owns and cleans up its fixture process.
+Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong fingerprints, listener ownership, graceful exit, graceful timeout, and confirmed force-stop. Every test owns and cleans up its fixture process.
 
 ## Monitoring overhead
 

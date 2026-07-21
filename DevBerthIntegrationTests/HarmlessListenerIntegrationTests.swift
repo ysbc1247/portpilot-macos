@@ -11,12 +11,12 @@ final class HarmlessListenerIntegrationTests: XCTestCase {
         let deadline = Date().addingTimeInterval(5)
         var found: ObservedListener?
         while Date() < deadline && found == nil {
-            found = try await discovery.discover().first { $0.process.identity.pid == server.processIdentifier }
+            found = try await discovery.discover().first { $0.process.fingerprint.pid == server.processIdentifier }
             if found == nil { try await Task.sleep(for: .milliseconds(200)) }
         }
         XCTAssertNotNil(found)
         XCTAssertEqual(found?.addressScope, .loopback)
-        XCTAssertTrue(found?.process.identity.isStrong == true)
+        XCTAssertTrue(found?.process.fingerprint.isStrong == true)
     }
 
     func testGracefulStopTerminatesOwnedFixture() async throws {
@@ -24,8 +24,8 @@ final class HarmlessListenerIntegrationTests: XCTestCase {
         defer { stopFixture(server) }
         let runner = FoundationCommandRunner()
         let listener = try await waitForListener(pid: server.processIdentifier, runner: runner)
-        let controller = SafeProcessController(runner: runner, verifier: ProcessIdentityVerifier(runner: runner))
-        let outcome = try await controller.terminate(listener.process, mode: .graceful(timeoutSeconds: 2))
+        let controller = SafeProcessController(runner: runner, verifier: ProcessFingerprintVerifier(runner: runner))
+        let outcome = try await controller.terminate(ProcessActionTarget(listener: listener), mode: .graceful(timeoutSeconds: 2))
         XCTAssertTrue(outcome.didExit)
     }
 
@@ -34,10 +34,11 @@ final class HarmlessListenerIntegrationTests: XCTestCase {
         defer { stopFixture(server) }
         let runner = FoundationCommandRunner()
         let listener = try await waitForListener(pid: server.processIdentifier, runner: runner)
-        let controller = SafeProcessController(runner: runner, verifier: ProcessIdentityVerifier(runner: runner))
-        let graceful = try await controller.terminate(listener.process, mode: .graceful(timeoutSeconds: 0.3))
+        let controller = SafeProcessController(runner: runner, verifier: ProcessFingerprintVerifier(runner: runner))
+        let target = ProcessActionTarget(listener: listener)
+        let graceful = try await controller.terminate(target, mode: .graceful(timeoutSeconds: 0.3))
         XCTAssertFalse(graceful.didExit)
-        let forced = try await controller.terminate(listener.process, mode: .force(confirmed: true))
+        let forced = try await controller.terminate(target, mode: .force(confirmed: true))
         XCTAssertTrue(forced.didExit)
     }
 
@@ -59,7 +60,7 @@ final class HarmlessListenerIntegrationTests: XCTestCase {
         let discovery = LocalPortDiscovery(runner: runner, includeProjectInference: false)
         let deadline = Date().addingTimeInterval(5)
         while Date() < deadline {
-            if let listener = try await discovery.discover().first(where: { $0.process.identity.pid == pid }) {
+            if let listener = try await discovery.discover().first(where: { $0.process.fingerprint.pid == pid }) {
                 return listener
             }
             try await Task.sleep(for: .milliseconds(150))

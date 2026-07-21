@@ -6,7 +6,8 @@ enum DevBerthError: LocalizedError, Identifiable, Sendable {
     case malformedOutput(command: String)
     case permissionDenied(String)
     case dockerUnavailable(String)
-    case processIdentityChanged
+    case processFingerprintChanged(String)
+    case listenerOwnershipChanged(UInt16)
     case protectedProcess(String)
     case launchValidation(String)
     case portConflict(UInt16)
@@ -23,7 +24,8 @@ enum DevBerthError: LocalizedError, Identifiable, Sendable {
         case let .malformedOutput(command): "DevBerth could not understand output from \(command)."
         case let .permissionDenied(action): "Permission was denied while attempting to \(action)."
         case let .dockerUnavailable(details): "Docker is unavailable. \(details)"
-        case .processIdentityChanged: "The process identity changed before the action could be completed. Refresh and try again."
+        case let .processFingerprintChanged(details): "The process fingerprint changed before the action could be completed. \(details)"
+        case let .listenerOwnershipChanged(port): "PID ownership of port \(port) changed before the action. DevBerth did not send a signal."
         case let .protectedProcess(reason): "DevBerth protected this process from termination. \(reason)"
         case let .launchValidation(details): "The launch profile is not ready: \(details)"
         case let .portConflict(port): "Port \(port) is already occupied. Inspect the process before continuing."
@@ -36,7 +38,7 @@ enum DevBerthError: LocalizedError, Identifiable, Sendable {
     var recoverySuggestion: String? {
         switch self {
         case .dockerUnavailable: "Start Docker or continue using DevBerth without container controls."
-        case .processIdentityChanged: "Refresh Active Ports to select the current process."
+        case .processFingerprintChanged, .listenerOwnershipChanged: "Refresh Active Ports to select the current process and listener."
         case .protectedProcess: "Inspect the exact executable and owner. Use Terminal if you intentionally need an administrative action."
         case .portConflict: "Cancel, inspect or stop the occupying process, or edit the expected port."
         case .missingSecret: "Edit the launch profile and save the missing secret again."
@@ -44,4 +46,3 @@ enum DevBerthError: LocalizedError, Identifiable, Sendable {
         }
     }
 }
-

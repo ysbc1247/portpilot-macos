@@ -46,10 +46,8 @@ actor DockerAssociationProvider {
 private extension ObservedListener {
     func associatingDocker(_ association: DockerAssociation) -> ObservedListener {
         let value = ObservedProcess(
-            identity: process.identity,
-            parentPID: process.parentPID,
+            fingerprint: process.fingerprint,
             name: process.name,
-            executablePath: process.executablePath,
             commandLine: process.commandLine,
             owner: process.owner,
             currentDirectory: process.currentDirectory,
@@ -71,4 +69,3 @@ private extension ObservedListener {
         )
     }
 }
-

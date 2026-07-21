@@ -25,8 +25,8 @@ The existing “Launch Profiles” feature and `LaunchProfileRecord` class retai
 ## Reference rules
 
 - An observed listener embeds an observed process only because `lsof` directly reports the listener-to-PID edge. It contains no launch or restart configuration.
-- A runtime instance references exactly one managed service and exactly one process identity. A replacement process is a new runtime or a separately reconciled identity, not an in-place PID update.
-- Ownership conclusions reference a listener ID, process identity, or runtime ID and always include confidence, evidence, method, and timestamp.
+- A runtime instance references exactly one managed service and exactly one process fingerprint. A replacement process is a new runtime or a separately reconciled fingerprint, not an in-place PID update.
+- Ownership conclusions reference a listener ID, process fingerprint, or runtime ID and always include confidence, evidence, method, and timestamp.
 - A workspace session contains only managed-service expectations. An unmanaged observed process must be converted and reviewed before it can be restored.
 - Session service snapshots retain a configuration digest so restore preview can report drift rather than assuming the current definition matches the captured definition.
 - Project discovery evidence is inert. Detection never edits project files or creates a launchable service without review.

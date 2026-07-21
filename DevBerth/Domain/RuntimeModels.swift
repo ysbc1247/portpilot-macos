@@ -30,7 +30,7 @@ struct RuntimeExitResult: Hashable, Codable, Sendable {
 struct RuntimeInstance: Hashable, Codable, Sendable, Identifiable {
     let id: UUID
     let managedServiceID: UUID
-    let processIdentity: ProcessIdentity
+    let processFingerprint: ProcessFingerprint
     let startedAt: Date
     let parentRuntimeID: UUID?
     var lifecycleState: RuntimeLifecycleState
@@ -43,7 +43,7 @@ struct RuntimeInstance: Hashable, Codable, Sendable, Identifiable {
     init(
         id: UUID = UUID(),
         managedServiceID: UUID,
-        processIdentity: ProcessIdentity,
+        processFingerprint: ProcessFingerprint,
         startedAt: Date,
         parentRuntimeID: UUID? = nil,
         lifecycleState: RuntimeLifecycleState = .starting,
@@ -55,7 +55,7 @@ struct RuntimeInstance: Hashable, Codable, Sendable, Identifiable {
     ) {
         self.id = id
         self.managedServiceID = managedServiceID
-        self.processIdentity = processIdentity
+        self.processFingerprint = processFingerprint
         self.startedAt = startedAt
         self.parentRuntimeID = parentRuntimeID
         self.lifecycleState = lifecycleState

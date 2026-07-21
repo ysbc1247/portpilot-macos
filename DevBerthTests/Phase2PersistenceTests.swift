@@ -20,11 +20,21 @@ final class Phase2PersistenceTests: XCTestCase {
         let ownershipID = UUID()
         let lifecycleID = UUID()
         let startedAt = Date(timeIntervalSince1970: 1_710_000_000)
-        let identity = ProcessIdentity(pid: 4242, executablePath: "/usr/local/bin/api", startTime: startedAt)
+        let commandLine = "/usr/local/bin/api serve"
+        let fingerprint = ProcessFingerprint(
+            pid: 4242,
+            uid: 501,
+            executablePath: "/usr/local/bin/api",
+            executableFileIdentity: .init(deviceID: 1, inode: 4242),
+            startTime: startedAt,
+            commandLineDigest: ProcessFingerprint.digest(commandLine: commandLine),
+            parentPID: 1,
+            detectedAt: startedAt
+        )
         let runtime = RuntimeInstance(
             id: runtimeID,
             managedServiceID: serviceID,
-            processIdentity: identity,
+            processFingerprint: fingerprint,
             startedAt: startedAt,
             lifecycleState: .running,
             healthState: .healthy,

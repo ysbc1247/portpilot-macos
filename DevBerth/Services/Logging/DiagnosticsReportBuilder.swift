@@ -12,7 +12,7 @@ enum DiagnosticsReportBuilder {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "Development"
         let rows = listeners.map { listener in
-            "- \(listener.protocolKind.rawValue) \(listener.address):\(listener.port) | PID \(listener.process.identity.pid) | \(listener.process.name) | \(listener.process.runtime.rawValue) | protected=\(listener.process.isSystemProcess)"
+            "- \(listener.protocolKind.rawValue) \(listener.address):\(listener.port) | PID \(listener.process.fingerprint.pid) | \(listener.process.name) | \(listener.process.runtime.rawValue) | protected=\(listener.process.isSystemProcess)"
         }.joined(separator: "\n")
         return """
         DevBerth diagnostics

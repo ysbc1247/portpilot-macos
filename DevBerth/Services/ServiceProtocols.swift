@@ -28,21 +28,36 @@ protocol PortDiscovering: Sendable {
     func discover() async throws -> [ObservedListener]
 }
 
-protocol ProcessIdentityVerifying: Sendable {
-    func verify(_ expected: ProcessIdentity) async throws -> Bool
+protocol ProcessFingerprintVerifying: Sendable {
+    func verify(_ expected: ProcessFingerprint) async throws -> ProcessFingerprintVerification
+}
+
+protocol ListenerOwnershipVerifying: Sendable {
+    func verify(
+        _ expectation: ListenerOwnershipExpectation,
+        isOwnedBy fingerprint: ProcessFingerprint
+    ) async throws -> Bool
 }
 
 enum TerminationMode: Sendable { case graceful(timeoutSeconds: Double), force(confirmed: Bool) }
 
+enum TerminationCompletion: String, Sendable, Equatable {
+    case exited
+    case fingerprintChangedAfterSignal
+    case timedOut
+}
+
 struct TerminationOutcome: Sendable, Equatable {
     let pid: Int32
     let mode: String
-    let didExit: Bool
+    let completion: TerminationCompletion
     let durationSeconds: Double
+
+    var didExit: Bool { completion != .timedOut }
 }
 
 protocol ProcessControlling: Sendable {
-    func terminate(_ process: ObservedProcess, mode: TerminationMode) async throws -> TerminationOutcome
+    func terminate(_ target: ProcessActionTarget, mode: TerminationMode) async throws -> TerminationOutcome
 }
 
 protocol SecretStoring: Sendable {

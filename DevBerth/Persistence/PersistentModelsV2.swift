@@ -25,9 +25,9 @@ final class RuntimeInstanceRecord {
         let encoder = JSONEncoder()
         id = runtime.id
         managedServiceID = runtime.managedServiceID
-        processPID = Int(runtime.processIdentity.pid)
-        executablePath = runtime.processIdentity.executablePath
-        processStartTime = runtime.processIdentity.startTime
+        processPID = Int(runtime.processFingerprint.pid)
+        executablePath = runtime.processFingerprint.executablePath
+        processStartTime = runtime.processFingerprint.startTime
         parentRuntimeID = runtime.parentRuntimeID
         startedAt = runtime.startedAt
         lifecycleStateRawValue = runtime.lifecycleState.rawValue

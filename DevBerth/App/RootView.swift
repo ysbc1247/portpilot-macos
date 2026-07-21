@@ -130,7 +130,7 @@ private struct PortConflictResolutionView: View {
             GroupBox("Occupying process") {
                 VStack(spacing: 10) {
                     InspectorRow(title: "Process", value: pending.conflict.listener.process.name)
-                    InspectorRow(title: "PID", value: String(pending.conflict.listener.process.identity.pid))
+                    InspectorRow(title: "PID", value: String(pending.conflict.listener.process.fingerprint.pid))
                     InspectorRow(title: "Executable", value: pending.conflict.listener.process.executablePath ?? "Unavailable")
                     InspectorRow(title: "Project", value: pending.conflict.listener.process.project?.name ?? "Not associated")
                     InspectorRow(title: "DevBerth managed", value: pending.conflict.listener.process.launchedByDevBerth ? "Yes" : "No")

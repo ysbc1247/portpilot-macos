@@ -5,7 +5,7 @@
 - Keep `ObservedListener` and `ObservedProcess` as operating-system evidence, and `ManagedServiceConfiguration` as durable user-authored intent. Do not make an observation manageable or restartable by adding configuration flags to it.
 - UI code must depend on service protocols. It must not invoke `Process`, `lsof`, `ps`, `kill`, Docker, or a shell directly.
 - Invoke trusted tools with an executable URL and discrete argument array through `CommandRunning`. Only explicitly user-authored launch profiles may use a login shell.
-- A destructive process action must revalidate PID, executable, and start time through `ProcessIdentityVerifying` immediately before signaling. Never weaken the protected-process checks to make an action succeed.
+- A destructive process action must revalidate the captured `ProcessFingerprint` (PID, UID, executable path and file identity when available, start time, command digest, and parent PID) and the exact listener-to-process edge immediately before every signal. Revalidate again before force escalation; never treat PID existence alone as authority or weaken protected-process checks to make an action succeed.
 - Store secret values only through `SecretStoring` (Keychain in production). SwiftData may contain opaque secret references, never secret values.
 - Ownership evidence, lifecycle details, discovery metadata, and workspace-session snapshots may store identifiers and redacted explanations, never secret values or raw environment values.
 - Keep verified process metadata separate from inferred classification or relaunch suggestions in the UI and domain models.

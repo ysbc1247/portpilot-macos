@@ -31,7 +31,7 @@ struct HistoryEvent: Hashable, Codable, Sendable, Identifiable {
     let id: UUID
     let timestamp: Date
     let port: UInt16?
-    let processIdentity: ProcessIdentity?
+    let processFingerprint: ProcessFingerprint?
     let processName: String?
     let projectID: UUID?
     let profileID: UUID?

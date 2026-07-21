@@ -10,7 +10,7 @@ final class PersistenceTests: XCTestCase {
         let container = try ModelContainer(for: schema, migrationPlan: DevBerthMigrationPlan.self, configurations: [configuration])
         let store = SwiftDataStore(modelContainer: container)
         let event = HistoryEvent(
-            id: UUID(), timestamp: Date(), port: 3000, processIdentity: nil,
+            id: UUID(), timestamp: Date(), port: 3000, processFingerprint: nil,
             processName: "Fixture", projectID: nil, profileID: nil,
             type: .portDetected, result: .observed, errorDetails: nil, durationSeconds: nil
         )

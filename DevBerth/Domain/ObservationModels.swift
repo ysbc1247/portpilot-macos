@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 enum ListenerProtocol: String, Codable, CaseIterable, Sendable {
@@ -12,12 +13,52 @@ enum ListenerAddressScope: String, Codable, Sendable {
     case unknown
 }
 
-struct ProcessIdentity: Hashable, Codable, Sendable {
-    let pid: Int32
-    let executablePath: String?
-    let startTime: Date?
+struct ExecutableFileIdentity: Hashable, Codable, Sendable {
+    let deviceID: UInt64
+    let inode: UInt64
+}
 
-    var isStrong: Bool { executablePath != nil && startTime != nil }
+struct ProcessFingerprint: Hashable, Codable, Sendable {
+    let pid: Int32
+    let uid: UInt32?
+    let executablePath: String?
+    let executableFileIdentity: ExecutableFileIdentity?
+    let startTime: Date?
+    let commandLineDigest: String?
+    let parentPID: Int32?
+    let detectedAt: Date
+
+    init(
+        pid: Int32,
+        uid: UInt32? = nil,
+        executablePath: String?,
+        executableFileIdentity: ExecutableFileIdentity? = nil,
+        startTime: Date?,
+        commandLineDigest: String? = nil,
+        parentPID: Int32? = nil,
+        detectedAt: Date = Date()
+    ) {
+        self.pid = pid
+        self.uid = uid
+        self.executablePath = executablePath
+        self.executableFileIdentity = executableFileIdentity
+        self.startTime = startTime
+        self.commandLineDigest = commandLineDigest
+        self.parentPID = parentPID
+        self.detectedAt = detectedAt
+    }
+
+    var isStrong: Bool {
+        uid != nil
+            && executablePath != nil
+            && startTime != nil
+            && commandLineDigest != nil
+            && parentPID != nil
+    }
+
+    static func digest(commandLine: String) -> String {
+        SHA256.hash(data: Data(commandLine.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
 }
 
 enum ProcessRuntime: String, Codable, CaseIterable, Sendable {
@@ -78,11 +119,9 @@ struct DockerAssociation: Hashable, Codable, Sendable {
 }
 
 struct ObservedProcess: Hashable, Codable, Sendable, Identifiable {
-    var id: ProcessIdentity { identity }
-    let identity: ProcessIdentity
-    let parentPID: Int32?
+    var id: ProcessFingerprint { fingerprint }
+    let fingerprint: ProcessFingerprint
     let name: String
-    let executablePath: String?
     let commandLine: String
     let owner: String
     let currentDirectory: String?
@@ -93,6 +132,9 @@ struct ObservedProcess: Hashable, Codable, Sendable, Identifiable {
     let docker: DockerAssociation?
     let launchedByDevBerth: Bool
     let managedServiceID: UUID?
+
+    var parentPID: Int32? { fingerprint.parentPID }
+    var executablePath: String? { fingerprint.executablePath }
 }
 
 struct ObservedListener: Hashable, Codable, Sendable, Identifiable {
@@ -104,7 +146,7 @@ struct ObservedListener: Hashable, Codable, Sendable, Identifiable {
     var lastDetectedAt: Date
 
     var id: String {
-        "\(process.identity.pid):\(protocolKind.rawValue):\(address):\(port)"
+        "\(process.fingerprint.pid):\(protocolKind.rawValue):\(address):\(port)"
     }
 
     var addressScope: ListenerAddressScope {
@@ -117,6 +159,30 @@ struct ObservedListener: Hashable, Codable, Sendable, Identifiable {
         }
         if normalized.isEmpty { return .unknown }
         return .localNetwork
+    }
+}
+
+struct ListenerOwnershipExpectation: Hashable, Codable, Sendable {
+    let listenerID: String
+    let protocolKind: ListenerProtocol
+    let address: String
+    let port: UInt16
+
+    init(listener: ObservedListener) {
+        listenerID = listener.id
+        protocolKind = listener.protocolKind
+        address = listener.address
+        port = listener.port
+    }
+}
+
+struct ProcessActionTarget: Hashable, Codable, Sendable {
+    let process: ObservedProcess
+    let expectedListener: ListenerOwnershipExpectation
+
+    init(listener: ObservedListener) {
+        process = listener.process
+        expectedListener = ListenerOwnershipExpectation(listener: listener)
     }
 }
 
@@ -146,4 +212,3 @@ enum RuntimeDiffer {
         return RuntimeDiff(added: added, updated: updated, removed: removed)
     }
 }
-

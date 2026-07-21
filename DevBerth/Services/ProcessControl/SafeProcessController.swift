@@ -3,27 +3,31 @@ import Foundation
 
 actor SafeProcessController: ProcessControlling {
     private let runner: any CommandRunning
-    private let verifier: any ProcessIdentityVerifying
+    private let verifier: any ProcessFingerprintVerifying
+    private let listenerOwnershipVerifier: any ListenerOwnershipVerifying
 
-    init(runner: any CommandRunning, verifier: any ProcessIdentityVerifying) {
+    init(
+        runner: any CommandRunning,
+        verifier: any ProcessFingerprintVerifying,
+        listenerOwnershipVerifier: (any ListenerOwnershipVerifying)? = nil
+    ) {
         self.runner = runner
         self.verifier = verifier
+        self.listenerOwnershipVerifier = listenerOwnershipVerifier ?? LsofListenerOwnershipVerifier(runner: runner)
     }
 
-    func terminate(_ process: ObservedProcess, mode: TerminationMode) async throws -> TerminationOutcome {
+    func terminate(_ target: ProcessActionTarget, mode: TerminationMode) async throws -> TerminationOutcome {
         let startedAt = Date()
         var state = TerminationStateMachine.reduce(state: .idle, event: .begin)
-        guard state == .validatingIdentity else { throw DevBerthError.unexpected("Termination could not begin.") }
+        guard state == .validatingFingerprint else { throw DevBerthError.unexpected("Termination could not begin.") }
 
-        if let reason = ProcessSafetyPolicy.terminationBlockReason(for: process) {
+        if let reason = ProcessSafetyPolicy.terminationBlockReason(for: target.process) {
             state = TerminationStateMachine.reduce(state: state, event: .protectionRejected(reason))
             throw DevBerthError.protectedProcess(reason)
         }
-        guard try await verifier.verify(process.identity) else {
-            _ = TerminationStateMachine.reduce(state: state, event: .identityRejected)
-            throw DevBerthError.processIdentityChanged
-        }
-        state = TerminationStateMachine.reduce(state: state, event: .identityValidated)
+
+        let verifiedFingerprint = try await revalidate(target)
+        state = TerminationStateMachine.reduce(state: state, event: .fingerprintValidated)
 
         let signal: Int32
         let timeout: Double
@@ -44,7 +48,7 @@ actor SafeProcessController: ProcessControlling {
 
         let result = try await runner.run(
             executable: URL(fileURLWithPath: "/bin/kill"),
-            arguments: [signal == SIGTERM ? "-TERM" : "-KILL", String(process.identity.pid)]
+            arguments: [signal == SIGTERM ? "-TERM" : "-KILL", String(verifiedFingerprint.pid)]
         )
         guard result.exitCode == 0 else {
             throw DevBerthError.commandFailed(command: "kill", status: result.exitCode, details: result.stderrString)
@@ -53,23 +57,48 @@ actor SafeProcessController: ProcessControlling {
         state = TerminationStateMachine.reduce(state: state, event: .signalSent(signal: signal, deadline: deadline))
 
         while Date() < deadline {
-            if try await !verifier.verify(process.identity) {
+            switch try await verifier.verify(verifiedFingerprint) {
+            case .notFound:
                 state = TerminationStateMachine.reduce(state: state, event: .processExited)
                 return TerminationOutcome(
-                    pid: process.identity.pid,
+                    pid: verifiedFingerprint.pid,
                     mode: modeName,
-                    didExit: state == .exited,
+                    completion: .exited,
                     durationSeconds: Date().timeIntervalSince(startedAt)
                 )
+            case .mismatched:
+                state = TerminationStateMachine.reduce(state: state, event: .processExited)
+                return TerminationOutcome(
+                    pid: verifiedFingerprint.pid,
+                    mode: modeName,
+                    completion: .fingerprintChangedAfterSignal,
+                    durationSeconds: Date().timeIntervalSince(startedAt)
+                )
+            case .matched:
+                try await Task.sleep(for: .milliseconds(150))
+            case let .insufficientExpectedFingerprint(missing):
+                throw DevBerthError.processFingerprintChanged(
+                    "Required fields disappeared: \(missing.map(\.rawValue).joined(separator: ", "))."
+                )
             }
-            try await Task.sleep(for: .milliseconds(150))
         }
         state = TerminationStateMachine.reduce(state: state, event: .deadlineReached)
         return TerminationOutcome(
-            pid: process.identity.pid,
+            pid: verifiedFingerprint.pid,
             mode: modeName,
-            didExit: false,
+            completion: .timedOut,
             durationSeconds: Date().timeIntervalSince(startedAt)
         )
+    }
+
+    private func revalidate(_ target: ProcessActionTarget) async throws -> ProcessFingerprint {
+        let verification = try await verifier.verify(target.process.fingerprint)
+        guard case let .matched(actual) = verification else {
+            throw DevBerthError.processFingerprintChanged(verification.explanation)
+        }
+        guard try await listenerOwnershipVerifier.verify(target.expectedListener, isOwnedBy: actual) else {
+            throw DevBerthError.listenerOwnershipChanged(target.expectedListener.port)
+        }
+        return actual
     }
 }

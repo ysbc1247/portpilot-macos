@@ -46,12 +46,19 @@ func makeProcess(
     owner: String = "developer",
     system: Bool = false
 ) -> ObservedProcess {
-    ObservedProcess(
-        identity: ProcessIdentity(pid: pid, executablePath: executable, startTime: startTime),
-        parentPID: 1,
+    let commandLine = "\(executable) server.js"
+    return ObservedProcess(
+        fingerprint: ProcessFingerprint(
+            pid: pid,
+            uid: 501,
+            executablePath: executable,
+            startTime: startTime,
+            commandLineDigest: ProcessFingerprint.digest(commandLine: commandLine),
+            parentPID: 1,
+            detectedAt: startTime
+        ),
         name: URL(fileURLWithPath: executable).lastPathComponent,
-        executablePath: executable,
-        commandLine: "\(executable) server.js",
+        commandLine: commandLine,
         owner: owner,
         currentDirectory: "/Users/developer/Code/example",
         parentName: "zsh",

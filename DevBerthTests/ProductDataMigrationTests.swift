@@ -169,7 +169,7 @@ final class ProductDataMigrationTests: XCTestCase {
             id: UUID(),
             timestamp: Date(timeIntervalSince1970: 1_700_000_000),
             port: 4317,
-            processIdentity: nil,
+            processFingerprint: nil,
             processName: "legacy-api",
             projectID: projectID,
             profileID: profileID,

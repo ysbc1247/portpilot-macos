@@ -39,6 +39,6 @@ final class ManagedServiceTests: XCTestCase {
         let service = ManagedServiceConfiguration(name: "Web", command: "npm", workingDirectory: "/tmp", expectedPorts: [expected])
         let conflicts = PortConflictDetector.conflicts(for: service, listeners: [makeListener(port: 3000)])
         XCTAssertEqual(conflicts.count, 1)
-        XCTAssertEqual(conflicts[0].listener.process.identity.pid, 42)
+        XCTAssertEqual(conflicts[0].listener.process.fingerprint.pid, 42)
     }
 }

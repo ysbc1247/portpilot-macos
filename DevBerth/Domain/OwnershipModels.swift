@@ -52,7 +52,7 @@ enum OwnershipDetectionMethod: String, Codable, CaseIterable, Sendable {
 
 enum OwnershipSubject: Hashable, Codable, Sendable {
     case listener(id: String)
-    case process(identity: ProcessIdentity)
+    case process(fingerprint: ProcessFingerprint)
     case runtime(id: UUID)
 }
 

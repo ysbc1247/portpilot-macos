@@ -46,7 +46,7 @@ final class AppModel: ObservableObject {
         self.monitor = PortMonitor(discoverer: service)
         self.processController = processController ?? SafeProcessController(
             runner: runner,
-            verifier: ProcessIdentityVerifier(runner: runner)
+            verifier: ProcessFingerprintVerifier(runner: runner)
         )
         self.historyRecorder = historyRecorder
         self.launchService = coordinator
@@ -114,7 +114,7 @@ final class AppModel: ObservableObject {
     }
 
     func terminate(_ listener: ObservedListener, mode: TerminationMode) async {
-        let pid = listener.process.identity.pid
+        let pid = listener.process.fingerprint.pid
         guard !processesBeingControlled.contains(pid) else { return }
         processesBeingControlled.insert(pid)
         defer { processesBeingControlled.remove(pid) }
@@ -126,10 +126,10 @@ final class AppModel: ObservableObject {
             }
         }()
         do {
-            let outcome = try await processController.terminate(listener.process, mode: mode)
+            let outcome = try await processController.terminate(ProcessActionTarget(listener: listener), mode: mode)
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: listener.port,
-                processIdentity: listener.process.identity, processName: listener.process.name,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                 projectID: nil, profileID: listener.process.managedServiceID, type: eventType,
                 result: outcome.didExit ? .succeeded : .failed,
                 errorDetails: outcome.didExit ? nil : "The process did not exit before the graceful shutdown timeout.",
@@ -143,7 +143,7 @@ final class AppModel: ObservableObject {
             presentedError = error
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: listener.port,
-                processIdentity: listener.process.identity, processName: listener.process.name,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                 projectID: nil, profileID: listener.process.managedServiceID, type: eventType,
                 result: .failed, errorDetails: error.localizedDescription,
                 durationSeconds: Date().timeIntervalSince(startedAt)
@@ -161,7 +161,7 @@ final class AppModel: ObservableObject {
             pendingLaunchConflict = PendingLaunchConflict(profile: profile, conflict: conflict)
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: conflict.expectedPort.port,
-                processIdentity: conflict.listener.process.identity, processName: conflict.listener.process.name,
+                processFingerprint: conflict.listener.process.fingerprint, processName: conflict.listener.process.name,
                 projectID: profile.projectID, profileID: profile.id, type: .portConflictDetected,
                 result: .cancelled, errorDetails: "Launch paused for explicit conflict resolution.", durationSeconds: 0
             ))
@@ -172,7 +172,7 @@ final class AppModel: ObservableObject {
             runningProfileIDs.insert(profile.id)
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
-                processIdentity: nil, processName: profile.name, projectID: profile.projectID,
+                processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
                 profileID: profile.id, type: .launchSucceeded, result: .succeeded,
                 errorDetails: nil, durationSeconds: Date().timeIntervalSince(startedAt)
             ))
@@ -182,7 +182,7 @@ final class AppModel: ObservableObject {
             presentedError = error
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
-                processIdentity: nil, processName: profile.name, projectID: profile.projectID,
+                processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
                 profileID: profile.id, type: .launchFailed, result: .failed,
                 errorDetails: error.localizedDescription, durationSeconds: Date().timeIntervalSince(startedAt)
             ))
@@ -209,7 +209,7 @@ final class AppModel: ObservableObject {
         let listener = pending.conflict.listener
         do {
             let outcome = try await processController.terminate(
-                listener.process,
+                ProcessActionTarget(listener: listener),
                 mode: .graceful(timeoutSeconds: pending.profile.shutdownTimeoutSeconds)
             )
             guard outcome.didExit else {
@@ -219,7 +219,7 @@ final class AppModel: ObservableObject {
             pendingLaunchConflict = nil
             await record(HistoryEvent(
                 id: UUID(), timestamp: Date(), port: listener.port,
-                processIdentity: listener.process.identity, processName: listener.process.name,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                 projectID: pending.profile.projectID, profileID: pending.profile.id,
                 type: .gracefulStopRequested, result: .succeeded,
                 errorDetails: "Stopped after explicit port-conflict approval.", durationSeconds: outcome.durationSeconds
@@ -243,7 +243,7 @@ final class AppModel: ObservableObject {
             runningProfileIDs.remove(profile.id)
             await record(HistoryEvent(
                 id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
-                processIdentity: nil, processName: profile.name, projectID: profile.projectID,
+                processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
                 profileID: profile.id, type: .processStopped, result: .succeeded,
                 errorDetails: nil, durationSeconds: Date().timeIntervalSince(startedAt)
             ))
@@ -263,7 +263,7 @@ final class AppModel: ObservableObject {
             for profile in profiles where result.startedProfileIDs.contains(profile.id) {
                 await record(HistoryEvent(
                     id: UUID(), timestamp: startedAt, port: profile.expectedPorts.first?.port,
-                    processIdentity: nil, processName: profile.name, projectID: profile.projectID,
+                    processFingerprint: nil, processName: profile.name, projectID: profile.projectID,
                     profileID: profile.id, type: .launchSucceeded, result: .succeeded,
                     errorDetails: nil, durationSeconds: result.durationSeconds
                 ))
@@ -287,7 +287,7 @@ final class AppModel: ObservableObject {
             notifyIfConfigured(listener, change: "became active")
             Task { await record(HistoryEvent(
                 id: UUID(), timestamp: Date(), port: listener.port,
-                processIdentity: listener.process.identity, processName: listener.process.name,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                 projectID: nil, profileID: listener.process.managedServiceID,
                 type: .portDetected, result: .observed, errorDetails: nil, durationSeconds: nil
             )) }
@@ -296,7 +296,7 @@ final class AppModel: ObservableObject {
             notifyIfConfigured(listener, change: "was released")
             Task { await record(HistoryEvent(
                 id: UUID(), timestamp: Date(), port: listener.port,
-                processIdentity: listener.process.identity, processName: listener.process.name,
+                processFingerprint: listener.process.fingerprint, processName: listener.process.name,
                 projectID: nil, profileID: listener.process.managedServiceID,
                 type: .portReleased, result: .observed, errorDetails: nil, durationSeconds: nil
             )) }

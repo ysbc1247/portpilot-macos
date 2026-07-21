@@ -19,7 +19,7 @@ struct ActivePortsView: View {
                 case .process: lhs.process.name.localizedCaseInsensitiveCompare(rhs.process.name) == .orderedAscending
                 case .project: (lhs.process.project?.name ?? "~").localizedCaseInsensitiveCompare(rhs.process.project?.name ?? "~") == .orderedAscending
                 case .runtime: lhs.process.runtime.rawValue < rhs.process.runtime.rawValue
-                case .uptime: (lhs.process.identity.startTime ?? .distantFuture) < (rhs.process.identity.startTime ?? .distantFuture)
+                case .uptime: (lhs.process.fingerprint.startTime ?? .distantFuture) < (rhs.process.fingerprint.startTime ?? .distantFuture)
                 }
             }
     }
@@ -44,7 +44,7 @@ struct ActivePortsView: View {
                     .contextMenu(forSelectionType: String.self) { ids in
                         if let listener = model.listeners.first(where: { ids.contains($0.id) }) {
                             Button("Copy Port") { copy(String(listener.port)) }
-                            Button("Copy PID") { copy(String(listener.process.identity.pid)) }
+                            Button("Copy PID") { copy(String(listener.process.fingerprint.pid)) }
                             Button("Copy Command") { copy(listener.process.commandLine) }
                             Divider()
                             if let path = listener.process.currentDirectory {
@@ -109,7 +109,7 @@ struct ActivePortsView: View {
         .width(min: 100, ideal: 150)
         .customizationID("project")
         TableColumn("PID") { (listener: ObservedListener) in
-            Text(listener.process.identity.pid, format: .number.grouping(.never)).monospacedDigit()
+            Text(listener.process.fingerprint.pid, format: .number.grouping(.never)).monospacedDigit()
         }
         .width(min: 55, ideal: 65, max: 90)
         .customizationID("pid")
@@ -122,7 +122,7 @@ struct ActivePortsView: View {
             .width(min: 90, ideal: 120)
             .customizationID("runtime")
         TableColumn("Uptime") { (listener: ObservedListener) in
-            Text(listener.process.identity.startTime.map { $0.formatted(.relative(presentation: .numeric)) } ?? "Unknown")
+            Text(listener.process.fingerprint.startTime.map { $0.formatted(.relative(presentation: .numeric)) } ?? "Unknown")
                 .foregroundStyle(.secondary)
         }
         .width(min: 90, ideal: 105)
@@ -158,12 +158,31 @@ private struct ProcessInspectorView: View {
                         InspectorRow(title: "Scope", value: listener.addressScope.rawValue)
                     }
                 }
-                GroupBox("Process identity") {
+                GroupBox("Process fingerprint") {
                     VStack(spacing: 10) {
-                        InspectorRow(title: "PID", value: String(listener.process.identity.pid))
+                        InspectorRow(title: "PID", value: String(listener.process.fingerprint.pid))
                         InspectorRow(title: "Owner", value: listener.process.owner)
+                        InspectorRow(
+                            title: "User ID",
+                            value: listener.process.fingerprint.uid.map(String.init) ?? "Unavailable"
+                        )
                         InspectorRow(title: "Executable", value: listener.process.executablePath ?? "Unavailable")
-                        InspectorRow(title: "Started", value: listener.process.identity.startTime?.formatted() ?? "Unavailable")
+                        if let fileIdentity = listener.process.fingerprint.executableFileIdentity {
+                            InspectorRow(
+                                title: "Executable file",
+                                value: "device \(fileIdentity.deviceID), inode \(fileIdentity.inode)"
+                            )
+                        }
+                        InspectorRow(title: "Started", value: listener.process.fingerprint.startTime?.formatted() ?? "Unavailable")
+                        InspectorRow(
+                            title: "Parent PID",
+                            value: listener.process.fingerprint.parentPID.map(String.init) ?? "Unavailable"
+                        )
+                        InspectorRow(
+                            title: "Command digest",
+                            value: listener.process.fingerprint.commandLineDigest.map { String($0.prefix(16)) } ?? "Unavailable"
+                        )
+                        InspectorRow(title: "Detected", value: listener.process.fingerprint.detectedAt.formatted())
                     }
                 }
                 GroupBox("Verified command") {
@@ -204,13 +223,13 @@ private struct ProcessInspectorView: View {
                         Label("Graceful Stop", systemImage: "stop.circle")
                             .frame(maxWidth: .infinity)
                     }
-                    .disabled(listener.process.isSystemProcess || model.processesBeingControlled.contains(listener.process.identity.pid))
+                    .disabled(listener.process.isSystemProcess || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
 
                     HStack {
                         Button("Save as Launch Profile") { showsProfileReview = true }
                         Spacer()
                         Button("Force Stop", role: .destructive) { showsForceConfirmation = true }
-                            .disabled(listener.process.isSystemProcess || model.processesBeingControlled.contains(listener.process.identity.pid))
+                            .disabled(listener.process.isSystemProcess || model.processesBeingControlled.contains(listener.process.fingerprint.pid))
                     }
                 }
             }
@@ -227,7 +246,7 @@ private struct ProcessInspectorView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("DevBerth will send SIGKILL to PID \(listener.process.identity.pid). Unsaved process state may be lost. The process identity will be verified again immediately before signaling.")
+            Text("DevBerth will send SIGKILL to PID \(listener.process.fingerprint.pid). Unsaved process state may be lost. The full process fingerprint and listener ownership will be verified again immediately before signaling.")
         }
         .sheet(isPresented: $showsProfileReview) {
             DiscoveredProfileReviewView(listener: listener)

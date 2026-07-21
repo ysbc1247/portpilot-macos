@@ -121,9 +121,9 @@ final class ProcessHistoryEventRecord {
         id = event.id
         timestamp = event.timestamp
         port = event.port.map(Int.init)
-        processPID = event.processIdentity.map { Int($0.pid) }
-        executablePath = event.processIdentity?.executablePath
-        processStartTime = event.processIdentity?.startTime
+        processPID = event.processFingerprint.map { Int($0.pid) }
+        executablePath = event.processFingerprint?.executablePath
+        processStartTime = event.processFingerprint?.startTime
         processName = event.processName
         projectID = event.projectID
         profileID = event.profileID
@@ -150,7 +150,7 @@ final class PortObservationRecord {
         port = Int(listener.port)
         protocolRawValue = listener.protocolKind.rawValue
         address = listener.address
-        processPID = Int(listener.process.identity.pid)
+        processPID = Int(listener.process.fingerprint.pid)
         firstDetectedAt = listener.firstDetectedAt
         lastDetectedAt = listener.lastDetectedAt
     }
