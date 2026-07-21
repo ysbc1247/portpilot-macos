@@ -2,15 +2,15 @@
 
 [![CI](https://github.com/ysbc1247/portpilot-macos/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ysbc1247/portpilot-macos/actions/workflows/ci.yml)
 
-DevBerth is a native macOS developer utility for discovering, understanding, stopping, restarting, and organizing the local services behind occupied ports. It combines a dense real-time listener table with reliable, reviewed launch profiles, dependency-aware projects, Docker port mapping, local history, and a compact menu-bar experience.
+DevBerth is a native macOS runtime explainer and guarded service controller for local development. It correlates listeners, processes, ownership evidence, managed services, projects, sessions, lifecycle history, health, and exact Docker/Compose context without turning observation into authority.
 
-![DevBerth Active Ports](Documentation/Screenshots/active-ports.png)
+![DevBerth Runtime with isolated local fixture](Documentation/Screenshots/runtime-phase-2.jpeg)
 
 ## Highlights
 
 - Discovers TCP listeners and meaningful UDP endpoints across IPv4, IPv6, loopback, local-network, and wildcard addresses.
 - Shows PID, owner, executable, full command, start time, working directory, inferred project, runtime classification, address scope, and Docker association when verified locally.
-- Separates discovered processes from reviewed launch profiles; inferred commands are never executed automatically.
+- Separates observed processes from reviewed managed services; inferred or discovered commands are never executed automatically.
 - Shows explicit restart trust and enables normal Start only after the exact reviewed configuration passes isolated start, readiness, and controlled-stop validation.
 - Gracefully stops a process with `SIGTERM`, waits for its configured timeout, and requires explicit confirmation before `SIGKILL`.
 - Revalidates PID, executable path, and process start time immediately before every destructive process action.
@@ -24,7 +24,9 @@ DevBerth is a native macOS developer utility for discovering, understanding, sto
 - Records a searchable lifecycle timeline, runtime instances, health transitions, unexpected exits, automatic-restart evidence, and deterministic incident summaries.
 - Maps published Docker listeners to exact container ports, state, health, restart policy, and Compose metadata. Compose stop/restart/remove remains disabled until project files, environment context, configuration hash, and exact container membership are reverified; Docker absence never breaks listener monitoring.
 - Persists projects, profiles, expected ports, dependencies, observations, favorites, settings, log metadata, and event history with SwiftData.
-- Includes Overview, Active Ports, Projects, Sessions, Launch Profiles, History, Docker, Settings, a `⌘K` command palette, and a menu-bar utility.
+- Uses one native product hierarchy: Runtime, Projects, Sessions, Managed Services, History, Docker, and Settings. Runtime offers saved filters, table/project layouts, multi-selection, resource evidence, and a contextual inspector.
+- Provides a keyboard-first `⌘K` command palette and compact menu-bar surface that route actions through the same ownership and restart-trust checks as the main window.
+- Introduces the local-only safety model on first launch without requiring an account.
 - Keeps all data on the Mac. DevBerth has no analytics, telemetry, cloud sync, or network upload path.
 
 ## Requirements
@@ -55,10 +57,12 @@ Open `DevBerth.xcodeproj` in Xcode to run the signed development app. The commit
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   xcodebuild -project DevBerth.xcodeproj -scheme DevBerth \
   -destination 'platform=macOS,arch=arm64' \
-  CODE_SIGNING_ALLOWED=NO test
+  test
 ```
 
-The suite uses mocks and parser fixtures for unit tests. Integration tests start only repository-owned Python listeners on temporary high ports and always terminate them in cleanup. No test sends a signal to an unrelated process.
+The full scheme uses Xcode’s local signing so the native UI-test runner can launch. For unit/integration-only CI, skip `DevBerthUITests` and set `CODE_SIGNING_ALLOWED=NO`. The suite uses mocks and parser fixtures for unit tests. Integration tests start only repository-owned Python listeners on temporary high ports and always terminate them in cleanup. UI tests use an in-memory store and one static loopback-only runtime fixture; they never inspect or control the host runtime. No test sends a signal to an unrelated process.
+
+For repeated batching, retention, logging, Docker-transition, and harmless integration coverage, run `Scripts/run_soak_tests.sh`. See [Documentation/PERFORMANCE_AND_SOAK_TEST.md](Documentation/PERFORMANCE_AND_SOAK_TEST.md) for measured results and the extended-run release gate.
 
 For interactive UI verification:
 
@@ -74,17 +78,17 @@ Fixtures include a simple HTTP service, a process with two ports, an early-exit 
 
 DevBerth uses injected service protocols between SwiftUI state and every OS-facing boundary. Tagged `lsof` output discovers network files; `ps` and tagged `lsof` records build a revalidated process fingerprint. Destructive actions require both that fingerprint and the exact listener ownership edge to still match. Reviewed services launch in dedicated POSIX process groups, track descendants, and exclude detached children from group signals. An actor-based monitor creates diff updates off the main actor. SwiftData stores durable configuration and audit events, while live process objects remain actor-isolated and transient. Keychain contains secret values; profiles contain only UUID references.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md), [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md), and the [documentation index](Documentation/README.md) for the detailed runtime, persistence, concurrency, safety, and testing design.
+See [ARCHITECTURE.md](ARCHITECTURE.md), [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md), and the [documentation index](Documentation/README.md) for the detailed runtime, persistence, concurrency, safety, and testing design. The product contract is summarized in [Documentation/PRODUCT_PRINCIPLES.md](Documentation/PRODUCT_PRINCIPLES.md), [Documentation/RUNTIME_OWNERSHIP.md](Documentation/RUNTIME_OWNERSHIP.md), and [Documentation/PRODUCT_SURFACE.md](Documentation/PRODUCT_SURFACE.md).
 
 The workspace capture, preflight, restore, and rollback contract is documented in [Documentation/SESSION_MODEL.md](Documentation/SESSION_MODEL.md).
 
 ## Privacy and security
 
-Port, process, project, command, history, Docker, log, and preference data remain on the local Mac. Diagnostics exclude commands, environment values, and Keychain data. See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
+Port, process, project, command, history, Docker, log, and preference data remain on the local Mac. Diagnostics exclude commands, environment values, and Keychain data. See [PRIVACY.md](PRIVACY.md), [SECURITY.md](SECURITY.md), and the detailed [security threat model](Documentation/SECURITY_THREAT_MODEL.md).
 
 ## Current limitations
 
-- macOS cannot reconstruct an arbitrary process's original shell session or complete environment. Exact restarts require a reviewed launch profile.
+- macOS cannot reconstruct an arbitrary process's original shell session or complete environment. Exact restarts require a reviewed, successfully validated managed-service definition.
 - Existing profiles migrate safely as conditional and require one successful validation before their first verified restart under Phase 2.
 - Root-owned and recognized Apple/system processes are intentionally blocked from termination. DevBerth does not request elevation.
 - Some process metadata may be unavailable because of ownership or macOS privacy restrictions; unavailable values stay visibly unavailable rather than inferred.
@@ -99,7 +103,7 @@ Port, process, project, command, history, Docker, log, and preference data remai
 - Signed/notarized distribution and Sparkle-free native update strategy evaluation
 - Configurable per-profile log retention and richer persisted log indexing
 - Additional process classifiers and Compose profile authoring helpers
-- Dedicated UI automation coverage alongside the current accessibility/manual pass
+- An eight-hour production-monitor soak before the first signed release
 
 ## License
 

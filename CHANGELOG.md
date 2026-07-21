@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 — 2026-07-21
+
+- Renamed the product from PortPilot to DevBerth while preserving legacy stores, defaults, service logs, bundle compatibility, and Keychain references through a tested one-way copy migration.
+- Separated observed listeners/processes from reviewed managed-service intent, runtime instances, ownership evidence, restart trust, discovery evidence, workspace sessions, and lifecycle events across immutable SwiftData schemas V2–V6.
+- Added strong process fingerprints, listener-edge revalidation, dedicated POSIX process groups, descendant tracking, owner-aware lifecycle routing, protected-process refusal, and fresh checks before every TERM/KILL or force escalation.
+- Added exact isolated managed-service validation, configuration-digest restart trust, safe observed-process conversion, transactional Keychain editing, bounded chunk-safe secret redaction, richer readiness/health checks, automatic-restart limits, and incident summaries.
+- Added review-only discovery for JavaScript package managers, Gradle, Maven, Python, Go, Cargo, Docker Compose, Procfile, Process Compose, and the versioned redacted DevBerth manifest.
+- Added transactional workspace sessions with drift comparison, dry-run preview, fresh preflight, dependency-layer restore, and scoped rollback.
+- Added batched Docker Engine inspection and exact, freshly reverified Compose project/service/file/environment/hash/membership scopes for mutations; one-offs and incomplete contexts remain inspection-only.
+- Rebuilt the native product around Runtime, Projects, Sessions, Managed Services, History, Docker, and Settings, with saved Runtime views, table/project layouts, resource evidence, multi-selection, complete ownership/trust/lifecycle inspection, onboarding, menu-bar workflows, and an expanded command palette.
+- Batched lifecycle/history persistence, bounded lifecycle pruning, append-and-rotate log persistence, transient batched CPU/memory readings, UI-test data isolation, repeatable soak/performance tests, and comprehensive product/security/privacy architecture documentation.
+
 ## 0.1.0 — 2026-07-21
 
 - Added native TCP/UDP listener discovery, process metadata, project inference, classification, real-time diff monitoring, search, filtering, sorting, column customization, and inspectors.

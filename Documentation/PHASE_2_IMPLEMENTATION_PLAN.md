@@ -4,7 +4,7 @@ This plan follows the evidence in `PHASE_2_AUDIT.md`. Each slice must preserve t
 
 ## Delivery slices
 
-Current status on 2026-07-21: slices 1–8 and the Docker/Compose control half of slice 9 are implemented and locally validated. The broader product redesign and final hardening in slices 9–10 remain active work; the optional alias router remains deferred.
+Current status on 2026-07-21: slices 1–10 are implemented and locally validated. A detached clean checkout passed all 149 unit, migration, integration, and UI tests; the four-pass soak and static analysis are green. The dedicated branch remains to be pushed. The optional alias router and signed-release-only gates documented in `PHASE_2_VALIDATION.md` remain deliberately deferred.
 
 1. **Audit and plan**
    - Freeze the baseline, gaps, measurements, removals, and acceptance evidence.
@@ -52,9 +52,9 @@ Current status on 2026-07-21: slices 1–8 and the Docker/Compose control half o
 
 9. **Docker/Compose context and native product redesign**
    - **Implemented:** retain health/restart policy, full Compose project/service/files/directory/environment context, and route exact revalidated stop/restart/remove actions without unrelated-service or host-PID fallback.
-   - Redesign navigation to Runtime, Projects, Sessions, Managed Services, History, Docker, and Settings.
-   - Add grouped/saved runtime views, ownership/trust/health columns, complete inspector sections, onboarding, compact menu metrics, and the expanded command palette.
-   - Keep every status understandable without color and every user-facing string localization-ready.
+   - **Implemented:** redesign navigation to Runtime, Projects, Sessions, Managed Services, History, Docker, and Settings.
+   - **Implemented:** add grouped/saved runtime views, ownership/trust/health/resource columns, complete inspector sections, onboarding, compact menu metrics, and the expanded command palette.
+   - **Implemented:** keep status labels independent of color and keep user-facing SwiftUI strings localization-ready.
 
 10. **Performance, security, and final quality gate**
     - Replace per-event saves/full-log rewrites and cancellation leaks with bounded, batchable work.
