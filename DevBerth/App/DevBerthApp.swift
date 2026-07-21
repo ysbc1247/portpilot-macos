@@ -38,7 +38,10 @@ struct DevBerthApp: App {
             )
             container = createdContainer
             let store = SwiftDataStore(modelContainer: createdContainer)
-            Task { try? await store.pruneLifecycleHistory(retaining: 5_000) }
+            Task {
+                try? await store.pruneLifecycleHistory(retaining: 5_000)
+                try? await store.pruneProcessHistory(retaining: 5_000)
+            }
 #if DEBUG
             let developmentFixtures = isDevelopmentHost ? DevelopmentFixtureController() : nil
             let developmentRuntimeRegistry = isDevelopmentHost ? ManagedRuntimeRegistry() : nil

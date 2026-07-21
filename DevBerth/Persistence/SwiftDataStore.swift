@@ -4,14 +4,17 @@ import SwiftData
 @ModelActor
 actor SwiftDataStore: HistoryRecording, OwnershipRecording, RestartTrustStoring, RuntimeLifecycleRecording, WorkspaceSessionRecording {
     private var lifecycleWritesUntilPrune = 100
+    private var processHistoryWritesUntilPrune = 100
     func record(_ event: HistoryEvent) async throws {
         modelContext.insert(ProcessHistoryEventRecord(event: event))
+        try reserveProcessHistoryCapacity(for: 1)
         try save()
     }
 
     func record(_ events: [HistoryEvent]) async throws {
         guard !events.isEmpty else { return }
         for event in events { modelContext.insert(ProcessHistoryEventRecord(event: event)) }
+        try reserveProcessHistoryCapacity(for: events.count)
         try save()
     }
 
@@ -139,6 +142,28 @@ actor SwiftDataStore: HistoryRecording, OwnershipRecording, RestartTrustStoring,
     func pruneLifecycleHistory(retaining limit: Int) async throws {
         try pruneLifecycleEvents(retaining: max(0, limit))
         try save()
+    }
+
+    func pruneProcessHistory(retaining limit: Int) async throws {
+        try pruneProcessHistoryRecords(retaining: max(0, limit))
+        try save()
+    }
+
+    private func reserveProcessHistoryCapacity(for insertedCount: Int) throws {
+        processHistoryWritesUntilPrune -= insertedCount
+        guard processHistoryWritesUntilPrune <= 0 else { return }
+        try pruneProcessHistoryRecords(retaining: max(0, 5_000 - max(100, insertedCount)))
+        processHistoryWritesUntilPrune = 100
+    }
+
+    private func pruneProcessHistoryRecords(retaining limit: Int) throws {
+        let count = try modelContext.fetchCount(FetchDescriptor<ProcessHistoryEventRecord>())
+        guard count > limit else { return }
+        var descriptor = FetchDescriptor<ProcessHistoryEventRecord>(
+            sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+        )
+        descriptor.fetchLimit = count - limit
+        try modelContext.fetch(descriptor).forEach(modelContext.delete)
     }
 
     private func pruneLifecycleEvents(retaining limit: Int) throws {
