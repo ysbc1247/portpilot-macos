@@ -136,12 +136,14 @@ Generic port records accept caller `id` on create, `port_id` plus `revision` on 
 
 | Tool | Inputs | `data` result | Approval |
 | --- | --- | --- | --- |
-| `operation_preview` | `operation_type`, nonempty stable `targets`, optional `options`; raw PID/process/command fields forbidden | `operation_id`, exact targets, revisions/fingerprints/owners/evidence, affected ports/dependencies/sessions, risks, compensation, expiry | A (no mutation) |
+| `operation_preview` | `operation_type`, nonempty stable `targets`, optional `options`; raw PID/process/command fields forbidden | `operation_id`, exact targets, revisions/fingerprints/listener edges/owners/evidence, affected ports/dependencies/sessions, risks, compensation, expiry | A (no mutation) |
 | `operation_execute` | `operation_id`; optional `idempotency_key` | per-target results and compensation status | D |
 | `change_set_preview` | nonempty `changes[]` of allowed `{tool, arguments}` steps, maximum 100 | token, normalized ordered plan, revision preconditions, warnings, compensation, expiry | A (no mutation) |
 | `change_set_execute` | `change_set_token`; optional `idempotency_key` | ordered per-step results and compensation status | P/D according to preview |
 
 Allowed change-set steps are bounded configuration commands. Dependency and create steps are ordered before consumers. Destructive steps require an outer `apply_destructive_change_set` operation preview; a change-set token alone never authorizes an arbitrary runtime action.
+
+For `stop_service`, `restart_service`, and project stop previews, an expected-port observation is captured as current evidence rather than control or restart authority. Execution resolves the owner again and requires the same exact fingerprint, listener edge, protected-process policy, and controller context as the native UI. Multiple observed ports are deduplicated only when they route to the same exact host process, Docker container, or verified Compose service.
 
 ## Development tools
 
