@@ -1,4 +1,4 @@
-name: PortPilot
+name: DevBerth
 options:
   minimumXcodeGenVersion: 2.46.0
   deploymentTarget:
@@ -6,7 +6,7 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    SWIFT_VERSION: 5.10
+    SWIFT_VERSION: "5.0"
     MACOSX_DEPLOYMENT_TARGET: 14.0
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
@@ -20,60 +20,62 @@ configs:
   Debug: debug
   Release: release
 targets:
-  PortPilot:
+  DevBerth:
     type: application
     platform: macOS
     sources:
-      - path: PortPilot
+      - path: DevBerth
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.portpilot
-        PRODUCT_NAME: PortPilot
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth
+        PRODUCT_NAME: DevBerth
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: PortPilot
+        INFOPLIST_KEY_CFBundleDisplayName: DevBerth
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         INFOPLIST_KEY_LSMinimumSystemVersion: "14.0"
-        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © 2026 PortPilot contributors.
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © 2026 DevBerth contributors.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGN_ENTITLEMENTS: PortPilot/Resources/PortPilot.entitlements
+        CODE_SIGN_ENTITLEMENTS: DevBerth/Resources/DevBerth.entitlements
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: YES
-  PortPilotTests:
+  DevBerthTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: PortPilotTests
+      - path: DevBerthTests
     dependencies:
-      - target: PortPilot
+      - target: DevBerth
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.portpilot.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.tests
         GENERATE_INFOPLIST_FILE: YES
-  PortPilotIntegrationTests:
+  DevBerthIntegrationTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: PortPilotIntegrationTests
+      - path: DevBerthIntegrationTests
+      - path: Fixtures
+        buildPhase: resources
     dependencies:
-      - target: PortPilot
+      - target: DevBerth
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.portpilot.integration-tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ysbc.devberth.integration-tests
         GENERATE_INFOPLIST_FILE: YES
 schemes:
-  PortPilot:
+  DevBerth:
     build:
       targets:
-        PortPilot: all
-        PortPilotTests: [test]
-        PortPilotIntegrationTests: [test]
+        DevBerth: all
+        DevBerthTests: [test]
+        DevBerthIntegrationTests: [test]
     test:
       gatherCoverageData: true
       targets:
-        - name: PortPilotTests
+        - name: DevBerthTests
           parallelizable: true
           randomExecutionOrder: true
-        - name: PortPilotIntegrationTests
+        - name: DevBerthIntegrationTests
           parallelizable: false
     run:
       config: Debug

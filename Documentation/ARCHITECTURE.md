@@ -1,12 +1,12 @@
-# PortPilot architecture
+# DevBerth architecture
 
 ## Boundaries
 
-PortPilot is one native app target with explicit source-level boundaries. SwiftUI features consume `AppModel` and injected protocols; no view directly invokes `Process`, `lsof`, `ps`, `kill`, Docker, or a shell.
+DevBerth is one native app target with explicit source-level boundaries. SwiftUI features consume `AppModel` and injected protocols; no view directly invokes `Process`, `lsof`, `ps`, `kill`, Docker, or a shell.
 
 | Boundary | Responsibility | Production implementation |
 | --- | --- | --- |
-| Domain | Runtime values, identity, profiles, dependency planning, conflicts, history | Value types in `PortPilot/Domain` |
+| Domain | Runtime values, identity, profiles, dependency planning, conflicts, history | Value types in `DevBerth/Domain` |
 | Command execution | Direct executable URL plus discrete argument arrays | `FoundationCommandRunner` |
 | Process discovery | Tagged listener parsing and process enrichment | `LocalPortDiscovery`, `ProcessMetadataProvider` |
 | Monitoring | Polling, snapshots, diffs, pause/resume | `PortMonitor` actor |
@@ -17,7 +17,7 @@ PortPilot is one native app target with explicit source-level boundaries. SwiftU
 | Secrets | Opaque references and values | SwiftData references plus `KeychainSecretStore` values |
 | Logs | stdout/stderr capture, redaction, bounds, persistence | `ServiceLogBuffer` |
 | Persistence | Durable user configuration and audit trail | SwiftData records and `SwiftDataStore` model actor |
-| Presentation | Native navigation, tables, inspectors, sheets, settings, menu bar | SwiftUI under `PortPilot/Features` |
+| Presentation | Native navigation, tables, inspectors, sheets, settings, menu bar | SwiftUI under `DevBerth/Features` |
 
 ## Runtime state flow
 
@@ -34,7 +34,7 @@ The listener identity is `PID + protocol + address + port`. Process identity is 
 
 ## Discovery strategy
 
-PortPilot invokes `/usr/sbin/lsof` using `-F0` machine fields, numeric hosts/ports, and separate selectors for TCP `LISTEN` and UDP endpoints. The parser tracks process and file records and ignores malformed fields. IPv6 addresses are unwrapped from brackets only after splitting on the final port colon.
+DevBerth invokes `/usr/sbin/lsof` using `-F0` machine fields, numeric hosts/ports, and separate selectors for TCP `LISTEN` and UDP endpoints. The parser tracks process and file records and ignores malformed fields. IPv6 addresses are unwrapped from brackets only after splitting on the final port colon.
 
 `ps` provides parent PID, owner, start time, and command. Tagged `lsof` `cwd` and `txt` file records provide paths without losing spaces. Verified raw executable and command data remain visible even when classification heuristics label a runtime or infer a project.
 
@@ -85,7 +85,9 @@ Diagnostics include app/macOS versions, non-secret settings, command availabilit
 
 SwiftData schema V1 contains `ProjectRecord`, `LaunchProfileRecord`, `ProfileDependencyRecord`, `ExpectedPortRecord`, `ProcessHistoryEventRecord`, `PortObservationRecord`, `UserPreferenceRecord`, `FavoriteItemRecord`, and `StoredLogMetadataRecord`. Domain values are converted explicitly; live listeners and `Process` instances are never modeled.
 
-`PortPilotMigrationPlan` anchors version `1.0.0`. Future schema changes must add a new `VersionedSchema` and explicit migration stage rather than editing a shipped schema identifier.
+`DevBerthMigrationPlan` anchors version `1.0.0`. Future schema changes must add a new `VersionedSchema` and explicit migration stage rather than editing a shipped schema identifier.
+
+`ProductIdentity` is the single compatibility map for the former product name, bundle identifier, store, support directory, defaults domain, and Keychain service. Before constructing the production container, `ProductDataMigrator` uses SQLite's online-backup API to materialize a consistent snapshot of an absent current store, including committed legacy WAL data; it atomically promotes the completed snapshot, copies an absent service-log directory, and copies only whitelisted unset defaults. It never overwrites current data and retains the legacy store/WAL/SHM files as a recovery source. `KeychainSecretStore` reads the current service first, copies a successful legacy read forward, and deletes an intentionally removed reference from both services.
 
 ## Concurrency
 
@@ -97,7 +99,7 @@ SwiftData schema V1 contains `ProjectRecord`, `LaunchProfileRecord`, `ProfileDep
 
 ## Security model
 
-PortPilot is local-only and has no telemetry or upload service. It is not App Sandbox-enabled because process enumeration and signaling outside its container are product requirements. Hardened Runtime remains enabled. No privileged helper is installed, and no silent elevation path exists.
+DevBerth is local-only and has no telemetry or upload service. It is not App Sandbox-enabled because process enumeration and signaling outside its container are product requirements. Hardened Runtime remains enabled. No privileged helper is installed, and no silent elevation path exists.
 
 See `SECURITY.md` and `PRIVACY.md` for operator-facing policy.
 
@@ -105,7 +107,7 @@ See `SECURITY.md` and `PRIVACY.md` for operator-facing policy.
 
 Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, validation, graph ordering/cycles, conflict detection, state transitions, Docker parsing/fallback, shell escaping, secret references, log redaction/bounds, health checks, SwiftData history, and migrations.
 
-Integration tests start only repository fixture processes on random high ports. They validate discovery, strong identity, graceful exit, graceful timeout, and confirmed force-stop. Every test owns and cleans up its fixture process.
+Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong identity, graceful exit, graceful timeout, and confirmed force-stop. Every test owns and cleans up its fixture process.
 
 ## Monitoring overhead
 
@@ -116,7 +118,7 @@ On 2026-07-21, on an Apple Silicon development Mac with roughly 70 active listen
 - After adding the rolling metadata cache, steady-state app samples at the two-second default interval were normally 0.0–3.7% CPU. The initial implementation refreshed every PID together and produced a 78% spike; that design was removed.
 - Metadata refresh is now limited to three stale PIDs per poll, and disappeared PIDs are evicted immediately.
 
-Reproduce the raw discovery measurement with `swiftc Scripts/measure_discovery.swift -o /tmp/portpilot-discovery-benchmark && /usr/bin/time -lp /tmp/portpilot-discovery-benchmark`. Results vary with listener count, storage state, and system load.
+Reproduce the raw discovery measurement with `swiftc Scripts/measure_discovery.swift -o /tmp/devberth-discovery-benchmark && /usr/bin/time -lp /tmp/devberth-discovery-benchmark`. Results vary with listener count, storage state, and system load.
 
 ## Trade-offs
 
@@ -124,4 +126,3 @@ Reproduce the raw discovery measurement with `swiftc Scripts/measure_discovery.s
 - A 30-second rolling metadata cache can briefly show stale non-destructive labels, but process termination always performs fresh verification.
 - App Sandbox is incompatible with core global process operations. The replacement controls are strict arguments, local-only data, protected-process policy, identity verification, no elevation, and Hardened Runtime.
 - Runtime heuristics add useful labels but never replace verified raw values.
-

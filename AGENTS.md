@@ -1,7 +1,7 @@
-# PortPilot engineering rules
+# DevBerth engineering rules
 
 - Target macOS 14 or newer with SwiftUI and Swift Concurrency. Use AppKit only when a native SwiftUI API cannot provide the required behavior.
-- Keep transient runtime models in `PortPilot/Domain` and SwiftData records in `PortPilot/Persistence`; never persist live `Process` objects.
+- Keep transient runtime models in `DevBerth/Domain` and SwiftData records in `DevBerth/Persistence`; never persist live `Process` objects.
 - UI code must depend on service protocols. It must not invoke `Process`, `lsof`, `ps`, `kill`, Docker, or a shell directly.
 - Invoke trusted tools with an executable URL and discrete argument array through `CommandRunning`. Only explicitly user-authored launch profiles may use a login shell.
 - A destructive process action must revalidate PID, executable, and start time through `ProcessIdentityVerifying` immediately before signaling. Never weaken the protected-process checks to make an action succeed.
@@ -9,7 +9,7 @@
 - Keep verified process metadata separate from inferred classification or relaunch suggestions in the UI and domain models.
 - Add parser fixtures and tests when changing command formats. Tests must use mocks and must never terminate real user processes.
 - Localize user-facing strings with `String(localized:)` or `LocalizedStringKey`; keep business-logic errors actionable and non-secret.
-- Regenerate `PortPilot.xcodeproj` with `xcodegen generate` after changing `project.yml`.
-- Validate locally with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project PortPilot.xcodeproj -scheme PortPilot -destination 'platform=macOS' test`.
+- Treat `ProductIdentity` and `ProductDataMigrator` as the compatibility boundary for the PortPilot-to-DevBerth rename. Never remove legacy identifiers or reset user storage without a tested migration and an explicit compatibility decision.
+- Regenerate `DevBerth.xcodeproj` with `xcodegen generate` after changing `project.yml`.
+- Validate locally with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project DevBerth.xcodeproj -scheme DevBerth -destination 'platform=macOS' test`.
 - Architectural boundary or contract changes require matching updates to this file and `Documentation/ARCHITECTURE.md` (or the relevant `docs/implementations/*/README.md`).
-

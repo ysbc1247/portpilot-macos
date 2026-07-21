@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Development-only harmless HTTP listener for PortPilot integration tests."""
+"""Development-only harmless HTTP listener for DevBerth integration tests."""
 
 import argparse
 import http.server

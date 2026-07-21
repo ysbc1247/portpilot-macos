@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, phase-2-differentiation]
   pull_request:
   workflow_dispatch:
 
@@ -33,8 +33,8 @@ jobs:
       - name: Build application
         run: >-
           xcodebuild
-          -project PortPilot.xcodeproj
-          -scheme PortPilot
+          -project DevBerth.xcodeproj
+          -scheme DevBerth
           -configuration Debug
           -destination 'platform=macOS,arch=arm64'
           CODE_SIGNING_ALLOWED=NO
@@ -43,8 +43,8 @@ jobs:
       - name: Run unit and safe integration tests
         run: >-
           xcodebuild
-          -project PortPilot.xcodeproj
-          -scheme PortPilot
+          -project DevBerth.xcodeproj
+          -scheme DevBerth
           -configuration Debug
           -destination 'platform=macOS,arch=arm64'
           CODE_SIGNING_ALLOWED=NO
@@ -55,6 +55,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: PortPilot-TestResults
+          name: DevBerth-TestResults
           path: TestResults.xcresult
           retention-days: 7

@@ -2,7 +2,7 @@
 
 ## Command execution boundaries
 
-Trusted system and Docker tools are invoked by absolute executable URL with separate argument arrays through `CommandRunning`. PortPilot never concatenates discovered values into a shell command. A shell is used only when a user explicitly selects a login/custom shell for a reviewed launch profile.
+Trusted system and Docker tools are invoked by absolute executable URL with separate argument arrays through `CommandRunning`. DevBerth never concatenates discovered values into a shell command. A shell is used only when a user explicitly selects a login/custom shell for a reviewed launch profile.
 
 Discovered commands are untrusted suggestions. Saving a discovered process requires review, and `ManagedProcessLauncher` refuses a profile that is not marked reviewed.
 
@@ -14,7 +14,7 @@ Discovered commands are untrusted suggestions. Saving a discovered process requi
 - A mismatch aborts with no signal.
 - Force stop requires explicit UI confirmation and records the result.
 - Port conflicts never cause an automatic kill.
-- PortPilot never silently requests administrator privileges and installs no privileged helper.
+- DevBerth never silently requests administrator privileges and installs no privileged helper.
 
 ## Secrets
 
@@ -24,11 +24,11 @@ Do not put secrets in profile arguments or custom shell text; process arguments 
 
 ## Local-only policy
 
-PortPilot does not include analytics, telemetry, crash-reporting SDKs, cloud sync, or an application data upload endpoint. Optional HTTP health checks contact only URLs explicitly configured by the user. Docker commands contact the user’s configured local/remote Docker context as Docker itself defines.
+DevBerth does not include analytics, telemetry, crash-reporting SDKs, cloud sync, or an application data upload endpoint. Optional HTTP health checks contact only URLs explicitly configured by the user. Docker commands contact the user’s configured local/remote Docker context as Docker itself defines.
 
 ## App permissions
 
-PortPilot is not App Sandbox-enabled because global port discovery and signaling are core features. Hardened Runtime is enabled. Normal operation does not require root.
+DevBerth is not App Sandbox-enabled because global port discovery and signaling are core features. Hardened Runtime is enabled. Normal operation does not require root.
 
 ## Reporting a vulnerability
 
