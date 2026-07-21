@@ -145,36 +145,34 @@ Create the required documentation directories and files if they do not yet exist
 
 ## Merge Command Protocol
 
-- When the user says `merge`, treat it as a request to merge all pull requests for the current task into `main` sequentially and gracefully.
+- When the user says `merge`, treat it as a request to integrate all pull requests for the current task into `main` gracefully.
 - Identify every relevant pull request.
 - Prefer the PR or PR stack associated with the current branch.
 - If there are multiple plausible unrelated PRs, ask the user which task or stack to merge.
 - If the task uses a stack, identify the full stack order before merging.
-- Merge stacked PRs from the base of the stack toward the tip.
-- Merge the PR whose base is `main` first, then update or retarget the next PR so it can merge into `main`, and continue upward until every PR in the stack has been merged or a blocker requires user input.
-- Inspect PR status, branch names, and outstanding checks before each PR merge.
-- During stacked merges, do not use branch auto-deletion for any merged PR while another open PR still targets that branch as its base.
-- Retarget the child PR first, or keep the merged branch alive until the whole stack is merged.
-- After a lower stacked PR is merged into `main`, update local `main` from `origin/main`, retarget the next child PR to `main`, verify that GitHub still shows it open and mergeable, then continue.
+- Treat one user `merge` invocation for one PR stack as one release unit and therefore one `main` update, one immutable version tag, and one GitHub Release.
+- Before mutating `main`, inspect every stack PR's status, branch names, bases, reviews, and checks. Stop before the roll-up merge if any required stack PR is blocked.
+- Ensure the stack tip contains every lower shard in dependency order, then create or update one release-ready roll-up PR from that fully composed tip to `main`. The roll-up body must link every shard PR and summarize the complete change, reasoning, impact, and observed validation.
+- Do not merge lower shard PRs into `main` individually during a stack merge. Merge the roll-up PR once while preserving the stack's logical commits; do not squash unless the user explicitly asks.
+- Keep every stack branch alive until the roll-up PR has merged and its release has been verified. Then close the lower shard PRs as incorporated, with a link to the roll-up PR and merge commit; do not misreport those review PRs as individually merged.
 - Delete or prune stacked branches only after confirming no open pull request uses the branch as either `baseRefName` or `headRefName`.
-- If each PR can merge cleanly, merge it into `main` while preserving the logical task history.
-- After each successful merge, update local `main` from `origin/main`, then continue to the next PR in the sequence.
-- After the full sequence succeeds, switch back to `main`, update it from `origin/main`, and report every merged PR, branch, and commit range.
+- After the roll-up succeeds, switch to `main`, update it from `origin/main`, and report the roll-up PR, every incorporated shard PR, branch, commit range, and single published version.
 - If GitHub or Git reports conflicts, resolve them locally when the resolution is mechanical and low-risk.
 - If a conflict requires a product, strategy, data, or research judgment, stop and ask the user what to keep instead of guessing.
-- If checks are failing or required review is missing on any PR in the sequence, report the blocker, leave the remaining PRs unmerged, and do not force-merge unless the user explicitly instructs that exact action.
+- If checks are failing or required review is missing anywhere in the stack, report the blocker, leave the roll-up unmerged, and do not force-merge unless the user explicitly instructs that exact action.
 
 ## GitHub Versioning and Release Protocol
 
 - Treat the immutable `vMAJOR.MINOR.PATCH` Git tag and corresponding published GitHub Release as the canonical source-project version.
-- Every pull request merged into `main` must produce exactly one version through `.github/workflows/release-on-merge.yml`. Do not disable, bypass, rename, or delete this workflow without an explicit version-migration decision and matching documentation update.
+- Every simple PR merged into `main`, or every complete PR stack integrated through one roll-up PR, must produce exactly one version through `.github/workflows/release-on-merge.yml`. Do not disable, bypass, rename, or delete this workflow without an explicit version-migration decision and matching documentation update.
 - Keep repository changes on pull requests. A direct push to `main` is a workflow violation, creates no release, and must be corrected through the normal PR path rather than manually inventing a version.
-- Merge PRs into `main` as separate updates. Do not batch multiple PRs into one merge-queue group or main update; one merged PR must map to one release-workflow run and one version.
+- A simple PR is one release unit. A stack handled by one `merge` command is also one release unit regardless of shard count: merge only its release-ready roll-up PR into `main`, then close the lower shard PRs as incorporated.
+- Never implement stack release batching with timing windows, delayed jobs, movable tags, or multiple sequential `main` merges. The single roll-up `main` update is the atomic release boundary.
 - While the project remains on the `0.1` source-release line, use `v0.1.<GITHUB_RUN_NUMBER>`. The workflow run number is the patch component so queued merges receive unique deterministic versions and reruns remain idempotent.
 - Never move, reuse, overwrite, or delete a published version tag. If publishing is interrupted after tag creation, rerun the same workflow so it completes that tag's missing release.
 - Before merging, make the PR title and body release-ready. The body must truthfully state what changed, why, user or developer impact, and observed validation; do not merge placeholder or stale release input.
-- Every release must identify the merged PR, preserve its full title and description, link the exact merge commit, and compare with the previous source release when one exists.
-- After every merge, verify CI and the release workflow succeeded for the merge commit, verify the new tag targets that commit, and inspect the published release details before reporting the task complete.
+- Every simple release must identify its merged PR. Every stack release must identify the roll-up PR and every incorporated shard PR. Both must preserve release-ready change details, link the exact merge commit, and compare with the previous source release when one exists.
+- After every simple or roll-up merge, verify CI and the release workflow succeeded for the one merge commit, verify the one new tag targets that commit, and inspect the published release details before reporting the task complete.
 - Keep GitHub source versions separate from the Xcode `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` until signed binary distribution is designed. Never claim that a source release contains an installable, signed, notarized, or automatically updatable app unless those artifacts were actually produced and verified.
 - Record version-line changes, release-automation decisions, alternatives, and recovery procedures in `docs/implementations/github-release-versioning/README.md`; keep this section prescriptive.
 
