@@ -37,6 +37,7 @@ final class ManagedProcessGroupIntegrationTests: XCTestCase {
 
         try await context.launcher.stop(profileID: context.profileID, timeoutSeconds: 2)
 
+        try await waitForProcessGroupExit(context.groupID)
         XCTAssertFalse(processGroupExists(context.groupID))
         let remainingListeners = try await currentListeners(marker: context.marker)
         XCTAssertTrue(remainingListeners.isEmpty)
@@ -53,6 +54,7 @@ final class ManagedProcessGroupIntegrationTests: XCTestCase {
         XCTAssertEqual(listener.process.fingerprint.commandLineDigest, handle.leaderFingerprint.commandLineDigest)
 
         try await context.launcher.stop(profileID: context.profileID, timeoutSeconds: 2)
+        try await waitForProcessGroupExit(context.groupID)
         XCTAssertFalse(processGroupExists(context.groupID))
     }
 
@@ -73,6 +75,7 @@ final class ManagedProcessGroupIntegrationTests: XCTestCase {
         XCTAssertEqual(Darwin.getpgid(replacement.process.fingerprint.pid), context.groupID)
 
         try await context.launcher.stop(profileID: context.profileID, timeoutSeconds: 2)
+        try await waitForProcessGroupExit(context.groupID)
         XCTAssertFalse(processGroupExists(context.groupID))
     }
 
@@ -90,6 +93,7 @@ final class ManagedProcessGroupIntegrationTests: XCTestCase {
 
         try await context.launcher.stop(profileID: context.profileID, timeoutSeconds: 2)
 
+        try await waitForProcessGroupExit(context.groupID)
         XCTAssertFalse(processGroupExists(context.groupID))
         XCTAssertTrue(processExists(listener.process.fingerprint.pid))
         let remainingListeners = try await currentListeners(marker: context.marker)
@@ -218,6 +222,15 @@ final class ManagedProcessGroupIntegrationTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(50))
         }
         XCTFail("Fixture PID \(pid) did not exit after cleanup")
+    }
+
+    private func waitForProcessGroupExit(_ groupID: Int32) async throws {
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            if !processGroupExists(groupID) { return }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        throw DevBerthError.unexpected("Fixture process group \(groupID) was not reaped after stopping.")
     }
 
     private func processExists(_ pid: Int32) -> Bool {
