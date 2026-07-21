@@ -245,7 +245,8 @@ extension ApplicationControlPlane {
                 let projectID = try acceptanceUUID("id", in: project)
                 let fixture = try await acceptanceCall("dev_fixture_start", ["name": .string("simple_tcp_listener")])
                 let fixturePort = try acceptancePort(in: fixture)
-                let listener = try await waitForDevelopmentListener(port: fixturePort)
+                let fixturePID = try acceptancePID(in: fixture)
+                let listener = try await waitForDevelopmentListener(port: fixturePort, expectedPID: fixturePID)
                 let search = try await acceptanceCall("runtime_search", ["port": .number(Double(fixturePort))])
                 try require(search["count"]?.intValue == 1, "external_fixture_found")
                 _ = try await acceptanceCall("runtime_explain", ["listener_id": .string(listener.id)])
@@ -286,8 +287,12 @@ extension ApplicationControlPlane {
                 ])
                 let serviceID = try acceptanceUUID("id", in: service)
                 _ = try await configureAcceptanceService(id: serviceID, port: port)
-                _ = try await acceptanceCall("dev_fixture_start", ["name": .string("port_conflict"), "port": .number(Double(port))])
-                let listener = try await waitForDevelopmentListener(port: port)
+                let fixture = try await acceptanceCall(
+                    "dev_fixture_start",
+                    ["name": .string("port_conflict"), "port": .number(Double(port))]
+                )
+                let fixturePID = try acceptancePID(in: fixture)
+                let listener = try await waitForDevelopmentListener(port: port, expectedPID: fixturePID)
                 let validation = try await acceptanceCall("project_validate", ["project_id": .string(projectID.uuidString)])
                 try require(validation["issues"]?.arrayValue?.contains { $0["field"] == .string("expected_ports") } == true, "port_conflict_detected")
                 _ = try await acceptanceCall("port_inspect", ["listener_id": .string(listener.id)])
@@ -296,7 +301,7 @@ extension ApplicationControlPlane {
                 ])
                 try require(preview["unrelated_processes_involved"] == .bool(false), "preview_targets_only_application_owned_fixture")
                 _ = try await acceptanceCall("operation_execute", ["operation_id": preview["operation_id"] ?? .null])
-                try await waitForDevelopmentListenerToDisappear(port: port)
+                try await waitForDevelopmentListenerToDisappear(port: port, expectedPID: fixturePID)
                 let verified = try await acceptanceCall("service_verify", ["service_id": .string(serviceID.uuidString)])
                 try require(verified["verified_restartable"] == .bool(true), "backend_verified_after_resolution")
                 _ = try await acceptanceCall("service_start", ["service_id": .string(serviceID.uuidString)])
@@ -465,6 +470,13 @@ extension ApplicationControlPlane {
         return port
     }
 
+    private func acceptancePID(in value: JSONValue) throws -> Int32 {
+        guard let pid = value["pid"]?.intValue.flatMap(Int32.init(exactly:)) else {
+            throw ControlFailure(code: .internalError, message: "Acceptance fixture did not return a process ID.")
+        }
+        return pid
+    }
+
     private func borrowDevelopmentPorts(count: Int) async throws -> [UInt16] {
         var fixtures: [(id: UUID, port: UInt16)] = []
         var blockedPorts = Set(model.listeners.map(\.port))
@@ -517,24 +529,38 @@ extension ApplicationControlPlane {
         ])
     }
 
-    private func waitForDevelopmentListener(port: UInt16) async throws -> ObservedListener {
+    private func waitForDevelopmentListener(port: UInt16, expectedPID: Int32) async throws -> ObservedListener {
         model.refreshInterval = 0.1
         model.startMonitoring()
         for _ in 0..<60 {
-            if let listener = model.listeners.first(where: { $0.port == port }) { return listener }
+            if let listener = model.listeners.first(where: {
+                $0.port == port && $0.process.fingerprint.pid == expectedPID
+            }) {
+                return listener
+            }
             try await Task.sleep(for: .milliseconds(100))
         }
-        throw ControlFailure(code: .timeout, message: "Development listener on port \(port) was not observed before the deadline.")
+        throw ControlFailure(
+            code: .timeout,
+            message: "Development listener PID \(expectedPID) on port \(port) was not observed before the deadline."
+        )
     }
 
-    private func waitForDevelopmentListenerToDisappear(port: UInt16) async throws {
+    private func waitForDevelopmentListenerToDisappear(port: UInt16, expectedPID: Int32) async throws {
         model.refreshInterval = 0.1
         model.refreshNow()
         for _ in 0..<60 {
-            if !model.listeners.contains(where: { $0.port == port }) { return }
+            if !model.listeners.contains(where: {
+                $0.port == port && $0.process.fingerprint.pid == expectedPID
+            }) {
+                return
+            }
             try await Task.sleep(for: .milliseconds(100))
         }
-        throw ControlFailure(code: .timeout, message: "Development listener on port \(port) remained visible after its approved stop.")
+        throw ControlFailure(
+            code: .timeout,
+            message: "Development listener PID \(expectedPID) on port \(port) remained visible after its approved stop."
+        )
     }
 
     private func cleanupDevelopmentAcceptanceRuntime() async {

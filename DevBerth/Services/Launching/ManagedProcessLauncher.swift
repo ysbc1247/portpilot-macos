@@ -263,20 +263,27 @@ actor ManagedProcessLauncher: ManagedProcessLaunching {
 
     private func captureStrongFingerprint(pid: Int32) async throws -> ProcessFingerprint {
         var previous: ProcessFingerprint?
-        for _ in 0..<40 {
+        var matchingIntervals = 0
+        for _ in 0..<80 {
             if let inspection = try await processInspector.inspect(pid: pid), inspection.fingerprint.isStrong {
                 let current = inspection.fingerprint
                 if let previous,
                    ProcessFingerprintVerifier.differences(expected: previous, actual: current).isEmpty,
                    ProcessFingerprintVerifier.differences(expected: current, actual: previous).isEmpty {
-                    return current
+                    matchingIntervals += 1
+                    if matchingIntervals >= 8 { return current }
+                } else {
+                    matchingIntervals = 0
                 }
                 previous = current
+            } else {
+                previous = nil
+                matchingIntervals = 0
             }
             try await Task.sleep(for: .milliseconds(25))
         }
         throw DevBerthError.processFingerprintChanged(
-            "DevBerth could not capture a strong fingerprint for the newly launched PID \(pid). The launch was stopped."
+            "DevBerth could not capture a strong fingerprint that remained stable after spawning PID \(pid). The launch was stopped."
         )
     }
 

@@ -27,16 +27,15 @@ final class FoundationCommandRunner: CommandRunning, @unchecked Sendable {
                 throw DevBerthError.unexpected("Could not run \(executable.lastPathComponent): \(error.localizedDescription)")
             }
 
-            let outputTask = Task.detached {
+            async let outputData = Task.detached {
                 standardOutput.fileHandleForReading.readDataToEndOfFile()
-            }
-            let errorTask = Task.detached {
+            }.value
+            async let errorData = Task.detached {
                 standardError.fileHandleForReading.readDataToEndOfFile()
-            }
+            }.value
+
             process.waitUntilExit()
-            let outputData = await outputTask.value
-            let errorData = await errorTask.value
-            return CommandResult(
+            return await CommandResult(
                 stdout: outputData,
                 stderr: errorData,
                 exitCode: process.terminationStatus

@@ -166,6 +166,49 @@ final class ProcessGroupTests: XCTestCase {
 
         XCTAssertEqual(groupOperator.signals(), [.init(signal: SIGTERM, target: .process(300))])
     }
+
+    func testManagedLauncherWaitsForPostSpawnFingerprintStability() async throws {
+        let serviceID = UUID()
+        let transient = groupFingerprint(pid: 400, parentPID: 1)
+        let stable = ProcessFingerprint(
+            pid: transient.pid,
+            uid: transient.uid,
+            executablePath: "/opt/devberth-fixture/python3",
+            executableFileIdentity: .init(deviceID: 2, inode: 400),
+            startTime: transient.startTime,
+            commandLineDigest: ProcessFingerprint.digest(commandLine: "/opt/devberth-fixture/python3 fixture.py"),
+            parentPID: transient.parentPID,
+            detectedAt: transient.detectedAt
+        )
+        let inspector = SequencedProcessInspector(
+            fingerprints: [transient, transient] + Array(repeating: stable, count: 9)
+        )
+        let snapshot = groupSnapshot(
+            serviceID: serviceID,
+            leader: stable,
+            members: [groupMember(stable, groupID: 400, role: .leader, controlled: true)]
+        )
+        let launcher = ManagedProcessLauncher(
+            secrets: EmptySecretStore(),
+            logs: ServiceLogBuffer(persistsToDisk: false),
+            runner: successfulGroupRunner(),
+            spawner: FixedControlledSpawner(pid: 400, processGroupID: 400),
+            processInspector: inspector,
+            fingerprintVerifier: MatchingKnownFingerprintVerifier(fingerprints: [400: stable]),
+            groupInspector: SequencedProcessGroupInspector(snapshots: [snapshot]),
+            groupOperator: RecordingProcessGroupOperator(processGroupID: 400),
+            listenerDiscoverer: EmptyPortDiscoverer()
+        )
+
+        try await launcher.launch(managedFixtureProfile(id: serviceID))
+
+        let runtimeHandle = await launcher.runtimeHandle(profileID: serviceID)
+        let handle = try XCTUnwrap(runtimeHandle)
+        XCTAssertEqual(handle.leaderFingerprint.executablePath, stable.executablePath)
+        XCTAssertEqual(handle.leaderFingerprint.commandLineDigest, stable.commandLineDigest)
+        let inspectionCount = await inspector.inspectionCount()
+        XCTAssertGreaterThanOrEqual(inspectionCount, 11)
+    }
 }
 
 private struct MappedProcessInspector: ProcessInspecting {
@@ -176,6 +219,28 @@ private struct MappedProcessInspector: ProcessInspecting {
             ProcessInspection(fingerprint: $0, commandLine: "fixture \(pid)", currentDirectory: "/tmp")
         }
     }
+}
+
+private actor SequencedProcessInspector: ProcessInspecting {
+    private var fingerprints: [ProcessFingerprint]
+    private var count = 0
+
+    init(fingerprints: [ProcessFingerprint]) {
+        precondition(!fingerprints.isEmpty)
+        self.fingerprints = fingerprints
+    }
+
+    func inspect(pid: Int32) async throws -> ProcessInspection? {
+        count += 1
+        let fingerprint = fingerprints.count > 1 ? fingerprints.removeFirst() : fingerprints[0]
+        return ProcessInspection(
+            fingerprint: fingerprint,
+            commandLine: "fixture \(pid)",
+            currentDirectory: "/tmp"
+        )
+    }
+
+    func inspectionCount() -> Int { count }
 }
 
 private actor SequencedProcessGroupInspector: ProcessGroupInspecting {
