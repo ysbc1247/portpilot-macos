@@ -162,7 +162,7 @@ Before signaling a host process, DevBerth compares a strong fingerprint containi
 - Git;
 - Docker Desktop or a compatible Docker CLI only if you want Docker features.
 
-DevBerth is currently distributed from source. The repository does not yet publish a Developer ID-notarized binary or an automatic updater.
+DevBerth is currently distributed from source. Every merged pull request publishes a versioned [GitHub source release](https://github.com/ysbc1247/portpilot-macos/releases) with its change details, but the repository does not yet publish a Developer ID-notarized binary or an automatic updater.
 
 ### Build and install the daily-use app
 
@@ -362,7 +362,7 @@ For MCP-specific error codes and recovery steps, use [MCP_TROUBLESHOOTING.md](Do
 - UDP has no universal TCP-style listening state; DevBerth reports meaningful bound endpoints without claiming more certainty.
 - Project inference walks parents of a verified working directory; it never recursively scans the user's filesystem.
 - The current editor exposes one dependency selector per service even though the domain and persistence layers support arbitrary dependency graphs.
-- Distribution is source-first: Developer ID signing, notarization, release downloads, and an update channel are not yet included.
+- Distribution is source-first: GitHub publishes versioned source releases and change notes, while Developer ID signing, notarized app downloads, and an update channel are not yet included.
 
 ## Documentation map
 

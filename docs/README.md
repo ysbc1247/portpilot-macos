@@ -12,4 +12,5 @@
 - [`../SECURITY.md`](../SECURITY.md) — execution and termination security boundaries
 - [`../PRIVACY.md`](../PRIVACY.md) — local-only data policy
 - [`implementations/devberth/README.md`](implementations/devberth/README.md) — implementation state
+- [`implementations/github-release-versioning/README.md`](implementations/github-release-versioning/README.md) — automatic per-merge GitHub tags, releases, notes, and recovery
 - [`next-steps/README.md`](next-steps/README.md) — latest explicit `save` handoff (created when requested)
