@@ -45,6 +45,7 @@ No live Docker daemon with a disposable canonical Compose project was available 
 ## Final validation
 
 - `xcodegen generate`: passed.
+- Clean detached-worktree Release application build (arm64, fresh Derived Data): passed; regeneration left the committed tree clean.
 - Debug application build: passed.
 - Universal Release application build: passed with warnings treated as errors.
 - Debug and Release `DevBerthMCP` scheme builds: passed.
