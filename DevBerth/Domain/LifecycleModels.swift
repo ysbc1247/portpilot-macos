@@ -12,7 +12,9 @@ enum LifecycleEventCategory: String, Codable, CaseIterable, Sendable {
     case exited
     case failed
     case ownershipChanged
+    case sessionCapture
     case sessionRestore
+    case sessionRollback
     case configurationDrift
     case safetyRefusal
 }

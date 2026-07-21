@@ -5,6 +5,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case overview = "Overview"
     case activePorts = "Active Ports"
     case projects = "Projects"
+    case sessions = "Sessions"
     case launchProfiles = "Launch Profiles"
     case history = "History"
     case docker = "Docker"
@@ -16,6 +17,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .overview: "rectangle.3.group"
         case .activePorts: "point.3.connected.trianglepath.dotted"
         case .projects: "folder"
+        case .sessions: "square.stack.3d.up"
         case .launchProfiles: "play.square.stack"
         case .history: "clock.arrow.circlepath"
         case .docker: "shippingbox"
@@ -115,6 +117,7 @@ struct RootView: View {
         case .overview: OverviewView()
         case .activePorts: ActivePortsView()
         case .projects: ProjectsView()
+        case .sessions: SessionsView()
         case .launchProfiles: LaunchProfilesView()
         case .history: HistoryView()
         case .docker: DockerView()

@@ -18,6 +18,7 @@
 - Ownership evidence, lifecycle details, discovery metadata, and workspace-session snapshots may store identifiers and redacted explanations, never secret values or raw environment values.
 - Run project discovery only against a user-selected root through `ProjectDiscoveryAdapting`. Adapters must be non-recursive, side-effect-free, bounded to regular non-symlink files, and must return unreviewed candidates; discovery must never evaluate or execute project commands.
 - Treat `devberth-runtime.json` as a versioned interchange format, not trust evidence. Export no secret values or Keychain reference UUIDs, reject secret-like plaintext environment fields, and require imported definitions to pass the normal review and exact validation gates.
+- Workspace sessions may contain only managed-service expectations and redacted evidence. Every restore must re-run fresh listener, definition, Keychain, restart-trust, port, and dependency preflight; start in dependency layers, roll back only services started by that restore, and never stop unmanaged or previously running services as rollback.
 - Keep verified process metadata separate from inferred classification or relaunch suggestions in the UI and domain models.
 - Add parser fixtures and tests when changing command formats. Tests must use mocks and must never terminate real user processes.
 - Localize user-facing strings with `String(localized:)` or `LocalizedStringKey`; keep business-logic errors actionable and non-secret.

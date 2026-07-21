@@ -18,6 +18,7 @@ DevBerth is one native app target with explicit source-level boundaries. SwiftUI
 | Runtime lifecycle | Runtime truth, readiness/health transitions, incidents, exit supervision, bounded restarts | `RuntimeLifecycleTracker`, `ManagedProcessExitHub`, `RestartPolicyEvaluator` |
 | Service checks | Reviewed TCP, HTTP status/text, command, file, Docker, and dependency criteria | `ServiceCheckRunner`, `LaunchCoordinator` |
 | Projects | Dependency-layer orchestration | `ProjectOrchestrator` |
+| Workspace sessions | Capture, drift comparison, fresh preflight, dependency-layer restore, scoped rollback | `WorkspaceSessionCoordinator` |
 | Project discovery | Bounded, non-recursive, review-only adapters and native manifest interchange | `ProjectDiscoveryCoordinator`, `ProjectDiscoveryAdapting`, `DevBerthManifestCodec` |
 | Docker | Availability, container JSON, ports, actions, logs | `DockerCLIClient`, `DockerAssociationProvider` |
 | Secrets | Opaque references and values | SwiftData references plus `KeychainSecretStore` values |
@@ -43,7 +44,7 @@ The listener identity is `PID + protocol + address + port`. A process fingerprin
 
 `ObservedListener` and `ObservedProcess` are transient facts reported by the operating system. An observed listener contains an observed process because the listener-to-process edge is direct evidence from `lsof`; neither type contains launch instructions or restart claims. `ManagedServiceConfiguration` is durable, reviewed user intent: launch mechanism, command, arguments, environment references, expected listeners, health/readiness, shutdown/restart policy, dependencies, and log settings. The existing `LaunchProfileRecord` name remains a V1 persistence compatibility detail and is converted at the boundary by `LaunchProfileRecord+Domain`.
 
-`RuntimeInstance`, `OwnershipConclusion`, `RestartTrustAssessment`, `ManagedServiceValidationResult`, `WorkspaceSession`, `ProjectDiscoveryMetadata`, and `LifecycleEvent` model the remaining Phase 2 concepts independently. Ownership resolution, safe lifecycle routing, restart trust, isolated managed-service validation, continuous runtime lifecycle persistence, health monitoring, deterministic incident summaries, and review-only project discovery/import are live. Session restoration remains a later slice. An empty table is never treated as a completed workflow. See `Documentation/DOMAIN_MODEL.md` for reference and persistence rules.
+`RuntimeInstance`, `OwnershipConclusion`, `RestartTrustAssessment`, `ManagedServiceValidationResult`, `WorkspaceSession`, `ProjectDiscoveryMetadata`, and `LifecycleEvent` model the remaining Phase 2 concepts independently. Ownership resolution, safe lifecycle routing, restart trust, isolated managed-service validation, continuous runtime lifecycle persistence, health monitoring, deterministic incident summaries, review-only project discovery/import, and transactional workspace restoration are live. An empty table is never treated as a completed workflow. See `Documentation/DOMAIN_MODEL.md` for reference and persistence rules.
 
 ## Runtime lifecycle and health
 
@@ -122,6 +123,14 @@ Docker is optional. `DockerCLIClient` first resolves the CLI and asks the server
 
 Stop, restart, and recent logs use discrete Docker CLI arguments. Docker actions never fall back to a shell. Listener correlation is cached and does not block core monitoring when Docker is absent.
 
+## Workspace sessions
+
+`WorkspaceSessionCoordinator` captures selected projects through their managed-service definitions only. Running services record currently observed application-managed listeners; stopped services retain configured listener expectations. Every snapshot includes dependency IDs, health, and the exact managed-service digest. Secret values, process objects, and unmanaged launch suggestions are excluded.
+
+Comparison is read-only and distinguishes added/missing services, digest drift, managed-port and health changes, and unexpected project-scoped listeners. Restore always performs a fresh discovery/preflight, requires the current exact validation before start, and refuses missing definitions, directories, executables, Keychain values, dependencies, free ports, or acyclic order.
+
+Starts follow `DependencyPlanner` layers, with one layer parallelized and later layers waiting for normal launch readiness. Failure cancels dependent work and optional rollback stops only successfully started session services in reverse layer order. Expected-stopped services are evaluated after successful startup and require explicit user confirmation; they are not part of rollback authority. Dry run persists audit evidence but makes no runtime mutation. See `SESSION_MODEL.md`.
+
 ## Logs and diagnostics
 
 Managed stdout and stderr are streamed into an actor. Secret values are replaced before entries reach memory or disk. Each profile retains the latest 2,000 in-memory entries and a bounded two-megabyte redacted file under Application Support. The UI can pause rendering, clear, copy, search, and export.
@@ -148,6 +157,7 @@ Production ownership inspection records only the redacted `OwnershipConclusion`,
 - Monitoring uses an `AsyncStream` buffered to the newest update, so slow UI work does not build an unbounded queue.
 - Project layers use throwing task groups, which cancel sibling/remaining work after a failure.
 - Project-file parsing and manifest writes run behind actor-isolated service protocols; SwiftUI owns selection and presentation, not file evaluation.
+- Session capture, comparison, fresh preflight, layered launch, and rollback run in an actor; independent services use task groups while SwiftUI holds only preview and confirmation state.
 
 ## Security model
 
@@ -157,7 +167,7 @@ See `SECURITY.md` and `PRIVACY.md` for operator-facing policy.
 
 ## Tests
 
-Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, exact restart digests including V6 checks, trust gating, isolated validation, secret staging/rollback/clone/delete, graph ordering/cycles, conflict detection, distinct runtime/readiness/health states, deterministic incidents, every service-check kind, retry timing, health degradation/recovery/cancellation, restart policy and crash-loop limits, listener lifecycle metadata, lifecycle retention, migrations through V6, bounded ownership evidence, bounded/cyclic lineage, deterministic owner classification, managed-runtime reconciliation, managed restart, owner-aware dispatch, explicit controller refusal, every required discovery ecosystem, Compose dependency/port extraction, shell-review flags, native manifest redaction, and unreviewed import persistence.
+Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports per PID, and malformed records. Pure tests cover classification, diffs, exact restart digests including V6 checks, trust gating, isolated validation, secret staging/rollback/clone/delete, graph ordering/cycles, conflict detection, distinct runtime/readiness/health states, deterministic incidents, every service-check kind, retry timing, health degradation/recovery/cancellation, restart policy and crash-loop limits, listener lifecycle metadata, lifecycle retention, migrations through V6, bounded ownership evidence, bounded/cyclic lineage, deterministic owner classification, managed-runtime reconciliation, managed restart, owner-aware dispatch, explicit controller refusal, every required discovery ecosystem, Compose dependency/port extraction, shell-review flags, native manifest redaction, unreviewed import persistence, session capture/comparison/preflight/dry-run, dependency parallelism, failed-layer blocking, and scoped rollback.
 
 Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. The tests validate discovery, strong fingerprints, listener ownership, graceful exit, graceful timeout, confirmed force-stop, dedicated POSIX groups, child/multi-listener shutdown, `exec` replacement, supervisor restart, ignored `SIGTERM`, and detached-descendant exclusion. Every test owns and cleans up its fixture process.
 

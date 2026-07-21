@@ -16,6 +16,7 @@ DevBerth is a native macOS developer utility for discovering, understanding, sto
 - Revalidates PID, executable path, and process start time immediately before every destructive process action.
 - Supports generic commands, npm/pnpm/Yarn/Bun scripts, Gradle, Maven, executables, custom shells, Docker containers, and Docker Compose services.
 - Starts project dependencies in ordered layers while parallelizing independent services and rejecting dependency cycles.
+- Captures selected projects as workspace sessions, compares saved state with the live runtime, previews every restore action and conflict, supports dry runs, and restores verified services with dependency-aware rollback.
 - Discovers npm, pnpm, Yarn, Bun, Gradle, Maven, Python, Go, Cargo, Docker Compose, Procfile, and Process Compose definitions only inside an explicitly selected project root; imports remain unreviewed until validated.
 - Imports and exports the versioned `devberth-runtime.json` manifest without secret values or Keychain reference identifiers.
 - Uses transactional Keychain-backed secret references, bounded redacted logs, expected-port readiness, optional HTTP health checks, and preflight conflict resolution.
@@ -23,7 +24,7 @@ DevBerth is a native macOS developer utility for discovering, understanding, sto
 - Records a searchable lifecycle timeline, runtime instances, health transitions, unexpected exits, automatic-restart evidence, and deterministic incident summaries.
 - Maps published Docker host ports to container ports, image, container, and Compose metadata; Docker absence never breaks listener monitoring.
 - Persists projects, profiles, expected ports, dependencies, observations, favorites, settings, log metadata, and event history with SwiftData.
-- Includes Overview, Active Ports, Projects, Launch Profiles, History, Docker, Settings, a `⌘K` command palette, and a menu-bar utility.
+- Includes Overview, Active Ports, Projects, Sessions, Launch Profiles, History, Docker, Settings, a `⌘K` command palette, and a menu-bar utility.
 - Keeps all data on the Mac. DevBerth has no analytics, telemetry, cloud sync, or network upload path.
 
 ## Requirements
@@ -73,7 +74,9 @@ Fixtures include a simple HTTP service, a process with two ports, an early-exit 
 
 DevBerth uses injected service protocols between SwiftUI state and every OS-facing boundary. Tagged `lsof` output discovers network files; `ps` and tagged `lsof` records build a revalidated process fingerprint. Destructive actions require both that fingerprint and the exact listener ownership edge to still match. Reviewed services launch in dedicated POSIX process groups, track descendants, and exclude detached children from group signals. An actor-based monitor creates diff updates off the main actor. SwiftData stores durable configuration and audit events, while live process objects remain actor-isolated and transient. Keychain contains secret values; profiles contain only UUID references.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) and [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md) for the detailed runtime, persistence, concurrency, safety, and testing design.
+See [ARCHITECTURE.md](ARCHITECTURE.md), [Documentation/ARCHITECTURE.md](Documentation/ARCHITECTURE.md), and the [documentation index](Documentation/README.md) for the detailed runtime, persistence, concurrency, safety, and testing design.
+
+The workspace capture, preflight, restore, and rollback contract is documented in [Documentation/SESSION_MODEL.md](Documentation/SESSION_MODEL.md).
 
 ## Privacy and security
 

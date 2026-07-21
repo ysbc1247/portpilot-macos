@@ -21,7 +21,8 @@ struct DevBerthApp: App {
             _model = StateObject(wrappedValue: AppModel(
                 historyRecorder: store,
                 ownershipRecorder: store,
-                restartTrustStore: store
+                restartTrustStore: store,
+                workspaceSessionRecorder: store
             ))
         } catch {
             fatalError("Unable to initialize DevBerth's local database: \(error.localizedDescription)")

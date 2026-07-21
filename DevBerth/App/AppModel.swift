@@ -34,6 +34,7 @@ final class AppModel: ObservableObject {
     private let exitHub: ManagedProcessExitHub
     private let launchService: any LaunchProfileServing
     private let projectOrchestrator: ProjectOrchestrator
+    private let workspaceSessions: WorkspaceSessionCoordinator
     private let notifier: any PortNotifying
     private let dockerAssociations: DockerAssociationProvider
     private let projectDiscovery: any ProjectDiscoveryServing
@@ -57,7 +58,8 @@ final class AppModel: ObservableObject {
         validationService: (any ManagedServiceValidating)? = nil,
         runtimeLifecycle: (any RuntimeLifecycleObserving)? = nil,
         projectDiscovery: (any ProjectDiscoveryServing)? = nil,
-        projectManifest: (any ProjectManifestServing)? = nil
+        projectManifest: (any ProjectManifestServing)? = nil,
+        workspaceSessionRecorder: (any WorkspaceSessionRecording)? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
@@ -76,8 +78,9 @@ final class AppModel: ObservableObject {
             dependencies: resolvedRuntimeLifecycle as? any DependencyReadinessProviding
                 ?? RuntimeLifecycleTracker()
         )
+        let resolvedSecrets = KeychainSecretStore()
         let managedLauncher = ManagedProcessLauncher(
-            secrets: KeychainSecretStore(),
+            secrets: resolvedSecrets,
             logs: logs,
             runner: runner,
             listenerDiscoverer: service,
@@ -120,6 +123,14 @@ final class AppModel: ObservableObject {
             launchService: coordinator
         )
         self.projectOrchestrator = ProjectOrchestrator(launcher: coordinator)
+        self.workspaceSessions = WorkspaceSessionCoordinator(
+            launcher: coordinator,
+            trustStore: restartTrustStore,
+            secrets: resolvedSecrets,
+            listenerDiscoverer: service,
+            recorder: workspaceSessionRecorder,
+            lifecycleRecorder: lifecycleRecorder
+        )
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
         self.dockerAssociations = DockerAssociationProvider(client: dockerClient)
@@ -223,6 +234,91 @@ final class AppModel: ObservableObject {
         } catch {
             presentedError = .unexpected("The project manifest could not be exported: \(error.localizedDescription)")
         }
+    }
+
+    func captureWorkspaceSession(
+        name: String,
+        projectIDs: [UUID],
+        services: [ManagedServiceConfiguration],
+        projectRootPaths: Set<String>,
+        notes: String?
+    ) async -> WorkspaceSession? {
+        do {
+            return try await workspaceSessions.capture(
+                name: name,
+                projectIDs: projectIDs,
+                services: services,
+                currentState: workspaceCurrentState(projectRootPaths: projectRootPaths),
+                notes: notes
+            )
+        } catch {
+            presentedError = .unexpected("The workspace session could not be captured: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    func compareWorkspaceSession(
+        _ session: WorkspaceSession,
+        services: [ManagedServiceConfiguration],
+        projectRootPaths: Set<String>
+    ) async -> WorkspaceSessionComparison {
+        await workspaceSessions.compare(
+            session: session,
+            services: services,
+            currentState: workspaceCurrentState(projectRootPaths: projectRootPaths)
+        )
+    }
+
+    func previewWorkspaceSession(
+        _ session: WorkspaceSession,
+        services: [ManagedServiceConfiguration]
+    ) async throws -> SessionRestorePlan {
+        try await workspaceSessions.preview(
+            session: session,
+            services: services,
+            runningServiceIDs: currentRunningServiceIDs
+        )
+    }
+
+    func restoreWorkspaceSession(
+        _ session: WorkspaceSession,
+        services: [ManagedServiceConfiguration],
+        options: SessionRestoreOptions
+    ) async -> SessionRestoreExecution? {
+        do {
+            let execution = try await workspaceSessions.restore(
+                session: session,
+                services: services,
+                runningServiceIDs: currentRunningServiceIDs,
+                options: options
+            )
+            let rolledBack = Set(execution.result.rolledBackServiceIDs)
+            runningProfileIDs.formUnion(execution.result.startedServiceIDs.filter { !rolledBack.contains($0) })
+            runningProfileIDs.subtract(rolledBack)
+            runningProfileIDs.subtract(execution.stoppedServiceIDs)
+            refreshNow()
+            return execution
+        } catch let error as WorkspaceSessionRestoreError {
+            presentedError = .unexpected(error.localizedDescription)
+        } catch {
+            presentedError = .unexpected("The workspace session could not be restored: \(error.localizedDescription)")
+        }
+        return nil
+    }
+
+    private var currentRunningServiceIDs: Set<UUID> {
+        runningProfileIDs.union(runtimeStatuses.compactMap { id, status in
+            status.processRunning ? id : nil
+        })
+    }
+
+    private func workspaceCurrentState(projectRootPaths: Set<String>) -> WorkspaceSessionCurrentState {
+        WorkspaceSessionCurrentState(
+            runningServiceIDs: currentRunningServiceIDs,
+            healthStates: runtimeStatuses.mapValues(\.healthState),
+            listeners: listeners,
+            selectedProjectRootPaths: projectRootPaths
+        )
     }
 
     func setNotificationPorts(_ ports: [Int]) {

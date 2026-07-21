@@ -65,19 +65,56 @@ struct ProjectsView: View {
                     .padding(.vertical, 6)
             } else {
                 ForEach(projectProfiles) { profile in
-                    HStack {
-                        StatusDot(status: visualStatus(for: profile.id))
-                        Image(systemName: "play.square")
-                        Text(profile.name)
-                        Spacer()
-                        if let port = expectedPorts.first(where: { $0.profileID == profile.id }) {
-                            Text(":\(port.port)").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                    let configuration = configurations.first { $0.id == profile.id }
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            StatusDot(status: visualStatus(for: profile.id))
+                            Image(systemName: "play.square")
+                            Text(profile.name).font(.headline)
+                            Spacer()
+                            ForEach(expectedPorts.filter { $0.profileID == profile.id }) { port in
+                                Text(":\(port.port)")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Button("Remove from Project") {
+                                profile.projectID = nil
+                                try? context.save()
+                            }
                         }
-                        Button("Remove from Project") {
-                            profile.projectID = nil
-                            try? context.save()
+                        HStack(spacing: DevBerthSpacing.medium) {
+                            if let configuration, !configuration.dependencyServiceIDs.isEmpty {
+                                Label(
+                                    "Depends on \(configuration.dependencyServiceIDs.map { serviceName($0, in: projectProfiles) }.joined(separator: ", "))",
+                                    systemImage: "arrow.triangle.branch"
+                                )
+                            } else {
+                                Label("No dependencies", systemImage: "circle")
+                            }
+                            if let status = model.runtimeStatuses[profile.id] {
+                                Label(
+                                    "\(humanized(status.lifecycleState.rawValue)) · \(humanized(status.healthState.rawValue))",
+                                    systemImage: "waveform.path.ecg"
+                                )
+                            }
+                            if let docker = model.listeners.first(where: {
+                                $0.process.managedServiceID == profile.id && $0.process.docker != nil
+                            })?.process.docker {
+                                Label(docker.composeService ?? docker.containerName, systemImage: "shippingbox.fill")
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        if let failure = model.profileFailures[profile.id] ?? model.runtimeIncidents[profile.id]?.cause {
+                            Label(failure, systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.red)
                         }
                     }
+                    .padding(.vertical, 4)
+                }
+                if !configurations.isEmpty {
+                    projectTopology(configurations)
                 }
             }
         } header: {
@@ -131,6 +168,47 @@ struct ProjectsView: View {
             .textCase(nil)
             .padding(.top, DevBerthSpacing.small)
         }
+    }
+
+    @ViewBuilder
+    private func projectTopology(_ configurations: [ManagedServiceConfiguration]) -> some View {
+        DisclosureGroup {
+            if let layers = try? DependencyPlanner.orderedLayers(for: configurations) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(layers.enumerated()), id: \.offset) { index, layer in
+                        LabeledContent("Startup layer \(index + 1)") {
+                            Text(layer.map(\.name).joined(separator: ", "))
+                        }
+                    }
+                    Text("Services in the same layer can start in parallel. Stop All uses the reverse order.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 6)
+            } else {
+                Label(
+                    "The dependency graph is incomplete or cyclic. Project start and session restore will remain blocked.",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .foregroundStyle(.red)
+                .padding(.vertical, 6)
+            }
+        } label: {
+            Label("Startup topology", systemImage: "point.3.connected.trianglepath.dotted")
+                .font(.headline)
+        }
+    }
+
+    private func serviceName(_ id: UUID, in projectProfiles: [LaunchProfileRecord]) -> String {
+        projectProfiles.first { $0.id == id }?.name ?? "Missing service"
+    }
+
+    private func humanized(_ value: String) -> String {
+        value.replacingOccurrences(
+            of: "([a-z])([A-Z])",
+            with: "$1 $2",
+            options: .regularExpression
+        ).capitalized
     }
 
     private func openInTerminal(_ path: String) {

@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 @ModelActor
-actor SwiftDataStore: HistoryRecording, OwnershipRecording, RestartTrustStoring, RuntimeLifecycleRecording {
+actor SwiftDataStore: HistoryRecording, OwnershipRecording, RestartTrustStoring, RuntimeLifecycleRecording, WorkspaceSessionRecording {
     private var lifecycleWriteCount = 0
     func record(_ event: HistoryEvent) async throws {
         modelContext.insert(ProcessHistoryEventRecord(event: event))
@@ -96,6 +96,22 @@ actor SwiftDataStore: HistoryRecording, OwnershipRecording, RestartTrustStoring,
         descriptor.fetchLimit = 251
         let records = try modelContext.fetch(descriptor)
         records.dropFirst(250).forEach(modelContext.delete)
+        try modelContext.save()
+    }
+
+    func record(_ session: WorkspaceSession) async throws {
+        modelContext.insert(try WorkspaceSessionRecord(session: session))
+        for snapshot in session.serviceSnapshots {
+            modelContext.insert(try WorkspaceSessionServiceRecord(
+                sessionID: session.id,
+                snapshot: snapshot
+            ))
+        }
+        try modelContext.save()
+    }
+
+    func record(_ result: SessionRestoreResult) async throws {
+        modelContext.insert(try SessionRestoreRecord(result: result))
         try modelContext.save()
     }
 

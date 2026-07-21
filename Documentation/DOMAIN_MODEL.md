@@ -37,6 +37,8 @@ The existing “Launch Profiles” feature and `LaunchProfileRecord` class retai
 - `RuntimeOwnershipGraph` is transient reconciliation output. It carries the observed listener, process group, bounded lineage, primary/additional conclusions, managed/project/session references, and an owner-layer action recommendation; only its redacted conclusions are durable evidence.
 - A workspace session contains only managed-service expectations. An unmanaged observed process must be converted and reviewed before it can be restored.
 - Session service snapshots retain a configuration digest so restore preview can report drift rather than assuming the current definition matches the captured definition.
+- Session restoration never derives launch authority from a snapshot. Fresh preflight requires the current managed-service definition, exact restart validation, Keychain references, filesystem/executable availability, unoccupied expected ports, and an acyclic dependency graph.
+- Rollback authority is limited to managed services successfully started by the current restore. A service already running before restore and every unmanaged observation are outside that rollback set.
 - A restart-trust assessment may be verified only when the latest successful validation digest exactly matches the current managed-service definition. An existing profile without V4 evidence remains conditional after migration.
 - Process-running, required-listener-open, service-ready, and service-healthy are different facts. A runtime may be running and listening while still waiting for readiness or degraded.
 - Lifecycle details may include reviewed identifiers and concise explanations, but never raw environment values, HTTP bodies, command output, or unredacted logs.
@@ -86,3 +88,4 @@ Profiles without additional checks retain their pre-V6 exact validation digest. 
 - Runtime, ownership, lifecycle, and discovery tables require explicit retention policies before they receive continuous production writes. Lifecycle events and incidents now have production bounds; session/discovery retention is completed with their workflows.
 - Adding records does not make the corresponding workflow complete. Controllers, reconciliation, retention, and UI remain required and must be verified independently.
 - Discovery adapters may infer candidate ports and dependency names only when their source text contains direct evidence. Ambiguous or unresolved names remain visible diagnostics rather than silently creating graph edges.
+- Session issue confirmations are tied to stable issue evidence, and every execution regenerates its plan. Dry runs persist results without runtime mutation; non-dry starts use parallel dependency layers and reverse-layer scoped rollback. See `SESSION_MODEL.md`.

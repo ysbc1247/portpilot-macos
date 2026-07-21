@@ -159,3 +159,8 @@ protocol ProjectManifestServing: Sendable {
         destination: URL
     ) async throws
 }
+
+protocol WorkspaceSessionRecording: Sendable {
+    func record(_ session: WorkspaceSession) async throws
+    func record(_ result: SessionRestoreResult) async throws
+}
