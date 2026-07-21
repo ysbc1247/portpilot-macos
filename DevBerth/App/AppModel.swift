@@ -79,7 +79,8 @@ final class AppModel: ObservableObject {
         projectManifest: (any ProjectManifestServing)? = nil,
         workspaceSessionRecorder: (any WorkspaceSessionRecording)? = nil,
         processResourceReader: (any ProcessResourceUsageReading)? = nil,
-        runtimeRegistry: ManagedRuntimeRegistry? = nil
+        runtimeRegistry: ManagedRuntimeRegistry? = nil,
+        dockerService: (any DockerServing)? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
@@ -120,7 +121,7 @@ final class AppModel: ObservableObject {
             runner: runner,
             verifier: ProcessFingerprintVerifier(runner: runner)
         )
-        let dockerClient = DockerCLIClient(runner: runner)
+        let dockerClient: any DockerServing = dockerService ?? DockerCLIClient(runner: runner)
         let dockerAssociator = DockerAssociationProvider(
             client: dockerClient,
             lifecycleRecorder: lifecycleRecorder

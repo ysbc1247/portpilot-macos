@@ -64,6 +64,9 @@ struct DevBerthApp: App {
             let resourceReader: (any ProcessResourceUsageReading)? = isUITesting || isHostedTesting || isDevelopmentHost
                 ? UITestResourceReader()
                 : nil
+            let dockerService: (any DockerServing)? = isUITesting || isHostedTesting || isDevelopmentHost
+                ? TestDockerService()
+                : nil
             let createdModel = AppModel(
                 discoverer: discoverer,
                 historyRecorder: store,
@@ -71,7 +74,8 @@ struct DevBerthApp: App {
                 restartTrustStore: store,
                 workspaceSessionRecorder: store,
                 processResourceReader: resourceReader,
-                runtimeRegistry: developmentRuntimeRegistry
+                runtimeRegistry: developmentRuntimeRegistry,
+                dockerService: dockerService
             )
             _model = StateObject(wrappedValue: createdModel)
             let socketURL = ControlSocketPath.socketURL(developmentMode: isDevelopmentHost)
@@ -171,6 +175,14 @@ private struct UITestResourceReader: ProcessResourceUsageReading {
             ($0, ProcessResourceUsage(cpuPercent: 1.5, residentMemoryBytes: 12_582_912, capturedAt: Date()))
         })
     }
+}
+
+private struct TestDockerService: DockerServing {
+    func availability() async -> DockerAvailability { .notInstalled }
+    func runningContainers() async throws -> [DockerContainer] { [] }
+    func stop(containerID: String) async throws { throw DevBerthError.dockerUnavailable("Docker is disabled in tests.") }
+    func restart(containerID: String) async throws { throw DevBerthError.dockerUnavailable("Docker is disabled in tests.") }
+    func recentLogs(containerID: String, lines: Int) async throws -> String { "" }
 }
 
 struct DevBerthCommands: Commands {
