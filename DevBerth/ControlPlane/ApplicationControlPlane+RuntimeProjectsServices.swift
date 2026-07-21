@@ -290,7 +290,20 @@ extension ApplicationControlPlane {
         let id = try requiredUUID("service_id", arguments)
         let service = try store.service(id: id)
         let result = await model.validateManagedService(service)
-        if result.succeeded { try await model.recordRestartTrust(for: service, validation: result) }
+        if result.succeeded {
+            let refreshRequestedAt = Date()
+            model.refreshNow()
+            for _ in 0..<50 where model.lastRefresh.map({ $0 < refreshRequestedAt }) ?? true {
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            guard model.lastRefresh.map({ $0 >= refreshRequestedAt }) == true else {
+                throw ControlFailure(
+                    code: .timeout,
+                    message: "Service verification succeeded, but the runtime snapshot did not refresh after the isolated service stopped. Retry verification."
+                )
+            }
+            try await model.recordRestartTrust(for: service, validation: result)
+        }
         return .object([
             "service_id": .string(id.uuidString),
             "succeeded": .bool(result.succeeded),

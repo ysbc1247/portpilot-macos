@@ -47,6 +47,8 @@ The app remains the only runtime monitor, Docker inspector, persistent writer, l
 
 `DevBerthControlContracts/CapabilityRegistry.swift` defines all schemas, annotations, permission metadata, GUI/menu mappings, resources, prompts, and test references. Every MCP call reaches `ApplicationControlPlane.dispatch`; stable IDs and entity revisions prevent silent overwrite. Destructive operations capture exact revisions, fingerprints, ownership routes, affected ports/dependencies/sessions, risks, and compensation in a five-minute single-use lease. Change sets similarly capture ordering, revisions, dependency validation, compensation, and a single-use five-minute token.
 
+A successful `service_verify` response is emitted only after the isolated validation process has stopped and the app has published a newer runtime snapshot. This prevents an immediate `service_start` from treating the validator's stale listener as an active port conflict.
+
 Development mode is a separate Debug-only host with an in-memory V7 container and application-owned fixtures. Its discoverer scopes `lsof` to fixture/managed PIDs before enrichment. Release argument parsing rejects `--development` and Release discovery contains no `dev_*` tools.
 
 ## Runtime state flow
