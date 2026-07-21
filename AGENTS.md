@@ -1,6 +1,7 @@
 # DevBerth engineering rules
 
 - Target macOS 14 or newer with SwiftUI and Swift Concurrency. Use AppKit only when a native SwiftUI API cannot provide the required behavior.
+- Keep sources compilable with the repository's Xcode 16.4 CI baseline. Do not reference newer-SDK declarations merely behind `#available`; use a baseline declaration or a narrowly reviewed runtime symbol boundary when the underlying macOS 14 capability exists.
 - Keep transient runtime models in `DevBerth/Domain` and SwiftData records in `DevBerth/Persistence`; never persist live `Process` objects.
 - Keep `ObservedListener` and `ObservedProcess` as operating-system evidence, and `ManagedServiceConfiguration` as durable user-authored intent. Do not make an observation manageable or restartable by adding configuration flags to it.
 - UI code must depend on service protocols. It must not invoke `Process`, `lsof`, `ps`, `kill`, Docker, or a shell directly.

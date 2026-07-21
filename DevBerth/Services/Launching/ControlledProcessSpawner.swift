@@ -172,23 +172,18 @@ struct POSIXControlledProcessSpawner: ControlledProcessSpawning, Sendable {
         _ path: String,
         to fileActions: inout posix_spawn_file_actions_t?
     ) throws {
-        let status: Int32
-        if #available(macOS 26.0, *) {
-            status = path.withCString { posix_spawn_file_actions_addchdir(&fileActions, $0) }
-        } else {
-            typealias LegacyAddChdir = @convention(c) (
-                UnsafeMutablePointer<posix_spawn_file_actions_t?>?,
-                UnsafePointer<CChar>?
-            ) -> Int32
-            guard let symbol = dlsym(
-                UnsafeMutableRawPointer(bitPattern: -2),
-                "posix_spawn_file_actions_addchdir_np"
-            ) else {
-                throw DevBerthError.unexpected("This macOS version cannot set a managed process working directory.")
-            }
-            let function = unsafeBitCast(symbol, to: LegacyAddChdir.self)
-            status = path.withCString { function(&fileActions, $0) }
+        typealias AddChdir = @convention(c) (
+            UnsafeMutablePointer<posix_spawn_file_actions_t?>?,
+            UnsafePointer<CChar>?
+        ) -> Int32
+        guard let symbol = dlsym(
+            UnsafeMutableRawPointer(bitPattern: -2),
+            "posix_spawn_file_actions_addchdir_np"
+        ) else {
+            throw DevBerthError.unexpected("This macOS version cannot set a managed process working directory.")
         }
+        let function = unsafeBitCast(symbol, to: AddChdir.self)
+        let status = path.withCString { function(&fileActions, $0) }
         try check(status, operation: "set managed process working directory")
     }
 

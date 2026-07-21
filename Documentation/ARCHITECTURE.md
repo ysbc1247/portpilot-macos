@@ -98,7 +98,7 @@ A changed fingerprint is never treated as the original process. This prevents PI
 
 ## Managed process groups
 
-Application-managed commands use `posix_spawn`, discrete argument/environment arrays, an explicit working-directory file action, and `POSIX_SPAWN_SETPGROUP`. The child becomes leader of a new group; inherited signal masks are cleared and common termination signals are restored to default before `exec`, so XCTest, terminal, or app-host dispositions cannot silently make a managed service ignore shutdown.
+Application-managed commands use `posix_spawn`, discrete argument/environment arrays, an explicit working-directory file action, and `POSIX_SPAWN_SETPGROUP`. The working-directory action resolves the macOS 14-compatible `posix_spawn_file_actions_addchdir_np` symbol at runtime so the source remains compilable with the Xcode 16.4 baseline without changing the app process's own directory. The child becomes leader of a new group; inherited signal masks are cleared and common termination signals are restored to default before `exec`, so XCTest, terminal, or app-host dispositions cannot silently make a managed service ignore shutdown.
 
 The runtime handle retains the group ID, stable leader fingerprint, service policy, and launch time. `SystemProcessGroupInspector` takes a bounded process-table snapshot, follows the leader's descendant graph, enriches relevant PIDs with full fingerprints, labels the expected-port owner, and distinguishes descendants that called `setsid` or otherwise escaped the controlled group. Zombie rows remain evidence but are not treated as live termination targets.
 
