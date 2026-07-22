@@ -64,6 +64,51 @@ final class AppModelPerformanceTests: XCTestCase {
         model.pauseMonitoring()
     }
 
+    func testBackgroundResourceSamplesDoNotRepublishHiddenRuntimeUI() async throws {
+        let resources = ChangingResourceReader()
+        let model = AppModel(
+            discoverer: TimestampOnlyDiscovery(),
+            processResourceReader: resources,
+            dockerService: EmptyDockerService()
+        )
+        model.refreshInterval = 0.5
+        let publications = LockedCounter()
+        let observation = model.objectWillChange.sink { publications.increment() }
+        model.startMonitoring()
+
+        try await waitUntil { await resources.callCount() >= 1 }
+        publications.reset()
+        try await waitUntil { await resources.callCount() >= 2 }
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(publications.value(), 0)
+        model.pauseMonitoring()
+        observation.cancel()
+    }
+
+    func testVisibleRuntimePublishesMeaningfulResourceSamples() async throws {
+        let resources = ChangingResourceReader()
+        let model = AppModel(
+            discoverer: TimestampOnlyDiscovery(),
+            processResourceReader: resources,
+            dockerService: EmptyDockerService()
+        )
+        model.refreshInterval = 0.5
+        model.setMonitoringSurface(.mainWindow, visible: true)
+        let publications = LockedCounter()
+        let observation = model.objectWillChange.sink { publications.increment() }
+        model.startMonitoring()
+
+        try await waitUntil { await resources.callCount() >= 1 }
+        publications.reset()
+        try await waitUntil { await resources.callCount() >= 2 }
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertGreaterThan(publications.value(), 0)
+        model.pauseMonitoring()
+        observation.cancel()
+    }
+
     private func waitUntil(
         timeout: Duration = .seconds(3),
         condition: @escaping @Sendable () async -> Bool
@@ -115,6 +160,24 @@ private struct FixedResourceReader: ProcessResourceUsageReading {
             ))
         })
     }
+}
+
+private actor ChangingResourceReader: ProcessResourceUsageReading {
+    private var calls = 0
+
+    func read(pids: Set<Int32>) async throws -> [Int32: ProcessResourceUsage] {
+        calls += 1
+        let cpuPercent = Double(calls * 5)
+        return Dictionary(uniqueKeysWithValues: pids.map {
+            ($0, ProcessResourceUsage(
+                cpuPercent: cpuPercent,
+                residentMemoryBytes: UInt64(calls) * 8_388_608,
+                capturedAt: Date()
+            ))
+        })
+    }
+
+    func callCount() -> Int { calls }
 }
 
 private struct EmptyDockerService: DockerServing {
