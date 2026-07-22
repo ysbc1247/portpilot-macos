@@ -228,6 +228,10 @@ struct RuntimeDiff: Equatable, Sendable {
     let removed: [ObservedListener]
 
     static let empty = RuntimeDiff(added: [], updated: [], removed: [])
+
+    var hasCadenceRelevantChanges: Bool {
+        (added + updated + removed).contains(where: \.isCadenceRelevant)
+    }
 }
 
 enum RuntimeDiffer {
@@ -237,9 +241,51 @@ enum RuntimeDiffer {
         let added = current.filter { previousByID[$0.id] == nil }
         let updated = current.filter { listener in
             guard let old = previousByID[listener.id] else { return false }
-            return old != listener
+            return !old.hasSameRuntimeEvidence(as: listener)
         }
         let removed = previous.filter { currentByID[$0.id] == nil }
         return RuntimeDiff(added: added, updated: updated, removed: removed)
+    }
+}
+
+private extension ObservedListener {
+    var isCadenceRelevant: Bool {
+        protocolKind == .tcp || port < 49_152 || addressScope != .localNetwork
+    }
+
+    func hasSameRuntimeEvidence(as other: ObservedListener) -> Bool {
+        protocolKind == other.protocolKind
+            && address == other.address
+            && port == other.port
+            && process.hasSameRuntimeEvidence(as: other.process)
+    }
+}
+
+private extension ObservedProcess {
+    func hasSameRuntimeEvidence(as other: ObservedProcess) -> Bool {
+        fingerprint.hasSameRuntimeEvidence(as: other.fingerprint)
+            && name == other.name
+            && commandLine == other.commandLine
+            && owner == other.owner
+            && currentDirectory == other.currentDirectory
+            && parentName == other.parentName
+            && runtime == other.runtime
+            && project == other.project
+            && isSystemProcess == other.isSystemProcess
+            && docker == other.docker
+            && launchedByDevBerth == other.launchedByDevBerth
+            && managedServiceID == other.managedServiceID
+    }
+}
+
+private extension ProcessFingerprint {
+    func hasSameRuntimeEvidence(as other: ProcessFingerprint) -> Bool {
+        pid == other.pid
+            && uid == other.uid
+            && executablePath == other.executablePath
+            && executableFileIdentity == other.executableFileIdentity
+            && startTime == other.startTime
+            && commandLineDigest == other.commandLineDigest
+            && parentPID == other.parentPID
     }
 }

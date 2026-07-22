@@ -359,6 +359,7 @@ struct LaunchProfilesView: View {
             operationError = error.localizedDescription
             return
         }
+        await model.managedServicesWereDeleted(ids)
 
         let referencesStillInUse = Set(
             profiles

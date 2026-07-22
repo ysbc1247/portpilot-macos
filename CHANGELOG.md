@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — performance and responsiveness
+
+- Replaced fixed two-second monitoring with one coalescing transition/active/background/idle pipeline that responds immediately to known mutations and system wake.
+- Added semantic runtime diffs, thresholded/visibility-aware SwiftUI publication, full-identity native process metadata caching, and bounded resource sampling.
+- Batched and slowed passive Docker discovery, added unavailable-engine backoff, bounded adaptive health work, batched log ingress/UI updates, and capped compatibility history.
+- Added reusable signposts, a secret-free internal Performance Diagnostics sheet, performance regressions/benchmarks, and isolated Release soak tooling.
+- Corrected macOS surface detection at the AppKit window/application boundary, made duplicate callbacks idempotent, published retained evidence once on foreground activation, removed broad section-transition animation, and prevented volatile high-numbered interface UDP endpoints from pinning transition cadence.
+
 ## 0.3.0 — 2026-07-21
 
 - Fixed expected-port activity presentation and per-service project controls, added visible dependency-aware Start All/Stop All progress and results, made every dismissible custom popup close with Escape, redesigned History as a full-height explicitly refreshable timeline with a contextual incident inspector and a stable 100-event rendering bound, and made Docker discovery reliable from GUI PATHs without blocking passive monitoring on Compose verification.

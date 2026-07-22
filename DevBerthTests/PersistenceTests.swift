@@ -91,4 +91,43 @@ final class PersistenceTests: XCTestCase {
         XCTAssertEqual(DevBerthSchemaV6.versionIdentifier, Schema.Version(6, 0, 0))
         XCTAssertEqual(DevBerthSchemaV7.versionIdentifier, Schema.Version(7, 0, 0))
     }
+
+    @MainActor
+    func testProcessHistoryRetentionKeepsNewestRecords() async throws {
+        let schema = Schema(DevBerthSchemaV7.models)
+        let configuration = ModelConfiguration("ProcessHistoryRetention", schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: DevBerthMigrationPlan.self,
+            configurations: [configuration]
+        )
+        let context = ModelContext(container)
+        for index in 0..<5_010 {
+            context.insert(ProcessHistoryEventRecord(event: HistoryEvent(
+                id: UUID(),
+                timestamp: Date(timeIntervalSince1970: Double(index)),
+                port: nil,
+                processFingerprint: nil,
+                processName: "fixture-\(index)",
+                projectID: nil,
+                profileID: nil,
+                type: .portDetected,
+                result: .observed,
+                errorDetails: nil,
+                durationSeconds: nil
+            )))
+        }
+        try context.save()
+
+        let store = SwiftDataStore(modelContainer: container)
+        try await store.pruneProcessHistory(retaining: 5_000)
+
+        var descriptor = FetchDescriptor<ProcessHistoryEventRecord>(
+            sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+        )
+        descriptor.fetchLimit = 1
+        let records = try ModelContext(container).fetch(descriptor)
+        XCTAssertEqual(try ModelContext(container).fetchCount(FetchDescriptor<ProcessHistoryEventRecord>()), 5_000)
+        XCTAssertEqual(records.first?.processName, "fixture-10")
+    }
 }

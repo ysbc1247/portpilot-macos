@@ -46,4 +46,28 @@ final class SecurityAndLoggingTests: XCTestCase {
         XCTAssertEqual(entries.map(\.message), ["value=••••", "ready"])
         XCTAssertFalse(entries.contains { $0.message.contains("top-secret") })
     }
+
+    func testLogIngressBatchesChunksAndBufferRevisionChangesOnlyOnCommit() async {
+        let profileID = UUID()
+        let buffer = ServiceLogBuffer(maximumEntries: 100, persistsToDisk: false)
+        let ingress = ServiceLogIngress(logs: buffer, flushDelay: .seconds(1))
+        let initialRevision = await buffer.revision(for: profileID)
+
+        for index in 0..<100 {
+            ingress.enqueue(
+                profileID: profileID,
+                stream: .standardOutput,
+                data: Data("line \(index)\n".utf8)
+            )
+        }
+        let revisionBeforeFlush = await buffer.revision(for: profileID)
+        XCTAssertEqual(revisionBeforeFlush, initialRevision)
+        await ingress.flush(profileID: profileID)
+
+        let entries = await buffer.entries(for: profileID)
+        XCTAssertEqual(entries.count, 100)
+        XCTAssertEqual(ingress.batchCount(), 1)
+        let finalRevision = await buffer.revision(for: profileID)
+        XCTAssertGreaterThan(finalRevision, initialRevision)
+    }
 }

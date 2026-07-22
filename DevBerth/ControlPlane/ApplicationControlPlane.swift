@@ -63,6 +63,8 @@ final class ApplicationControlPlane {
     }
 
     func handle(_ request: ControlRequest) async -> ControlResponse {
+        let interval = DevBerthPerformance.begin(.mcpRequest)
+        defer { DevBerthPerformance.end(interval) }
         let snapshot = snapshotVersion
         do {
             guard request.handshake.protocolVersion == ControlProtocolConstants.version,

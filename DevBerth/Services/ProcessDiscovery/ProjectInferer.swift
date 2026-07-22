@@ -12,6 +12,8 @@ struct ProjectInferer: @unchecked Sendable {
     }
 
     func infer(from workingDirectory: String?) -> ProjectInference? {
+        let interval = DevBerthPerformance.begin(.projectInference)
+        defer { DevBerthPerformance.end(interval) }
         guard let workingDirectory, workingDirectory.hasPrefix("/") else { return nil }
         var candidate = URL(fileURLWithPath: workingDirectory, isDirectory: true).standardizedFileURL
         let root = URL(fileURLWithPath: "/", isDirectory: true)

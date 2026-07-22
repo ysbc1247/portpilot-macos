@@ -91,6 +91,15 @@ final class DevBerthUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Open Full Disk Access Settings"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Set Up / Repair Codex MCP"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Global Codex configuration"].exists)
+
+        let performanceDiagnostics = app.buttons["Open Performance Diagnostics"]
+        XCTAssertTrue(performanceDiagnostics.waitForExistence(timeout: 3))
+        performanceDiagnostics.click()
+        XCTAssertTrue(app.staticTexts["Performance Diagnostics"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Polling interval"].exists)
+        XCTAssertTrue(app.staticTexts["Process cache hit rate"].exists)
+        app.typeKey(.escape, modifierFlags: [])
+        assertDisappears(app.staticTexts["Performance Diagnostics"])
     }
 
     func testEscapeDismissesCommandPaletteAndCustomSheets() {

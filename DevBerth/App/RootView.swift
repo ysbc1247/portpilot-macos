@@ -58,6 +58,7 @@ struct RootView: View {
             }
         } detail: {
             detail
+                .animation(nil, value: selection)
         }
         .toolbar {
             ToolbarItemGroup {
@@ -129,6 +130,11 @@ struct RootView: View {
             model.setNotificationPorts(expectedPorts.map(\.port))
         }
         .onChange(of: expectedPorts.map(\.port)) { _, ports in model.setNotificationPorts(ports) }
+        .background {
+            WindowVisibilityReporter(requiresActiveApplication: true) { visible in
+                model.setMonitoringSurface(.mainWindow, visible: visible)
+            }
+        }
     }
 
     @ViewBuilder
@@ -141,10 +147,127 @@ struct RootView: View {
         case .history: HistoryView()
         case .docker: DockerView(
             client: model.dockerService,
-            lifecycleRecorder: model.lifecycleEventRecorder
+            lifecycleRecorder: model.lifecycleEventRecorder,
+            didMutate: model.dockerMutationDidComplete
         )
         case .settings: SettingsView()
         }
+    }
+}
+
+struct WindowVisibilityReporter: NSViewRepresentable {
+    var requiresKeyWindow = false
+    var requiresActiveApplication = false
+    let visibilityChanged: @MainActor (Bool) -> Void
+
+    func makeNSView(context: Context) -> WindowVisibilityView {
+        WindowVisibilityView(
+            requiresKeyWindow: requiresKeyWindow,
+            requiresActiveApplication: requiresActiveApplication,
+            visibilityChanged: visibilityChanged
+        )
+    }
+
+    func updateNSView(_ view: WindowVisibilityView, context: Context) {
+        view.requiresKeyWindow = requiresKeyWindow
+        view.requiresActiveApplication = requiresActiveApplication
+        view.visibilityChanged = visibilityChanged
+        view.publishCurrentVisibility()
+    }
+}
+
+@MainActor
+final class WindowVisibilityView: NSView {
+    var requiresKeyWindow: Bool
+    var requiresActiveApplication: Bool
+    var visibilityChanged: @MainActor (Bool) -> Void
+    private weak var observedWindow: NSWindow?
+    private var observers: [NSObjectProtocol] = []
+    private var lastPublishedVisibility: Bool?
+
+    init(
+        requiresKeyWindow: Bool,
+        requiresActiveApplication: Bool,
+        visibilityChanged: @escaping @MainActor (Bool) -> Void
+    ) {
+        self.requiresKeyWindow = requiresKeyWindow
+        self.requiresActiveApplication = requiresActiveApplication
+        self.visibilityChanged = visibilityChanged
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observe(window)
+        Task { @MainActor [weak self] in self?.publishCurrentVisibility() }
+    }
+
+    func publishCurrentVisibility() {
+        let visible = observedWindow?.isVisible == true
+            && observedWindow?.isMiniaturized == false
+            && observedWindow?.occlusionState.contains(.visible) == true
+            && (!requiresKeyWindow || (observedWindow?.isKeyWindow == true && NSApplication.shared.isActive))
+            && (!requiresActiveApplication || NSApplication.shared.isActive)
+            && !NSApplication.shared.isHidden
+        publish(visible)
+    }
+
+    private func observe(_ window: NSWindow?) {
+        guard observedWindow !== window else { return }
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+        observers.removeAll(keepingCapacity: true)
+        observedWindow = window
+        guard let window else {
+            publish(false)
+            return
+        }
+        let center = NotificationCenter.default
+        let visibilityNotifications: [Notification.Name] = [
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didChangeOcclusionStateNotification,
+            NSWindow.didResignKeyNotification,
+            NSWindow.didDeminiaturizeNotification,
+            NSWindow.didMiniaturizeNotification
+        ]
+        observers = visibilityNotifications.map { name in
+            center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    _ = Task<Void, Never> { @MainActor [weak self] in
+                        self?.publishCurrentVisibility()
+                    }
+                }
+            }
+        }
+        observers.append(center.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.publish(false) }
+        })
+        for name in [
+            NSApplication.didBecomeActiveNotification,
+            NSApplication.didResignActiveNotification,
+            NSApplication.didHideNotification,
+            NSApplication.didUnhideNotification
+        ] {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.publishCurrentVisibility() }
+            })
+        }
+    }
+
+    private func publish(_ visible: Bool) {
+        guard lastPublishedVisibility != visible else { return }
+        lastPublishedVisibility = visible
+        visibilityChanged(visible)
     }
 }
 

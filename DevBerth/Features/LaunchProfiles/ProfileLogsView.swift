@@ -11,6 +11,7 @@ struct ProfileLogsView: View {
     @State private var searchText = ""
     @State private var isPaused = false
     @State private var exportsDocument: LogTextDocument?
+    @State private var displayedRevision: UInt64?
 
     private var filtered: [ServiceLogEntry] {
         guard !searchText.isEmpty else { return entries }
@@ -55,8 +56,14 @@ struct ProfileLogsView: View {
         .frame(minWidth: 760, minHeight: 480)
         .task {
             while !Task.isCancelled {
-                if !isPaused { entries = await model.logBuffer.entries(for: profileID) }
-                try? await Task.sleep(for: .milliseconds(400))
+                if !isPaused {
+                    let revision = await model.logBuffer.revision(for: profileID)
+                    if displayedRevision != revision {
+                        entries = await model.logBuffer.entries(for: profileID)
+                        displayedRevision = await model.logBuffer.revision(for: profileID)
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(500))
             }
         }
         .fileExporter(

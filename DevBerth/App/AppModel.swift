@@ -1,12 +1,13 @@
+import AppKit
 import Combine
 import Foundation
 import OSLog
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published private(set) var listeners: [ObservedListener] = []
+    private(set) var listeners: [ObservedListener] = []
     @Published private(set) var recentChanges: [ObservedListener] = []
-    @Published private(set) var lastRefresh: Date?
+    private(set) var lastRefresh: Date?
     @Published private(set) var isRefreshing = false
     @Published var isMonitoring = true
     @Published var searchText = ""
@@ -29,7 +30,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var servicesBeingValidated = Set<UUID>()
     @Published private(set) var runtimeStatuses: [UUID: ManagedServiceRuntimeStatus] = [:]
     @Published private(set) var runtimeIncidents: [UUID: RuntimeIncidentSummary] = [:]
-    @Published private(set) var processResourceUsage: [Int32: ProcessResourceUsage] = [:]
+    private(set) var processResourceUsage: [Int32: ProcessResourceUsage] = [:]
     @Published private(set) var projectOperations: [UUID: ProjectOperationStatus] = [:]
     @Published private(set) var serviceOperations: [UUID: ServiceOperationStatus] = [:]
 
@@ -58,6 +59,10 @@ final class AppModel: ObservableObject {
     private var monitoringTask: Task<Void, Never>?
     private var lifecycleTask: Task<Void, Never>?
     private var exitTask: Task<Void, Never>?
+    private var powerNotificationObservers: [NSObjectProtocol] = []
+    private var lastResourceSampleAt = Date.distantPast
+    private var lastResourcePIDs = Set<Int32>()
+    private var visibleMonitoringSurfaces = Set<MonitoringSurface>()
     private var automaticRestartLimiters: [UUID: AutomaticRestartLimiter] = [:]
     var refreshInterval: Double = 2
 
@@ -75,7 +80,8 @@ final class AppModel: ObservableObject {
         projectManifest: (any ProjectManifestServing)? = nil,
         workspaceSessionRecorder: (any WorkspaceSessionRecording)? = nil,
         processResourceReader: (any ProcessResourceUsageReading)? = nil,
-        runtimeRegistry: ManagedRuntimeRegistry? = nil
+        runtimeRegistry: ManagedRuntimeRegistry? = nil,
+        dockerService: (any DockerServing)? = nil
     ) {
         let runner = FoundationCommandRunner()
         let service = discoverer ?? LocalPortDiscovery(runner: runner)
@@ -116,10 +122,15 @@ final class AppModel: ObservableObject {
             runner: runner,
             verifier: ProcessFingerprintVerifier(runner: runner)
         )
-        let dockerClient = DockerCLIClient(runner: runner)
+        let dockerClient: any DockerServing = dockerService ?? DockerCLIClient(runner: runner)
+        let dockerAssociator = DockerAssociationProvider(
+            client: dockerClient,
+            lifecycleRecorder: lifecycleRecorder
+        )
         self.dockerService = dockerClient
+        self.dockerAssociations = dockerAssociator
         self.lifecycleEventRecorder = lifecycleRecorder
-        self.monitor = PortMonitor(discoverer: service)
+        self.monitor = PortMonitor(discoverer: service, correlator: dockerAssociator)
         self.lifecycleRouter = lifecycleRouter ?? OwnerAwareLifecycleRouter(
             processController: resolvedProcessController,
             managedServiceController: coordinator,
@@ -153,10 +164,6 @@ final class AppModel: ObservableObject {
         )
         self.logBuffer = logs
         self.notifier = LocalNotificationService()
-        self.dockerAssociations = DockerAssociationProvider(
-            client: dockerClient,
-            lifecycleRecorder: lifecycleRecorder
-        )
         self.projectDiscovery = projectDiscovery ?? LocalProjectDiscoveryService()
         self.projectManifest = projectManifest ?? LocalProjectManifestService()
         self.processResourceReader = processResourceReader ?? SystemProcessResourceUsageReader(runner: runner)
@@ -175,12 +182,33 @@ final class AppModel: ObservableObject {
                 await handleManagedExit(notice)
             }
         }
+        let workspaceNotifications = NSWorkspace.shared.notificationCenter
+        powerNotificationObservers = [
+            workspaceNotifications.addObserver(
+                forName: NSWorkspace.willSleepNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.setSystemSuspended(true) }
+            },
+            workspaceNotifications.addObserver(
+                forName: NSWorkspace.didWakeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.setSystemSuspended(false) }
+            }
+        ]
     }
 
     deinit {
         monitoringTask?.cancel()
         lifecycleTask?.cancel()
         exitTask?.cancel()
+        let workspaceNotifications = NSWorkspace.shared.notificationCenter
+        for observer in powerNotificationObservers {
+            workspaceNotifications.removeObserver(observer)
+        }
     }
 
     var filteredListeners: [ObservedListener] {
@@ -200,26 +228,52 @@ final class AppModel: ObservableObject {
     }
 
     func startMonitoring() {
-        monitoringTask?.cancel()
-        isMonitoring = true
-        isRefreshing = true
+        if !isMonitoring { isMonitoring = true }
+        if let monitoringTask, !monitoringTask.isCancelled {
+            Task { await monitor.setActiveInterval(refreshInterval) }
+            return
+        }
+        if !isRefreshing { isRefreshing = true }
         monitoringTask = Task { [weak self] in
             guard let self else { return }
             let stream = await monitor.updates(every: refreshInterval)
             for await update in stream {
                 guard !Task.isCancelled else { break }
-                listeners = await dockerAssociations.correlate(update.snapshot.listeners)
-                processResourceUsage = (try? await processResourceReader.read(
-                    pids: Set(listeners.map { $0.process.fingerprint.pid })
-                )) ?? [:]
-                let currentListenerIDs = Set(listeners.map(\.id))
-                ownershipGraphs = ownershipGraphs.filter { currentListenerIDs.contains($0.key) }
-                recentChanges = Array((update.diff.added + update.diff.removed).prefix(12))
+                let listenersChanged = !update.diff.added.isEmpty
+                    || !update.diff.updated.isEmpty
+                    || !update.diff.removed.isEmpty
+                let resourcePIDs = Set(update.snapshot.listeners.map { $0.process.fingerprint.pid })
+                var sampledResourceUsage: [Int32: ProcessResourceUsage]?
+                if shouldSampleResources(pids: resourcePIDs, mode: update.mode, at: update.snapshot.capturedAt) {
+                    let resourceUsage = (try? await processResourceReader.read(pids: resourcePIDs)) ?? [:]
+                    lastResourceSampleAt = update.snapshot.capturedAt
+                    lastResourcePIDs = resourcePIDs
+                    if resourceUsage.isMeaningfullyDifferent(from: processResourceUsage) {
+                        sampledResourceUsage = resourceUsage
+                    }
+                }
+                let resourcesChangedWhileVisible = sampledResourceUsage != nil
+                    && !visibleMonitoringSurfaces.isEmpty
+                if listenersChanged || resourcesChangedWhileVisible {
+                    let listenerPublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
+                    objectWillChange.send()
+                    DevBerthPerformance.end(listenerPublishInterval)
+                }
+                listeners = update.snapshot.listeners
+                if let sampledResourceUsage { processResourceUsage = sampledResourceUsage }
+                let statePublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
+                if listenersChanged {
+                    let currentListenerIDs = Set(listeners.map(\.id))
+                    ownershipGraphs = ownershipGraphs.filter { currentListenerIDs.contains($0.key) }
+                    recentChanges = Array((update.diff.added + update.diff.removed).prefix(12))
+                }
                 lastRefresh = update.snapshot.capturedAt
-                isRefreshing = false
+                if isRefreshing { isRefreshing = false }
                 if let error = update.error { presentedError = error }
                 recordPortChanges(update.diff)
+                DevBerthPerformance.end(statePublishInterval)
             }
+            monitoringTask = nil
         }
     }
 
@@ -232,7 +286,62 @@ final class AppModel: ObservableObject {
     }
 
     func refreshNow() {
-        startMonitoring()
+        guard isMonitoring else {
+            startMonitoring()
+            return
+        }
+        if !isRefreshing { isRefreshing = true }
+        Task {
+            await dockerAssociations.invalidate()
+            await monitor.requestRefresh()
+        }
+    }
+
+    func dockerMutationDidComplete() {
+        refreshNow()
+    }
+
+    func managedServicesWereDeleted(_ profileIDs: Set<UUID>) async {
+        for profileID in profileIDs {
+            await launchService.retire(profileID: profileID)
+            runningProfileIDs.remove(profileID)
+            runtimeStatuses.removeValue(forKey: profileID)
+            runtimeIncidents.removeValue(forKey: profileID)
+        }
+    }
+
+    func setMonitoringSurface(_ surface: MonitoringSurface, visible: Bool) {
+        let changed: Bool
+        if visible {
+            changed = visibleMonitoringSurfaces.insert(surface).inserted
+        } else {
+            changed = visibleMonitoringSurfaces.remove(surface) != nil
+        }
+        guard changed else { return }
+        if visible { objectWillChange.send() }
+        Task { await monitor.setSurface(surface, visible: visible) }
+    }
+
+    private func setSystemSuspended(_ suspended: Bool) {
+        Task {
+            await monitor.setSuspended(suspended)
+            await launchService.setSystemSuspended(suspended)
+        }
+    }
+
+    private func shouldSampleResources(
+        pids: Set<Int32>,
+        mode: RuntimeMonitoringMode,
+        at date: Date
+    ) -> Bool {
+        if pids != lastResourcePIDs { return true }
+        let interval: TimeInterval = switch mode {
+        case .transition: 1
+        case .active: 5
+        case .background: 30
+        case .idle: 60
+        }
+        return date.timeIntervalSince(lastResourceSampleAt) >= interval
     }
 
     func navigate(to section: AppSection) {

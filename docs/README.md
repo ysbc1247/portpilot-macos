@@ -7,6 +7,10 @@
 - [`../Documentation/DOMAIN_MODEL.md`](../Documentation/DOMAIN_MODEL.md) — Phase 2 truth boundaries, reference rules, and versioned persistence model through V4
 - [`../Documentation/RESTART_TRUST_MODEL.md`](../Documentation/RESTART_TRUST_MODEL.md) — restart states, exact validation gate, guided conversion, and secret lifecycle
 - [`../Documentation/ARCHITECTURE.md`](../Documentation/ARCHITECTURE.md) — system design and trade-offs
+- [`../Documentation/PERFORMANCE_AUDIT.md`](../Documentation/PERFORMANCE_AUDIT.md) — measured performance baseline, root causes, and before/after evidence
+- [`../Documentation/PERFORMANCE_OPTIMIZATION_PLAN.md`](../Documentation/PERFORMANCE_OPTIMIZATION_PLAN.md) — prioritized optimization decisions and acceptance criteria
+- [`../Documentation/MONITORING_ARCHITECTURE.md`](../Documentation/MONITORING_ARCHITECTURE.md) — adaptive monitoring and background-work architecture
+- [`../Documentation/PERFORMANCE_AND_SOAK_RESULTS.md`](../Documentation/PERFORMANCE_AND_SOAK_RESULTS.md) — final Release profiling, soak, and regression evidence
 - [`../Documentation/Artwork/README.md`](../Documentation/Artwork/README.md) — app-icon source and generation notes
 - [`../README.md`](../README.md) — setup, build, test, limitations, and roadmap
 - [`../SECURITY.md`](../SECURITY.md) — execution and termination security boundaries
@@ -15,3 +19,4 @@
 - [`implementations/github-release-versioning/README.md`](implementations/github-release-versioning/README.md) — automatic per-merge GitHub tags, releases, notes, and recovery
 - [`implementations/agent-workflow/README.md`](implementations/agent-workflow/README.md) — durable save-command and combined-action behavior
 - [`next-steps/README.md`](next-steps/README.md) — latest explicit `save` handoff (created when requested)
+- [`next-steps/history/`](next-steps/history/) — timestamped immutable snapshots of earlier explicit handoffs

@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var loginItemError: String?
     @State private var systemSettingsError: String?
     @State private var diagnosticsDocument: LogTextDocument?
+    @State private var showsPerformanceDiagnostics = false
     @State private var copiedCodexConfiguration = false
     @State private var integrationSnapshot: MCPIntegrationSnapshot?
     @State private var integrationPreview: CodexConfigurationPreview?
@@ -171,6 +172,9 @@ struct SettingsView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
             Section("Diagnostics") {
+                Button("Open Performance Diagnostics", systemImage: "gauge.with.dots.needle.67percent") {
+                    showsPerformanceDiagnostics = true
+                }
                 Button("Export Diagnostics…", systemImage: "square.and.arrow.up") {
                     diagnosticsDocument = LogTextDocument(text: DiagnosticsReportBuilder.build(
                         listeners: model.listeners,
@@ -207,6 +211,9 @@ struct SettingsView: View {
             ) {
                 performIntegrationAction(action)
             }
+        }
+        .sheet(isPresented: $showsPerformanceDiagnostics) {
+            PerformanceDiagnosticsView()
         }
         .fileExporter(
             isPresented: Binding(get: { diagnosticsDocument != nil }, set: { if !$0 { diagnosticsDocument = nil } }),

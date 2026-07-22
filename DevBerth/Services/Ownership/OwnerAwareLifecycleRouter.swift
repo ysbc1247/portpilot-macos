@@ -26,6 +26,8 @@ actor OwnerAwareLifecycleRouter: OwnerAwareLifecycleRouting {
         on graph: RuntimeOwnershipGraph,
         forceConfirmed: Bool = false
     ) async throws -> OwnerAwareLifecycleResult {
+        let interval = DevBerthPerformance.begin(.lifecycleOperation)
+        defer { DevBerthPerformance.end(interval) }
         let startedAt = Date()
         guard graph.recommendation.supportedActions.contains(action) else {
             throw DevBerthError.ownerActionUnavailable(
