@@ -117,8 +117,11 @@ struct MenuBarView: View {
         }
         .padding()
         .frame(width: 390)
-        .onAppear { model.setMonitoringSurface(.menuBar, visible: true) }
-        .onDisappear { model.setMonitoringSurface(.menuBar, visible: false) }
+        .background {
+            WindowVisibilityReporter { visible in
+                model.setMonitoringSurface(.menuBar, visible: visible)
+            }
+        }
     }
 
     private var activeManagedCount: Int {

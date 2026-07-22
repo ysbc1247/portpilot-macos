@@ -154,7 +154,7 @@ struct RootView: View {
     }
 }
 
-private struct WindowVisibilityReporter: NSViewRepresentable {
+struct WindowVisibilityReporter: NSViewRepresentable {
     let visibilityChanged: @MainActor (Bool) -> Void
 
     func makeNSView(context: Context) -> WindowVisibilityView {
@@ -168,7 +168,7 @@ private struct WindowVisibilityReporter: NSViewRepresentable {
 }
 
 @MainActor
-private final class WindowVisibilityView: NSView {
+final class WindowVisibilityView: NSView {
     var visibilityChanged: @MainActor (Bool) -> Void
     private weak var observedWindow: NSWindow?
     private var observers: [NSObjectProtocol] = []
@@ -195,6 +195,7 @@ private final class WindowVisibilityView: NSView {
     func publishCurrentVisibility() {
         let visible = observedWindow?.isVisible == true
             && observedWindow?.isMiniaturized == false
+            && observedWindow?.occlusionState.contains(.visible) == true
             && !NSApplication.shared.isHidden
         publish(visible)
     }
@@ -211,13 +212,18 @@ private final class WindowVisibilityView: NSView {
         let center = NotificationCenter.default
         let visibilityNotifications: [Notification.Name] = [
             NSWindow.didBecomeKeyNotification,
+            NSWindow.didChangeOcclusionStateNotification,
             NSWindow.didResignKeyNotification,
             NSWindow.didDeminiaturizeNotification,
             NSWindow.didMiniaturizeNotification
         ]
         observers = visibilityNotifications.map { name in
             center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.publishCurrentVisibility() }
+                MainActor.assumeIsolated {
+                    _ = Task<Void, Never> { @MainActor [weak self] in
+                        self?.publishCurrentVisibility()
+                    }
+                }
             }
         }
         observers.append(center.addObserver(
