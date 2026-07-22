@@ -206,7 +206,7 @@ final class WindowVisibilityView: NSView {
         let visible = observedWindow?.isVisible == true
             && observedWindow?.isMiniaturized == false
             && observedWindow?.occlusionState.contains(.visible) == true
-            && (!requiresKeyWindow || observedWindow?.isKeyWindow == true)
+            && (!requiresKeyWindow || (observedWindow?.isKeyWindow == true && NSApplication.shared.isActive))
             && !NSApplication.shared.isHidden
         publish(visible)
     }
@@ -244,7 +244,12 @@ final class WindowVisibilityView: NSView {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.publish(false) }
         })
-        for name in [NSApplication.didHideNotification, NSApplication.didUnhideNotification] {
+        for name in [
+            NSApplication.didBecomeActiveNotification,
+            NSApplication.didResignActiveNotification,
+            NSApplication.didHideNotification,
+            NSApplication.didUnhideNotification
+        ] {
             observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.publishCurrentVisibility() }
             })
