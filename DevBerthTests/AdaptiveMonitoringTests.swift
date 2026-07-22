@@ -123,6 +123,36 @@ final class AdaptiveMonitoringTests: XCTestCase {
         XCTAssertEqual(finalCount, stoppedCount)
     }
 
+    func testDuplicateSurfaceCallbacksDoNotInterruptTheScheduledDelay() async throws {
+        let discoverer = CountingPortDiscoverer(delaySeconds: 0.005)
+        let monitor = PortMonitor(
+            discoverer: discoverer,
+            configuration: MonitoringConfiguration(
+                transitionIntervalSeconds: 5,
+                activeIntervalSeconds: 5,
+                backgroundIntervalSeconds: 5,
+                idleIntervalSeconds: 5,
+                transitionDurationSeconds: 0,
+                idleAfterSeconds: 0
+            )
+        )
+        _ = await monitor.updates(every: 5)
+        try await waitForCallCount(1, discoverer: discoverer)
+
+        for _ in 0..<20 { await monitor.setSurface(.mainWindow, visible: false) }
+        try await Task.sleep(for: .milliseconds(150))
+        let backgroundCallCount = await discoverer.stats().callCount
+        XCTAssertEqual(backgroundCallCount, 1)
+
+        await monitor.setSurface(.mainWindow, visible: true)
+        try await waitForCallCount(2, discoverer: discoverer)
+        for _ in 0..<20 { await monitor.setSurface(.mainWindow, visible: true) }
+        try await Task.sleep(for: .milliseconds(150))
+        let activeCallCount = await discoverer.stats().callCount
+        XCTAssertEqual(activeCallCount, 2)
+        await monitor.stop()
+    }
+
     private func waitForCallCount(
         _ expected: Int,
         discoverer: CountingPortDiscoverer
