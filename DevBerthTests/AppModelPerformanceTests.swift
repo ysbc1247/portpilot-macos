@@ -52,6 +52,8 @@ final class AppModelPerformanceTests: XCTestCase {
         model.refreshInterval = 0.5
         model.startMonitoring()
         try await waitUntil { await discoverer.callCount() >= 1 }
+        model.pauseMonitoring()
+        try await Task.sleep(for: .milliseconds(100))
         let callsBeforeControlRead = await discoverer.callCount()
         let plane = ApplicationControlPlane(model: model, container: container, developmentMode: false)
 
@@ -61,7 +63,6 @@ final class AppModelPerformanceTests: XCTestCase {
         XCTAssertTrue(plane.model === model)
         XCTAssertEqual(snapshot["counts"]?["active_listeners"]?.intValue, 1)
         XCTAssertEqual(callsAfterControlRead, callsBeforeControlRead)
-        model.pauseMonitoring()
     }
 
     func testBackgroundResourceSamplesDoNotRepublishHiddenRuntimeUI() async throws {
