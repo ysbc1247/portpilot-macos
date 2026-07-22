@@ -86,6 +86,35 @@ final class AdaptiveMonitoringTests: XCTestCase {
         XCTAssertTrue(changed.isMeaningfullyDifferent(from: old))
     }
 
+    func testEphemeralInterfaceBoundUDPChangesDoNotExtendTransitionCadence() {
+        var ephemeralUDP = makeListener(port: 58_599)
+        ephemeralUDP = ObservedListener(
+            protocolKind: .udp,
+            address: "192.168.0.13",
+            port: ephemeralUDP.port,
+            process: ephemeralUDP.process,
+            firstDetectedAt: ephemeralUDP.firstDetectedAt,
+            lastDetectedAt: ephemeralUDP.lastDetectedAt
+        )
+        let ephemeralDiff = RuntimeDiff(added: [ephemeralUDP], updated: [], removed: [])
+        XCTAssertFalse(ephemeralDiff.hasCadenceRelevantChanges)
+
+        let tcpDiff = RuntimeDiff(added: [makeListener(port: 58_599)], updated: [], removed: [])
+        XCTAssertTrue(tcpDiff.hasCadenceRelevantChanges)
+
+        var wildcardUDP = ephemeralUDP
+        wildcardUDP = ObservedListener(
+            protocolKind: .udp,
+            address: "*",
+            port: wildcardUDP.port,
+            process: wildcardUDP.process,
+            firstDetectedAt: wildcardUDP.firstDetectedAt,
+            lastDetectedAt: wildcardUDP.lastDetectedAt
+        )
+        let wildcardDiff = RuntimeDiff(added: [], updated: [], removed: [wildcardUDP])
+        XCTAssertTrue(wildcardDiff.hasCadenceRelevantChanges)
+    }
+
     func testMutationWakeSleepResumeAndStopKeepOneCancellableLoop() async throws {
         let discoverer = CountingPortDiscoverer(delaySeconds: 0.005)
         let monitor = PortMonitor(
