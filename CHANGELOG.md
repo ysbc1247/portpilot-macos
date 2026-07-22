@@ -6,7 +6,7 @@
 - Added semantic runtime diffs, thresholded/visibility-aware SwiftUI publication, full-identity native process metadata caching, and bounded resource sampling.
 - Batched and slowed passive Docker discovery, added unavailable-engine backoff, bounded adaptive health work, batched log ingress/UI updates, and capped compatibility history.
 - Added reusable signposts, a secret-free internal Performance Diagnostics sheet, performance regressions/benchmarks, and isolated Release soak tooling.
-- Corrected macOS surface detection at the AppKit window/application boundary, made duplicate callbacks idempotent, and prevented volatile high-numbered interface UDP endpoints from pinning transition cadence.
+- Corrected macOS surface detection at the AppKit window/application boundary, made duplicate callbacks idempotent, published retained evidence once on foreground activation, removed broad section-transition animation, and prevented volatile high-numbered interface UDP endpoints from pinning transition cadence.
 
 ## 0.3.0 — 2026-07-21
 

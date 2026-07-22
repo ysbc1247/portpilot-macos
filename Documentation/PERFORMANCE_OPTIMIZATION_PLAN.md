@@ -1,6 +1,6 @@
 # Performance optimization plan
 
-Status: implemented and under final measured validation  
+Status: implemented and validated
 Branch: `performance/cpu-and-responsiveness`  
 Baseline: `8cc670eabeabe8559383d6f0f6a1918485102f45`
 
@@ -18,6 +18,7 @@ Every optimization in this plan traces to a baseline measurement, a Time Profile
 | P0 | SwiftUI `onDisappear` did not fire when a macOS window closed | View lifecycle was incorrectly used as window/popover visibility | Observe the containing AppKit window's visible/occlusion/minimize/close state | Closed main window and closed menu popover select background then idle mode |
 | P0 | A browser's high-numbered interface UDP endpoint appeared/disappeared on successive scans | Correct but volatile UDP evidence reset the 15-second transition burst indefinitely | Retain the endpoint in snapshots/diffs/history but exclude that endpoint class from cadence extension | Busy client UDP activity cannot pin transition cadence; TCP and stable UDP remain immediate |
 | P0 | Reconstructed visibility reporters and inactive backing windows woke scans | Duplicate callbacks interrupted delays; AppKit visibility/key state alone did not express foreground use | Make surface membership idempotent and require application activation for foreground surfaces | Repeated equal callbacks cause no scan and inactive/closed surfaces back off |
+| P0 | A newly reopened surface initially rendered the last published rather than newest retained snapshot | Hidden evidence correctly avoided SwiftUI publication, but activation did not request one render | Publish retained evidence exactly once when the first surface becomes foreground-visible | Activation shows current evidence; duplicate visible callbacks do not republish |
 | P1 | Refresh cancellation could leave an old scan in flight | Manual/MCP/operation refresh recreated stream tasks | Keep one idempotent monitor task; interrupt its delay and coalesce to one pending scan | Maximum concurrent scan count remains one |
 | P1 | PID/name cache could survive PID reuse | Cache key lacked start time, UID, executable identity, and command identity | Native `libproc`/`sysctl` identity fingerprint with bounded age, count, and stale-refresh budget | PID reuse and `exec` invalidate cached metadata immediately |
 | P1 | Docker ran availability plus list/inspect work every five seconds | Separate availability and fixed cache duplicated CLI work and amplified daemon loss | Direct batched `ps`/`inspect`, 30-second success cache, exponential unavailable backoff to five minutes, explicit invalidation | No N+1 queries or separate passive availability subprocess |

@@ -45,7 +45,7 @@ Listener identity is protocol/address/port plus the strong process identity. `fi
 
 Cadence relevance is narrower than observation relevance. High-numbered (49152–65535), interface-bound UDP client endpoints remain in snapshots and diffs but do not extend the transition burst; they otherwise kept a busy browser's ephemeral UDP sockets at subsecond monitoring indefinitely. TCP changes, lower UDP ports, and wildcard/loopback UDP changes still accelerate immediately.
 
-AppModel stores the newest snapshot even when it is semantically unchanged. It sends a SwiftUI change only for genuine listener evidence or a thresholded resource change while a monitoring surface is visible. CPU changes below one percentage point and resident-memory changes below the larger of one MiB or five percent do not publish.
+AppModel stores the newest snapshot even when it is semantically unchanged. It sends a SwiftUI change only for genuine listener evidence or a thresholded resource change while a monitoring surface is visible. When the first monitoring surface becomes foreground-visible, AppModel publishes the retained hidden snapshot exactly once; repeated `true` callbacks are ignored. CPU changes below one percentage point and resident-memory changes below the larger of one MiB or five percent do not publish.
 
 ## Process discovery and cache
 

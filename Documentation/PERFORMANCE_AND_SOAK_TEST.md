@@ -1,10 +1,12 @@
-# Performance and soak test
+# Historical Phase 2 performance and soak test
+
+> This document preserves the 2026-07-21 pre-audit measurements. The current adaptive design, final Release profiling, and completed soak evidence are in [MONITORING_ARCHITECTURE.md](MONITORING_ARCHITECTURE.md) and [PERFORMANCE_AND_SOAK_RESULTS.md](PERFORMANCE_AND_SOAK_RESULTS.md).
 
 Measurement date: 2026-07-21 (Asia/Seoul)  
 Machine: Apple Silicon MacBook Pro, macOS 26.4  
 Toolchain: Xcode 26.4, Swift 6.3 toolchain, Swift 5 language mode
 
-## Current design
+## Measurement-era design (superseded)
 
 - Monitoring emits newest-only diff snapshots at a configurable two-second default.
 - Process identity metadata has a 30-second cache and a three-stale-PID refresh budget.

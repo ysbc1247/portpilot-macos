@@ -1,6 +1,6 @@
 # DevBerth Performance Audit
 
-Status: baseline measurement and implementation profiling in progress  
+Status: complete
 Baseline commit: `8cc670eabeabe8559383d6f0f6a1918485102f45`  
 Measurement date: 2026-07-22 (KST, UTC+09:00)
 
@@ -72,7 +72,7 @@ The source cadence provides the deterministic minimum before metadata refresh wo
 
 That is at least 126 monitoring subprocesses/minute, plus the rolling metadata refresh budget. Once metadata is stale, each refreshed PID currently adds a `ps` and `lsof` pair; with many active processes the three-PID-per-scan budget can add up to 180 more subprocesses/minute until the stale set cycles.
 
-The UI-state scenarios, child-process counts, scan timing, trace call paths, and before/after comparison are appended only after each measurement completes. Values above are observed values, not projections.
+These values are observed measurements, not projections. The optimized comparison uses the same installed Release workflow and real read-only host observations.
 
 ## Confirmed root-cause chain
 
@@ -134,18 +134,35 @@ The process metadata cache now uses a native, non-spawning identity read for PID
 - Managed stdout/stderr bytes are combined in 50 ms ingress batches before redaction, line parsing, bounded persistence, and UI visibility. The open log view checks a lightweight revision twice per second and fetches entries only after a committed batch.
 - Compatibility process history is pruned to the newest 5,000 records at startup and with 100-record write headroom, matching the existing lifecycle bound without altering shipped schemas.
 
-## Evidence still to append
+## Optimized Release comparison
 
-- complete 1/5/15-minute idle CPU, memory, wakeup, WAL, and row-count checkpoints;
-- window-visible, window-closed, menu-bar-open, port-change, project-operation, Docker-available, and Docker-unavailable comparisons;
-- Time Profiler and SwiftUI call-path summaries;
-- child-process frequency and command-duration distribution;
-- SwiftData write frequency and log-processing cost;
-- main-thread stall/hitch measurements;
-- before/after results from the same Release build protocol.
+| Metric | Baseline | Optimized | Observed change |
+| --- | ---: | ---: | ---: |
+| Closed-window CPU over 901 seconds | 623.86 CPU-s (69.2%) | 1.06 CPU-s (0.118%) | 99.83% lower |
+| Closed-window Time Profiler sampled CPU | 24.4 CPU-s / 30 s | 0.027 CPU-s / 30.742 s | 99.89% lower |
+| Main-thread Time Profiler sampled CPU | 19.558 CPU-s | 0.001 CPU-s | 99.995% lower |
+| Direct monitoring children | deterministic minimum 126/min before metadata work | 9 / 141 s (3.8/min) | about 97.0% lower |
+| Persistent-history changes | 3,460 / 60 s | 808 / 901 s | 98.4% lower rate on the churny real host; zero for unchanged deterministic snapshots |
+| Persistent-history transactions | 30 / 60 s | 72 / 901 s | 84.0% lower rate on the real host |
+| Main-window foreground CPU | 34.17 CPU-s / 69 s (49.5%) | 1.57 CPU-s / 60 s (2.62%) | 94.7% lower |
+| Menu-popover foreground CPU | not separately isolated | 0.06 CPU-s / 60 s (0.10%) | optimized result only |
+
+The final closed-window process began the 901-second interval at 7.41 cumulative CPU-seconds and ended at 8.47. Resident memory began at 160,304 KiB, settled mostly between 85 and 115 MB, had one 141 MB sample, and ended at 106,736 KiB; it did not grow monotonically. The store stayed at 123,924,480 bytes. Its WAL checkpointed from 1,919,952 bytes before the interval to 173,072 bytes afterward. Process and lifecycle histories remained under their 5,000-row caps.
+
+The 141-second process-tree sample saw four TCP/UDP `lsof` pairs and one Docker `ps`. A very short batched resource `ps` can start and exit between 200 ms samples, so 3.8 children/minute is a measured lower bound. It is consistent with the final 30-second hidden-stable listener schedule rather than the former two-second schedule.
+
+The real host was not semantically static: high-numbered browser UDP endpoints and other process evidence changed during the interval. The semantic fix therefore removes false timestamp-only writes, while genuine observations still produce bounded history. Deterministic unchanged-snapshot tests verify zero lifecycle persistence and zero listener publication.
+
+## Instruments and responsiveness findings
+
+The final unattended Time Profiler trace at `/tmp/devberth-final-idle-time-profiler.trace` captured only 27 milliseconds of sampled CPU over 30.742 seconds, including one millisecond on the main thread. It reported no potential hangs longer than 250 ms. The final idle SwiftUI trace at `/tmp/devberth-final-idle-swiftui.trace` reported no hitches or hangs; its scene-graph update rows did not form a sustained CPU path. The Allocations trace is at `/tmp/devberth-final-idle-allocations.trace`. `leaks -quiet` reported three 80-byte `CGRegion` allocations (240 bytes total) among 124,303 malloc nodes / 26,088 KiB, with no growing application-owned leak signature during the observation.
+
+Foreground navigation remained the largest responsiveness limit. A Time Profiler navigation run initially reported three potential main-thread hangs of 259–345 ms. Removing the broad selection animation reduced the repeated run to two potential hangs, 279.19 and 319.81 ms. Uninstrumented capture showed Projects fully rendered by 500 ms after selection but not at 100 ms. This is a residual microhitch, not a background loop regression, and remains called out for future view-construction profiling.
+
+The macOS 26.4 Power Profiler template was unavailable to command-line Instruments, and a System Trace attempt did not finish exporting after more than two minutes and was cancelled without a usable artifact. Those gaps are reported rather than replaced with inferred kernel wakeup values. Scheduled listener passes and direct-child counts are the repeatable external-work proxies available for both builds.
 
 ## Regression and soak harness
 
 `Scripts/run_soak_tests.sh` repeats the bounded persistence/log tests, parser/diff benchmarks, AppModel/monitor regressions, Docker/log tests, application-owned integration fixtures, and development control-plane/MCP acceptance coverage. It uses normal project tools and does not require an output-filtering wrapper.
 
-`Scripts/run_performance_soak.sh` first runs that suite, then builds an isolated Release app and launches it with `DEVBERTH_UI_TESTING=1`: in-memory V7 persistence, a static listener/resource fixture, unavailable test Docker, and no control socket. It samples CPU, cumulative CPU, RSS, thread count, and direct child count into CSV and always terminates only the exact isolated PID it launched. A 10-second harness smoke run completed five samples with zero child processes and zero application error lines; RSS warmed from 11.8 MB to 155.7 MB and settled at 147.7 MB, while cumulative CPU reached 0.92 seconds during startup and did not increase in the last three samples. This smoke run validates the harness, not long-duration acceptance.
+`Scripts/run_performance_soak.sh` first runs that suite, then builds an isolated Release app and launches it with `DEVBERTH_UI_TESTING=1`: in-memory V7 persistence, a static listener/resource fixture, unavailable test Docker, and no control socket. It samples CPU, cumulative CPU, RSS, thread count, and direct child count into CSV and always terminates only the exact isolated PID it launched. A 10-second harness smoke run completed five samples with zero child processes and zero application error lines; RSS warmed from 11.8 MB to 155.7 MB and settled at 147.7 MB, while cumulative CPU reached 0.92 seconds during startup and did not increase in the last three samples. The final repeated and five-minute results are recorded in `Documentation/PERFORMANCE_AND_SOAK_RESULTS.md`.
