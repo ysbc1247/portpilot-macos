@@ -240,7 +240,9 @@ Parser fixtures cover TCP, UDP, IPv4, IPv6, wildcard/loopback, multiple ports pe
 
 Integration tests start only test-bundle fixture processes on random high ports. Bundling fixtures avoids protected-folder permission prompts under a new application identity. Acceptance waits identify a newly started fixture by both PID and port so a stale same-port snapshot cannot authorize a later action. The tests validate discovery, strong and post-spawn-stable fingerprints, listener ownership, graceful exit, graceful timeout, confirmed force-stop, dedicated POSIX groups, child/multi-listener shutdown, `exec` replacement, supervisor restart, ignored `SIGTERM`, and detached-descendant exclusion. Every test owns and cleans up its fixture process.
 
-The UI-test target launches with `DEVBERTH_UI_TESTING=1`, uses an in-memory V6 container, skips product migration, and injects a static loopback listener plus resource snapshot owned entirely by the test configuration. It covers onboarding disclosure, primary navigation, and keyboard command-palette routing without inspecting or controlling the host runtime.
+The UI-test target launches with `DEVBERTH_UI_TESTING=1`, uses an in-memory V7 container, skips product migration, disables the control socket, and injects a static loopback listener, resource snapshot, and unavailable-Docker service owned entirely by the test configuration. Hosted tests and the development control host receive the same no-host-Docker dependency. UI coverage includes onboarding disclosure, primary navigation, keyboard command-palette routing, and the internal performance sheet without inspecting or controlling the host runtime.
+
+Performance regressions exercise AppModel publication and lifecycle counts across timestamp-only scans, monitor start/coalescing/sleep/wake/stop ownership, shared AppModel control-plane reads, native metadata invalidation, Docker backoff, health cancellation/concurrency, log batching, and history retention. `PerformanceBenchmarkTests` measures the semantic differ and tagged listener parser without asserting machine-specific timing thresholds.
 
 ## Monitoring overhead
 

@@ -143,3 +143,9 @@ The process metadata cache now uses a native, non-spawning identity read for PID
 - SwiftData write frequency and log-processing cost;
 - main-thread stall/hitch measurements;
 - before/after results from the same Release build protocol.
+
+## Regression and soak harness
+
+`Scripts/run_soak_tests.sh` repeats the bounded persistence/log tests, parser/diff benchmarks, AppModel/monitor regressions, Docker/log tests, application-owned integration fixtures, and development control-plane/MCP acceptance coverage. It uses normal project tools and does not require an output-filtering wrapper.
+
+`Scripts/run_performance_soak.sh` first runs that suite, then builds an isolated Release app and launches it with `DEVBERTH_UI_TESTING=1`: in-memory V7 persistence, a static listener/resource fixture, unavailable test Docker, and no control socket. It samples CPU, cumulative CPU, RSS, thread count, and direct child count into CSV and always terminates only the exact isolated PID it launched. A 10-second harness smoke run completed five samples with zero child processes and zero application error lines; RSS warmed from 11.8 MB to 155.7 MB and settled at 147.7 MB, while cumulative CPU reached 0.92 seconds during startup and did not increase in the last three samples. This smoke run validates the harness, not long-duration acceptance.
