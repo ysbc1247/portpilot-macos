@@ -99,11 +99,13 @@ actor PortMonitor {
     }
 
     func setSurface(_ surface: MonitoringSurface, visible: Bool) {
+        let changed: Bool
         if visible {
-            visibleSurfaces.insert(surface)
+            changed = visibleSurfaces.insert(surface).inserted
         } else {
-            visibleSurfaces.remove(surface)
+            changed = visibleSurfaces.remove(surface) != nil
         }
+        guard changed else { return }
         wakeDelay()
     }
 

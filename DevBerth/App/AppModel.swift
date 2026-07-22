@@ -311,11 +311,13 @@ final class AppModel: ObservableObject {
     }
 
     func setMonitoringSurface(_ surface: MonitoringSurface, visible: Bool) {
+        let changed: Bool
         if visible {
-            visibleMonitoringSurfaces.insert(surface)
+            changed = visibleMonitoringSurfaces.insert(surface).inserted
         } else {
-            visibleMonitoringSurfaces.remove(surface)
+            changed = visibleMonitoringSurfaces.remove(surface) != nil
         }
+        guard changed else { return }
         Task { await monitor.setSurface(surface, visible: visible) }
     }
 
