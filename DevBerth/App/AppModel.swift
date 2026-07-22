@@ -318,6 +318,7 @@ final class AppModel: ObservableObject {
             changed = visibleMonitoringSurfaces.remove(surface) != nil
         }
         guard changed else { return }
+        if visible { objectWillChange.send() }
         Task { await monitor.setSurface(surface, visible: visible) }
     }
 
