@@ -228,6 +228,10 @@ struct RuntimeDiff: Equatable, Sendable {
     let removed: [ObservedListener]
 
     static let empty = RuntimeDiff(added: [], updated: [], removed: [])
+
+    var hasCadenceRelevantChanges: Bool {
+        (added + updated + removed).contains(where: \.isCadenceRelevant)
+    }
 }
 
 enum RuntimeDiffer {
@@ -245,6 +249,10 @@ enum RuntimeDiffer {
 }
 
 private extension ObservedListener {
+    var isCadenceRelevant: Bool {
+        protocolKind == .tcp || port < 49_152 || addressScope != .localNetwork
+    }
+
     func hasSameRuntimeEvidence(as other: ObservedListener) -> Bool {
         protocolKind == other.protocolKind
             && address == other.address

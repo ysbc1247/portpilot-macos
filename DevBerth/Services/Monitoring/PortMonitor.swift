@@ -174,7 +174,7 @@ actor PortMonitor {
             await diagnostics.recordScan(
                 durationSeconds: Date().timeIntervalSince(scanStartedAt)
             )
-            if !update.diff.added.isEmpty || !update.diff.updated.isEmpty || !update.diff.removed.isEmpty {
+            if update.diff.hasCadenceRelevantChanges {
                 lastSemanticChangeAt = update.snapshot.capturedAt
                 transitionUntil = update.snapshot.capturedAt.addingTimeInterval(configuration.transitionDurationSeconds)
             }
