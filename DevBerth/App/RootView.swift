@@ -130,7 +130,7 @@ struct RootView: View {
         }
         .onChange(of: expectedPorts.map(\.port)) { _, ports in model.setNotificationPorts(ports) }
         .background {
-            WindowVisibilityReporter { visible in
+            WindowVisibilityReporter(requiresActiveApplication: true) { visible in
                 model.setMonitoringSurface(.mainWindow, visible: visible)
             }
         }
@@ -156,17 +156,20 @@ struct RootView: View {
 
 struct WindowVisibilityReporter: NSViewRepresentable {
     var requiresKeyWindow = false
+    var requiresActiveApplication = false
     let visibilityChanged: @MainActor (Bool) -> Void
 
     func makeNSView(context: Context) -> WindowVisibilityView {
         WindowVisibilityView(
             requiresKeyWindow: requiresKeyWindow,
+            requiresActiveApplication: requiresActiveApplication,
             visibilityChanged: visibilityChanged
         )
     }
 
     func updateNSView(_ view: WindowVisibilityView, context: Context) {
         view.requiresKeyWindow = requiresKeyWindow
+        view.requiresActiveApplication = requiresActiveApplication
         view.visibilityChanged = visibilityChanged
         view.publishCurrentVisibility()
     }
@@ -175,6 +178,7 @@ struct WindowVisibilityReporter: NSViewRepresentable {
 @MainActor
 final class WindowVisibilityView: NSView {
     var requiresKeyWindow: Bool
+    var requiresActiveApplication: Bool
     var visibilityChanged: @MainActor (Bool) -> Void
     private weak var observedWindow: NSWindow?
     private var observers: [NSObjectProtocol] = []
@@ -182,9 +186,11 @@ final class WindowVisibilityView: NSView {
 
     init(
         requiresKeyWindow: Bool,
+        requiresActiveApplication: Bool,
         visibilityChanged: @escaping @MainActor (Bool) -> Void
     ) {
         self.requiresKeyWindow = requiresKeyWindow
+        self.requiresActiveApplication = requiresActiveApplication
         self.visibilityChanged = visibilityChanged
         super.init(frame: .zero)
     }
@@ -207,6 +213,7 @@ final class WindowVisibilityView: NSView {
             && observedWindow?.isMiniaturized == false
             && observedWindow?.occlusionState.contains(.visible) == true
             && (!requiresKeyWindow || (observedWindow?.isKeyWindow == true && NSApplication.shared.isActive))
+            && (!requiresActiveApplication || NSApplication.shared.isActive)
             && !NSApplication.shared.isHidden
         publish(visible)
     }

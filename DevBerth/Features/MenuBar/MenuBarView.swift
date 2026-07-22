@@ -118,7 +118,7 @@ struct MenuBarView: View {
         .padding()
         .frame(width: 390)
         .background {
-            WindowVisibilityReporter(requiresKeyWindow: true) { visible in
+            WindowVisibilityReporter(requiresKeyWindow: true, requiresActiveApplication: true) { visible in
                 model.setMonitoringSurface(.menuBar, visible: visible)
             }
         }
