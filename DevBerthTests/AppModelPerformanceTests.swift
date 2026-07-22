@@ -110,6 +110,30 @@ final class AppModelPerformanceTests: XCTestCase {
         observation.cancel()
     }
 
+    func testShowingSurfacePublishesTheRetainedHiddenSnapshotOnce() async throws {
+        let discoverer = TimestampOnlyDiscovery()
+        let model = AppModel(
+            discoverer: discoverer,
+            processResourceReader: FixedResourceReader(),
+            dockerService: EmptyDockerService()
+        )
+        model.refreshInterval = 0.5
+        let publications = LockedCounter()
+        let observation = model.objectWillChange.sink { publications.increment() }
+        model.startMonitoring()
+        try await waitUntil { await discoverer.callCount() >= 1 }
+        XCTAssertEqual(model.listeners.count, 1)
+        publications.reset()
+
+        model.setMonitoringSurface(.mainWindow, visible: true)
+        XCTAssertEqual(publications.value(), 1)
+        model.setMonitoringSurface(.mainWindow, visible: true)
+        XCTAssertEqual(publications.value(), 1)
+
+        model.pauseMonitoring()
+        observation.cancel()
+    }
+
     private func waitUntil(
         timeout: Duration = .seconds(3),
         condition: @escaping @Sendable () async -> Bool
