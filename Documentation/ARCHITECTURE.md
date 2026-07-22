@@ -244,6 +244,10 @@ The UI-test target launches with `DEVBERTH_UI_TESTING=1`, uses an in-memory V7 c
 
 Performance regressions exercise AppModel publication and lifecycle counts across timestamp-only scans, monitor start/coalescing/sleep/wake/stop ownership, shared AppModel control-plane reads, native metadata invalidation, Docker backoff, health cancellation/concurrency, log batching, and history retention. `PerformanceBenchmarkTests` measures the semantic differ and tagged listener parser without asserting machine-specific timing thresholds.
 
+Monitoring-surface cadence follows actual AppKit window and application-activation state. A closed SwiftUI scene can remain mounted and does not reliably emit `onDisappear`; the main surface therefore observes its containing window's visibility, occlusion, minimize, close, and application activation/hide state. The menu-extra backing window can remain occluded-visible while its popover is closed, so it counts as active only while key and the application is active. Surface callbacks are idempotent at both AppModel and monitor boundaries. AppModel retains fresh resource evidence in the background but sends resource-only SwiftUI publications only when one of those surfaces is genuinely foreground-visible.
+
+Runtime diffs retain high-numbered interface-bound UDP endpoints in the observed snapshot, recent changes, and history, but those volatile client endpoints do not extend transition polling. TCP changes, UDP ports below 49152, and wildcard/loopback UDP changes remain cadence-relevant. This separates observation correctness from scheduling pressure without hiding ephemeral evidence.
+
 ## Monitoring overhead
 
 On 2026-07-21, on an Apple Silicon development Mac with roughly 70 active listener rows:
