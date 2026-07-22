@@ -58,6 +58,7 @@ struct RootView: View {
             }
         } detail: {
             detail
+                .animation(nil, value: selection)
         }
         .toolbar {
             ToolbarItemGroup {
