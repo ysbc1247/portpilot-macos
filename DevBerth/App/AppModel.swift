@@ -30,7 +30,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var servicesBeingValidated = Set<UUID>()
     @Published private(set) var runtimeStatuses: [UUID: ManagedServiceRuntimeStatus] = [:]
     @Published private(set) var runtimeIncidents: [UUID: RuntimeIncidentSummary] = [:]
-    @Published private(set) var processResourceUsage: [Int32: ProcessResourceUsage] = [:]
+    private(set) var processResourceUsage: [Int32: ProcessResourceUsage] = [:]
     @Published private(set) var projectOperations: [UUID: ProjectOperationStatus] = [:]
     @Published private(set) var serviceOperations: [UUID: ServiceOperationStatus] = [:]
 
@@ -62,6 +62,7 @@ final class AppModel: ObservableObject {
     private var powerNotificationObservers: [NSObjectProtocol] = []
     private var lastResourceSampleAt = Date.distantPast
     private var lastResourcePIDs = Set<Int32>()
+    private var visibleMonitoringSurfaces = Set<MonitoringSurface>()
     private var automaticRestartLimiters: [UUID: AutomaticRestartLimiter] = [:]
     var refreshInterval: Double = 2
 
@@ -241,24 +242,26 @@ final class AppModel: ObservableObject {
                 let listenersChanged = !update.diff.added.isEmpty
                     || !update.diff.updated.isEmpty
                     || !update.diff.removed.isEmpty
-                if listenersChanged {
-                    let listenerPublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
-                    objectWillChange.send()
-                    listeners = update.snapshot.listeners
-                    DevBerthPerformance.end(listenerPublishInterval)
-                } else {
-                    listeners = update.snapshot.listeners
-                }
-                let statePublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
                 let resourcePIDs = Set(update.snapshot.listeners.map { $0.process.fingerprint.pid })
+                var sampledResourceUsage: [Int32: ProcessResourceUsage]?
                 if shouldSampleResources(pids: resourcePIDs, mode: update.mode, at: update.snapshot.capturedAt) {
                     let resourceUsage = (try? await processResourceReader.read(pids: resourcePIDs)) ?? [:]
                     lastResourceSampleAt = update.snapshot.capturedAt
                     lastResourcePIDs = resourcePIDs
                     if resourceUsage.isMeaningfullyDifferent(from: processResourceUsage) {
-                        processResourceUsage = resourceUsage
+                        sampledResourceUsage = resourceUsage
                     }
                 }
+                let resourcesChangedWhileVisible = sampledResourceUsage != nil
+                    && !visibleMonitoringSurfaces.isEmpty
+                if listenersChanged || resourcesChangedWhileVisible {
+                    let listenerPublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
+                    objectWillChange.send()
+                    DevBerthPerformance.end(listenerPublishInterval)
+                }
+                listeners = update.snapshot.listeners
+                if let sampledResourceUsage { processResourceUsage = sampledResourceUsage }
+                let statePublishInterval = DevBerthPerformance.begin(.swiftUIStatePublish)
                 if listenersChanged {
                     let currentListenerIDs = Set(listeners.map(\.id))
                     ownershipGraphs = ownershipGraphs.filter { currentListenerIDs.contains($0.key) }
@@ -308,6 +311,11 @@ final class AppModel: ObservableObject {
     }
 
     func setMonitoringSurface(_ surface: MonitoringSurface, visible: Bool) {
+        if visible {
+            visibleMonitoringSurfaces.insert(surface)
+        } else {
+            visibleMonitoringSurfaces.remove(surface)
+        }
         Task { await monitor.setSurface(surface, visible: visible) }
     }
 
