@@ -155,13 +155,18 @@ struct RootView: View {
 }
 
 struct WindowVisibilityReporter: NSViewRepresentable {
+    var requiresKeyWindow = false
     let visibilityChanged: @MainActor (Bool) -> Void
 
     func makeNSView(context: Context) -> WindowVisibilityView {
-        WindowVisibilityView(visibilityChanged: visibilityChanged)
+        WindowVisibilityView(
+            requiresKeyWindow: requiresKeyWindow,
+            visibilityChanged: visibilityChanged
+        )
     }
 
     func updateNSView(_ view: WindowVisibilityView, context: Context) {
+        view.requiresKeyWindow = requiresKeyWindow
         view.visibilityChanged = visibilityChanged
         view.publishCurrentVisibility()
     }
@@ -169,12 +174,17 @@ struct WindowVisibilityReporter: NSViewRepresentable {
 
 @MainActor
 final class WindowVisibilityView: NSView {
+    var requiresKeyWindow: Bool
     var visibilityChanged: @MainActor (Bool) -> Void
     private weak var observedWindow: NSWindow?
     private var observers: [NSObjectProtocol] = []
     private var lastPublishedVisibility: Bool?
 
-    init(visibilityChanged: @escaping @MainActor (Bool) -> Void) {
+    init(
+        requiresKeyWindow: Bool,
+        visibilityChanged: @escaping @MainActor (Bool) -> Void
+    ) {
+        self.requiresKeyWindow = requiresKeyWindow
         self.visibilityChanged = visibilityChanged
         super.init(frame: .zero)
     }
@@ -196,6 +206,7 @@ final class WindowVisibilityView: NSView {
         let visible = observedWindow?.isVisible == true
             && observedWindow?.isMiniaturized == false
             && observedWindow?.occlusionState.contains(.visible) == true
+            && (!requiresKeyWindow || observedWindow?.isKeyWindow == true)
             && !NSApplication.shared.isHidden
         publish(visible)
     }
