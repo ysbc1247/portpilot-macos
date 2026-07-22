@@ -19,3 +19,4 @@
 - [`implementations/github-release-versioning/README.md`](implementations/github-release-versioning/README.md) — automatic per-merge GitHub tags, releases, notes, and recovery
 - [`implementations/agent-workflow/README.md`](implementations/agent-workflow/README.md) — durable save-command and combined-action behavior
 - [`next-steps/README.md`](next-steps/README.md) — latest explicit `save` handoff (created when requested)
+- [`next-steps/history/`](next-steps/history/) — timestamped immutable snapshots of earlier explicit handoffs
