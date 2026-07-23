@@ -14,6 +14,7 @@
 		07815CD4903B9A7A773C234D /* Procfile in Resources */ = {isa = PBXBuildFile; fileRef = E2322C7C87ABC5DCF1D4FED2 /* Procfile */; };
 		08691F5DFD6AE692E9B90F55 /* ProcessResourceUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007377831937A09CF15689B6 /* ProcessResourceUsageProvider.swift */; };
 		087599F30598319F84B03C9C /* Procfile in Resources */ = {isa = PBXBuildFile; fileRef = E2322C7C87ABC5DCF1D4FED2 /* Procfile */; };
+		08D6E7556AF3B91618B5A25F /* ControlHostApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BA6C6AF2C55EE6659CE23 /* ControlHostApplication.swift */; };
 		092116DE5A153F31EA091834 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 88A636E5B0ACD828E53BFEE7 /* MCP */; };
 		0FBEAB65085D6B96BA36A088 /* AdaptiveMonitoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2A1F74276207FD6337DAD56 /* AdaptiveMonitoringTests.swift */; };
 		1021593A3D5B735651B52737 /* ProjectDiscoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7D2E66350D93F603131063B /* ProjectDiscoveryCoordinator.swift */; };
@@ -46,6 +47,7 @@
 		38BA45343523D2D6EE0AA325 /* ProcessResourceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142A7F72CC5FD22348BD5328 /* ProcessResourceModels.swift */; };
 		39322320848A511B859B3725 /* LsofFieldParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D96434C1697DBD20EDEFBE12 /* LsofFieldParserTests.swift */; };
 		3A2E337B8D26966FA162ED09 /* DevBerthMCP in Resources */ = {isa = PBXBuildFile; fileRef = E785FA01656131F5DC9B2C34 /* DevBerthMCP */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3ACB4AD7AED3E864BFDEF5F3 /* ControlHostApplicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73DF6850F2CB643FA3B86E2 /* ControlHostApplicationTests.swift */; };
 		3CA5BA103744C4F94C520C7E /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09908791980E99623C212B2E /* MenuBarView.swift */; };
 		438E73B6BB64889704C8B2C6 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF5D6D125D6194F1977461E /* TestSupport.swift */; };
 		46F7C03681125C5ABF68D6B6 /* PerformanceInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBB3A0E7EEF2DAFA1C5293F /* PerformanceInstrumentation.swift */; };
@@ -340,6 +342,7 @@
 		B53AFBA93CE6CAAE9D5C56D0 /* ProcessCacheIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessCacheIdentityTests.swift; sourceTree = "<group>"; };
 		B60293B6FA7E9809C5E36248 /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
 		B64CE41FDCF28EF30CF8764A /* http_fixture.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = http_fixture.py; sourceTree = "<group>"; };
+		B73DF6850F2CB643FA3B86E2 /* ControlHostApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlHostApplicationTests.swift; sourceTree = "<group>"; };
 		B8ABD88DC29F2A1E8D26EDD2 /* PersistentModelsV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModelsV2.swift; sourceTree = "<group>"; };
 		BDB66FDE2399575F0E8B7A29 /* DevelopmentFixtureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopmentFixtureController.swift; sourceTree = "<group>"; };
 		BDED0BCA6B0E4D5386ED27FB /* DevBerth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DevBerth.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -366,6 +369,7 @@
 		E16BD1DE9E674CA2D3338657 /* ProcessCacheIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessCacheIdentity.swift; sourceTree = "<group>"; };
 		E2322C7C87ABC5DCF1D4FED2 /* Procfile */ = {isa = PBXFileReference; path = Procfile; sourceTree = "<group>"; };
 		E3A23902BF2D1BF8C8C4E288 /* PersistentModelsV4.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModelsV4.swift; sourceTree = "<group>"; };
+		E58BA6C6AF2C55EE6659CE23 /* ControlHostApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlHostApplication.swift; sourceTree = "<group>"; };
 		E5D787963156C51A4B2FE2F2 /* LifecycleModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifecycleModels.swift; sourceTree = "<group>"; };
 		E6E50D20A0E7D0617C12698C /* ProjectOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOrchestrator.swift; sourceTree = "<group>"; };
 		E740BFFFA33887B21DACC0F4 /* OwnerAwareLifecycleRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerAwareLifecycleRouter.swift; sourceTree = "<group>"; };
@@ -734,6 +738,7 @@
 			isa = PBXGroup;
 			children = (
 				A1D8BF217638A90253F3E8F1 /* CapabilityRegistry.swift */,
+				E58BA6C6AF2C55EE6659CE23 /* ControlHostApplication.swift */,
 				98727B3B1F8FD9DA0F29B999 /* ControlProtocol.swift */,
 				8874536D6F42BE575663D244 /* JSONValue.swift */,
 				1CFDC4065A2C392DB3FE7D37 /* UnixControlSocket.swift */,
@@ -744,6 +749,7 @@
 		B339B56753EF85BB649DD782 /* DevBerthMCPTests */ = {
 			isa = PBXGroup;
 			children = (
+				B73DF6850F2CB643FA3B86E2 /* ControlHostApplicationTests.swift */,
 				11976A2DC74E81E3CDC6DC21 /* ControlPlaneAndProtocolTests.swift */,
 			);
 			path = DevBerthMCPTests;
@@ -1383,6 +1389,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4B0B6434A296C97DF84B897A /* CapabilityRegistry.swift in Sources */,
+				08D6E7556AF3B91618B5A25F /* ControlHostApplication.swift in Sources */,
 				5F96559418483B3AA04FC030 /* ControlProtocol.swift in Sources */,
 				1985ED4EC007832FDB468123 /* JSONValue.swift in Sources */,
 				56AC525E2F5042D083C5B20D /* UnixControlSocket.swift in Sources */,
@@ -1393,6 +1400,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3ACB4AD7AED3E864BFDEF5F3 /* ControlHostApplicationTests.swift in Sources */,
 				88F427C09153E9F0E96F9258 /* ControlPlaneAndProtocolTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1715,13 +1723,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = DevBerth/Resources/DevBerth.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVBERTH_DEVELOPMENT_CONTROL_HOST_ALLOWED = NO;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = DevBerth;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 DevBerth contributors.";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/DevBerth-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1742,13 +1748,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = DevBerth/Resources/DevBerth.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVBERTH_DEVELOPMENT_CONTROL_HOST_ALLOWED = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = DevBerth;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 DevBerth contributors.";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Configuration/DevBerth-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
