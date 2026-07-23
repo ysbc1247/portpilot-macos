@@ -13,10 +13,11 @@ Scripts/run-mcp-development
 The script builds Debug app/helper artifacts and prints or runs the project-scoped configuration. Equivalent helper arguments are:
 
 ```text
+DEVBERTH_APP_PATH=/absolute/path/to/Debug/DevBerth.app \
 devberth-mcp serve --stdio --development --workspace /absolute/repository
 ```
 
-The helper starts a separate app host with `--development-control-host`, `DEVBERTH_DEVELOPMENT_CONTROL=1`, and the explicit workspace. The host uses an in-memory V7 container, a separate development socket, application-owned fixtures, and a PID-scoped discoverer. A Release helper rejects `--development` with exit status 64 and exposes no development tools.
+`DEVBERTH_APP_PATH` is mandatory and must identify the exact Debug app built for this development session. The helper validates the bundle identifier, executable, and Debug-only development-host marker before launch; it never falls back to Launch Services or selects an app by product name or bundle identifier. The helper then starts that separate host with `--development-control-host`, `DEVBERTH_DEVELOPMENT_CONTROL=1`, and the explicit workspace. The host uses an in-memory V7 container, a separate development socket, application-owned fixtures, and a PID-scoped discoverer. A Release helper rejects `--development` with exit status 64 and exposes no development tools.
 
 Suggested `.codex/config.toml`:
 
@@ -26,6 +27,9 @@ command = "/absolute/path/to/Debug/devberth-mcp"
 args = ["serve", "--stdio", "--development", "--workspace", "/absolute/repository"]
 startup_timeout_sec = 15
 tool_timeout_sec = 180
+
+[mcp_servers.devberth-development.env]
+DEVBERTH_APP_PATH = "/absolute/path/to/Debug/DevBerth.app"
 ```
 
 ## Development tools

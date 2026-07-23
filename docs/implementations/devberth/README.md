@@ -20,6 +20,16 @@ Validated locally on 2026-07-22 with the repository's warnings-as-errors macOS t
 
 The Phase 2 product identity is DevBerth. `ProductIdentity` and `ProductDataMigrator` preserve the legacy store, log, defaults, and Keychain compatibility boundary. The private GitHub repository retains its legacy name until a separate rename is authorized.
 
+## Application identity and evidence capture
+
+The product name and bundle identifier are compatibility metadata, not a unique runtime selector. The installed Release app, Xcode/DerivedData builds, development-control hosts, UI-test hosts, and temporary fixture apps can all present as DevBerth with `com.ysbc.devberth`. Selecting whichever process is frontmost, asking Launch Services for that bundle identifier, or trusting the Accessibility application name can therefore attach validation or capture work to the wrong host.
+
+Production/public runtime and visual evidence uses `/Applications/DevBerth.app` as the default trust root. Before capture, resolve the running PID back to that exact bundle and executable, confirm production rather than development/test mode, confirm the production control context rather than `~/Library/Application Support/DevBerth/IPC/Development/control.sock`, and compare visible runtime state with the intended live context. The production SwiftData boundary is `~/Library/Application Support/DevBerth.store`; development-control and hosted-test runs remain in-memory or otherwise test-owned and cannot supply production evidence.
+
+This deliberately rejects product name, bundle identifier, window title, frontmost status, and a familiar UI as standalone selectors. If more than one candidate remains or any path/mode/store/socket evidence disagrees, the capture set is invalid and must be discarded rather than relabeled.
+
+Development cleanup follows the same identity rule in reverse. Re-resolve the exact task-owned PID, executable path, development flags, development socket, and isolated persistence mode immediately before stopping it. Cleanup by process name or bundle identifier is forbidden because it can terminate the installed app or another user-owned host. Every retained screenshot or measurement records its exact application source, capture time, build/control/persistence mode, and transformations such as crop or redaction.
+
 Phase 2 domain vocabulary now separates transient `ObservedListener`/`ObservedProcess` evidence from durable `ManagedServiceConfiguration`. V1 `LaunchProfileRecord` naming remains only at the persistence and current-UI compatibility boundary.
 
 The additive V2 schema has independent records for runtime instances, ownership evidence, restart trust, lifecycle events, discovery metadata, sessions, session services, and restore results. V3 adds full fingerprints and controlled-group evidence; V4 adds exact managed-service validation results. Genuine previous-schema fixtures preserve existing data without inventing verification. See `Documentation/DOMAIN_MODEL.md` and `Documentation/RESTART_TRUST_MODEL.md`.
