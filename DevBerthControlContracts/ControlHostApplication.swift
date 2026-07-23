@@ -89,7 +89,9 @@ public enum ControlHostApplication {
             throw ControlHostApplicationError.invalidBundle("CFBundleExecutable is not \(executableName).")
         }
 
-        let developmentAllowed = (plist[developmentAllowedInfoKey] as? NSNumber)?.boolValue == true
+        let developmentAllowed =
+            (plist[developmentAllowedInfoKey] as? NSNumber)?.boolValue == true
+            || (plist[developmentAllowedInfoKey] as? String)?.caseInsensitiveCompare("YES") == .orderedSame
         if requiresDevelopmentPermission {
             guard developmentAllowed else {
                 throw ControlHostApplicationError.developmentBundleRequired
