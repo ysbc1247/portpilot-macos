@@ -1,4 +1,3 @@
-import AppKit
 import DevBerthControlContracts
 import Foundation
 
@@ -36,14 +35,14 @@ actor ControlHostBridge {
 
     private func activateHost() throws {
         if options.developmentMode {
-            let explicit = ProcessInfo.processInfo.environment["DEVBERTH_APP_PATH"].map(URL.init(fileURLWithPath:))
-            let application = explicit ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.ysbc.devberth")
-            guard let executable = application?.appendingPathComponent("Contents/MacOS/DevBerth"),
-                  FileManager.default.isExecutableFile(atPath: executable.path) else {
-                throw MCPBridgeError.hostUnavailable("Set DEVBERTH_APP_PATH to DevBerth.app for an isolated development host.")
+            let application: ControlHostApplicationIdentity
+            do {
+                application = try ControlHostApplication.resolveDevelopment()
+            } catch {
+                throw MCPBridgeError.hostUnavailable(error.localizedDescription)
             }
             let process = Process()
-            process.executableURL = executable
+            process.executableURL = application.executableURL
             process.arguments = ["--development-control-host"]
             var environment = ProcessInfo.processInfo.environment
             environment["DEVBERTH_DEVELOPMENT_CONTROL"] = "1"
@@ -53,9 +52,15 @@ actor ControlHostBridge {
             process.standardError = FileHandle.nullDevice
             try process.run()
         } else {
+            let application: ControlHostApplicationIdentity
+            do {
+                application = try ControlHostApplication.resolveInstalledProduction()
+            } catch {
+                throw MCPBridgeError.hostUnavailable(error.localizedDescription)
+            }
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            process.arguments = ["-gj", "-b", "com.ysbc.devberth"]
+            process.arguments = ["-gj", application.bundleURL.path]
             process.standardOutput = FileHandle.nullDevice
             process.standardError = FileHandle.nullDevice
             try process.run()

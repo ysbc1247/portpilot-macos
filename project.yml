@@ -60,6 +60,11 @@ targets:
         CODE_SIGN_ENTITLEMENTS: DevBerth/Resources/DevBerth.entitlements
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: YES
+      configs:
+        Debug:
+          INFOPLIST_KEY_DevBerthDevelopmentControlHostAllowed: YES
+        Release:
+          INFOPLIST_KEY_DevBerthDevelopmentControlHostAllowed: NO
   DevBerthMCP:
     type: tool
     platform: macOS

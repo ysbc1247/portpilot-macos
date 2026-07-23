@@ -14,6 +14,7 @@
 		07815CD4903B9A7A773C234D /* Procfile in Resources */ = {isa = PBXBuildFile; fileRef = E2322C7C87ABC5DCF1D4FED2 /* Procfile */; };
 		08691F5DFD6AE692E9B90F55 /* ProcessResourceUsageProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007377831937A09CF15689B6 /* ProcessResourceUsageProvider.swift */; };
 		087599F30598319F84B03C9C /* Procfile in Resources */ = {isa = PBXBuildFile; fileRef = E2322C7C87ABC5DCF1D4FED2 /* Procfile */; };
+		08D6E7556AF3B91618B5A25F /* ControlHostApplication.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58BA6C6AF2C55EE6659CE23 /* ControlHostApplication.swift */; };
 		092116DE5A153F31EA091834 /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 88A636E5B0ACD828E53BFEE7 /* MCP */; };
 		0FBEAB65085D6B96BA36A088 /* AdaptiveMonitoringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2A1F74276207FD6337DAD56 /* AdaptiveMonitoringTests.swift */; };
 		1021593A3D5B735651B52737 /* ProjectDiscoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7D2E66350D93F603131063B /* ProjectDiscoveryCoordinator.swift */; };
@@ -366,6 +367,7 @@
 		E16BD1DE9E674CA2D3338657 /* ProcessCacheIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessCacheIdentity.swift; sourceTree = "<group>"; };
 		E2322C7C87ABC5DCF1D4FED2 /* Procfile */ = {isa = PBXFileReference; path = Procfile; sourceTree = "<group>"; };
 		E3A23902BF2D1BF8C8C4E288 /* PersistentModelsV4.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModelsV4.swift; sourceTree = "<group>"; };
+		E58BA6C6AF2C55EE6659CE23 /* ControlHostApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlHostApplication.swift; sourceTree = "<group>"; };
 		E5D787963156C51A4B2FE2F2 /* LifecycleModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifecycleModels.swift; sourceTree = "<group>"; };
 		E6E50D20A0E7D0617C12698C /* ProjectOrchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOrchestrator.swift; sourceTree = "<group>"; };
 		E740BFFFA33887B21DACC0F4 /* OwnerAwareLifecycleRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnerAwareLifecycleRouter.swift; sourceTree = "<group>"; };
@@ -734,6 +736,7 @@
 			isa = PBXGroup;
 			children = (
 				A1D8BF217638A90253F3E8F1 /* CapabilityRegistry.swift */,
+				E58BA6C6AF2C55EE6659CE23 /* ControlHostApplication.swift */,
 				98727B3B1F8FD9DA0F29B999 /* ControlProtocol.swift */,
 				8874536D6F42BE575663D244 /* JSONValue.swift */,
 				1CFDC4065A2C392DB3FE7D37 /* UnixControlSocket.swift */,
@@ -1383,6 +1386,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4B0B6434A296C97DF84B897A /* CapabilityRegistry.swift in Sources */,
+				08D6E7556AF3B91618B5A25F /* ControlHostApplication.swift in Sources */,
 				5F96559418483B3AA04FC030 /* ControlProtocol.swift in Sources */,
 				1985ED4EC007832FDB468123 /* JSONValue.swift in Sources */,
 				56AC525E2F5042D083C5B20D /* UnixControlSocket.swift in Sources */,
@@ -1719,6 +1723,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = DevBerth;
+				INFOPLIST_KEY_DevBerthDevelopmentControlHostAllowed = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 DevBerth contributors.";
@@ -1746,6 +1751,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = DevBerth;
+				INFOPLIST_KEY_DevBerthDevelopmentControlHostAllowed = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 DevBerth contributors.";
