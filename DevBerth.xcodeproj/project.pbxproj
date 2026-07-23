@@ -47,6 +47,7 @@
 		38BA45343523D2D6EE0AA325 /* ProcessResourceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142A7F72CC5FD22348BD5328 /* ProcessResourceModels.swift */; };
 		39322320848A511B859B3725 /* LsofFieldParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D96434C1697DBD20EDEFBE12 /* LsofFieldParserTests.swift */; };
 		3A2E337B8D26966FA162ED09 /* DevBerthMCP in Resources */ = {isa = PBXBuildFile; fileRef = E785FA01656131F5DC9B2C34 /* DevBerthMCP */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3ACB4AD7AED3E864BFDEF5F3 /* ControlHostApplicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B73DF6850F2CB643FA3B86E2 /* ControlHostApplicationTests.swift */; };
 		3CA5BA103744C4F94C520C7E /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09908791980E99623C212B2E /* MenuBarView.swift */; };
 		438E73B6BB64889704C8B2C6 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CF5D6D125D6194F1977461E /* TestSupport.swift */; };
 		46F7C03681125C5ABF68D6B6 /* PerformanceInstrumentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EBB3A0E7EEF2DAFA1C5293F /* PerformanceInstrumentation.swift */; };
@@ -341,6 +342,7 @@
 		B53AFBA93CE6CAAE9D5C56D0 /* ProcessCacheIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessCacheIdentityTests.swift; sourceTree = "<group>"; };
 		B60293B6FA7E9809C5E36248 /* ServiceProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceProtocols.swift; sourceTree = "<group>"; };
 		B64CE41FDCF28EF30CF8764A /* http_fixture.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = http_fixture.py; sourceTree = "<group>"; };
+		B73DF6850F2CB643FA3B86E2 /* ControlHostApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlHostApplicationTests.swift; sourceTree = "<group>"; };
 		B8ABD88DC29F2A1E8D26EDD2 /* PersistentModelsV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModelsV2.swift; sourceTree = "<group>"; };
 		BDB66FDE2399575F0E8B7A29 /* DevelopmentFixtureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopmentFixtureController.swift; sourceTree = "<group>"; };
 		BDED0BCA6B0E4D5386ED27FB /* DevBerth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DevBerth.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -747,6 +749,7 @@
 		B339B56753EF85BB649DD782 /* DevBerthMCPTests */ = {
 			isa = PBXGroup;
 			children = (
+				B73DF6850F2CB643FA3B86E2 /* ControlHostApplicationTests.swift */,
 				11976A2DC74E81E3CDC6DC21 /* ControlPlaneAndProtocolTests.swift */,
 			);
 			path = DevBerthMCPTests;
@@ -1397,6 +1400,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3ACB4AD7AED3E864BFDEF5F3 /* ControlHostApplicationTests.swift in Sources */,
 				88F427C09153E9F0E96F9258 /* ControlPlaneAndProtocolTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
